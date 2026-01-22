@@ -14,7 +14,7 @@ export const AppRoutes = () => {
             <Stack.Navigator initialRouteName={paths.login} screenOptions={{headerShown: false}}>
                 <Stack.Screen name={paths.login} component={LoginScreen} />
                 <Stack.Screen name={paths.register} component={RegisterScreen} />
-                <Stack.Screen name={paths.dashboard} component={DashboardScreen} />
+                <Stack.Screen name={paths.dashboard} component={() => <ProtectedRoutes><DashboardScreen /></ProtectedRoutes>} />
             </Stack.Navigator>
         </NavigationContainer>
     )
