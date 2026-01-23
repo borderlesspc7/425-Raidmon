@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, ActivityIndicator } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { useAuth } from "../hooks/useAuth";
 import { paths } from "./paths";
 import { useNavigation } from "@react-navigation/native";
@@ -15,22 +15,40 @@ export function ProtectedRoutes({ children }: ProtectedRoutesProps) {
 
     React.useEffect(() => {
         if(!loading && !user){
-            navigation.navigate(paths.login);
+            navigation.navigate(paths.login as never);
         }
     }, [loading, user, navigation]);
 
     if(loading){
         return (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#0000ff" />
-                <Text>Loading...</Text>
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#6366F1" />
+                <Text style={styles.loadingText}>Carregando...</Text>
             </View>
         )
     }
 
     if(!user){
-        return null;
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#6366F1" />
+            </View>
+        );
     }
 
     return <>{children}</>;
-}           
+}
+
+const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#F8F9FA",
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: "#6B7280",
+    },
+});           

@@ -1,26 +1,27 @@
-export interface User {
-    uid: string;
+  export interface User {
+    id: string;
     name: string;
     email: string;
+    username?: string;
+    phone?: string;
+    photoURL?: string;
     createdAt: Date;
     updatedAt: Date;
-    role?: "admin" | "user";
   }
   
-  export interface AuthState {
-    user: User | null;
-    loading: boolean;
-    error: string | null;
+  export interface authState {
+      user: User | null;
+      isLoading: boolean;
+      error: string | null;
   }
   
   export interface LoginCredentials {
-    email: string;
-    password: string;
+      email: string;
+      password: string;
   }
   
   export interface RegisterCredentials extends LoginCredentials {
-    name: string;
-    confirmPassword?: string;
-    phone?: string;
-    role?: "admin" | "user";
+      name: string;
+      password: string;
+      confirmPassword: string;
   }
