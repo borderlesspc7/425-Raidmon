@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 
 export type ScreenName =
+  | "LanguageSelection"
   | "Login"
   | "Register"
   | "Dashboard"
@@ -20,7 +21,7 @@ const NavigationContext = createContext<NavigationContextType | undefined>(
 );
 
 export const NavigationProvider = ({ children }: { children: ReactNode }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>("Login");
+  const [currentScreen, setCurrentScreen] = useState<ScreenName>("LanguageSelection");
   const [navigationParams, setNavigationParams] = useState<NavigationParams>({});
 
   const navigate = (screen: ScreenName, params?: NavigationParams) => {

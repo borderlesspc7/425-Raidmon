@@ -13,10 +13,12 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function Register() {
   const { navigate } = useNavigation();
   const { register, loading, error, clearError } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
   
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -31,13 +33,16 @@ export default function Register() {
 
   useEffect(() => {
     clearError();
-  }, []);
+    console.log('Register - Idioma atual:', language);
+  }, [language, clearError]);
+
+  const toggleLanguage = async () => {
+    const newLang = language === 'pt' ? 'es' : 'pt';
+    await setLanguage(newLang);
+  };
 
   const formatPhone = (text: string) => {
-    // Remove tudo que não é número
     const numbers = text.replace(/\D/g, '');
-    
-    // Formata como (XX) XXXXX-XXXX
     if (numbers.length <= 2) {
       return numbers;
     } else if (numbers.length <= 7) {
@@ -53,9 +58,9 @@ export default function Register() {
     switch (field) {
       case 'name':
         if (!value.trim()) {
-          newErrors.name = 'Nome é obrigatório';
+          newErrors.name = t('register.nameRequired');
         } else if (value.trim().length < 3) {
-          newErrors.name = 'Nome deve ter pelo menos 3 caracteres';
+          newErrors.name = t('register.nameMinLength');
         } else {
           delete newErrors.name;
         }
@@ -63,9 +68,9 @@ export default function Register() {
 
       case 'companyName':
         if (!value.trim()) {
-          newErrors.companyName = 'Nome da confecção é obrigatório';
+          newErrors.companyName = t('register.companyNameRequired');
         } else if (value.trim().length < 3) {
-          newErrors.companyName = 'Nome da confecção deve ter pelo menos 3 caracteres';
+          newErrors.companyName = t('register.companyNameMinLength');
         } else {
           delete newErrors.companyName;
         }
@@ -74,9 +79,9 @@ export default function Register() {
       case 'email':
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!value) {
-          newErrors.email = 'E-mail é obrigatório';
+          newErrors.email = t('register.emailRequired');
         } else if (!emailRegex.test(value)) {
-          newErrors.email = 'E-mail inválido';
+          newErrors.email = t('register.emailInvalid');
         } else {
           delete newErrors.email;
         }
@@ -85,9 +90,9 @@ export default function Register() {
       case 'phone':
         const phoneNumbers = value.replace(/\D/g, '');
         if (!value) {
-          newErrors.phone = 'Telefone é obrigatório';
+          newErrors.phone = t('register.phoneRequired');
         } else if (phoneNumbers.length < 10) {
-          newErrors.phone = 'Telefone inválido';
+          newErrors.phone = t('register.phoneInvalid');
         } else {
           delete newErrors.phone;
         }
@@ -95,15 +100,14 @@ export default function Register() {
 
       case 'password':
         if (!value) {
-          newErrors.password = 'Senha é obrigatória';
+          newErrors.password = t('register.passwordRequired');
         } else if (value.length < 6) {
-          newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
+          newErrors.password = t('register.passwordMinLength');
         } else {
           delete newErrors.password;
         }
-        // Validar confirmação se já foi preenchida
         if (confirmPassword && value !== confirmPassword) {
-          newErrors.confirmPassword = 'As senhas não coincidem';
+          newErrors.confirmPassword = t('register.passwordsDontMatch');
         } else if (confirmPassword) {
           delete newErrors.confirmPassword;
         }
@@ -111,9 +115,9 @@ export default function Register() {
 
       case 'confirmPassword':
         if (!value) {
-          newErrors.confirmPassword = 'Confirmação de senha é obrigatória';
+          newErrors.confirmPassword = t('register.confirmPasswordRequired');
         } else if (value !== password) {
-          newErrors.confirmPassword = 'As senhas não coincidem';
+          newErrors.confirmPassword = t('register.passwordsDontMatch');
         } else {
           delete newErrors.confirmPassword;
         }
@@ -126,22 +130,26 @@ export default function Register() {
 
   const handleRegister = async () => {
     const isNameValid = validateField('name', name);
+    const isCompanyNameValid = validateField('companyName', companyName);
     const isEmailValid = validateField('email', email);
+    const isPhoneValid = validateField('phone', phone);
     const isPasswordValid = validateField('password', password);
     const isConfirmPasswordValid = validateField('confirmPassword', confirmPassword);
 
-    if (!isNameValid || !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) {
+    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
       return;
     }
 
     try {
+      const phoneNumbers = phone.replace(/\D/g, '');
       await register({
         name: name.trim(),
+        companyName: companyName.trim(),
         email: email.trim().toLowerCase(),
+        phone: phoneNumbers,
         password,
         confirmPassword,
       });
-      navigate('Dashboard');
     } catch (err) {
       // Erro já é tratado pelo AuthContext
     }
@@ -166,23 +174,32 @@ export default function Register() {
             >
               <MaterialIcons name="arrow-back" size={24} color="#6366F1" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={toggleLanguage}
+              style={styles.languageButton}
+            >
+              <MaterialIcons name="language" size={24} color="#6366F1" />
+              <Text style={styles.languageText}>{language.toUpperCase()}</Text>
+            </TouchableOpacity>
+
             <View style={styles.logoContainer}>
               <MaterialIcons name="content-cut" size={40} color="#FFFFFF" />
             </View>
-            <Text style={styles.title}>Criar Conta</Text>
-            <Text style={styles.subtitle}>Cadastre-se e comece a gerenciar sua confecção</Text>
+            <Text style={styles.title}>{t('register.title')}</Text>
+            <Text style={styles.subtitle}>{t('register.subtitle')}</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Name Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Nome Completo</Text>
+              <Text style={styles.label}>{t('register.name')}</Text>
               <View style={[styles.inputWrapper, errors.name ? styles.inputError : null]}>
                 <MaterialIcons name="person" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Seu nome completo"
+                  placeholder={t('register.namePlaceholder')}
                   placeholderTextColor="#999"
                   value={name}
                   onChangeText={(text) => {
@@ -198,12 +215,12 @@ export default function Register() {
 
             {/* Company Name Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Nome da Confecção</Text>
+              <Text style={styles.label}>{t('register.companyName')}</Text>
               <View style={[styles.inputWrapper, errors.companyName ? styles.inputError : null]}>
                 <MaterialIcons name="business" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Nome da sua confecção"
+                  placeholder={t('register.companyNamePlaceholder')}
                   placeholderTextColor="#999"
                   value={companyName}
                   onChangeText={(text) => {
@@ -219,12 +236,12 @@ export default function Register() {
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>E-mail</Text>
+              <Text style={styles.label}>{t('register.email')}</Text>
               <View style={[styles.inputWrapper, errors.email ? styles.inputError : null]}>
                 <MaterialIcons name="email" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="seu@email.com"
+                  placeholder={t('register.emailPlaceholder')}
                   placeholderTextColor="#999"
                   value={email}
                   onChangeText={(text) => {
@@ -242,12 +259,12 @@ export default function Register() {
 
             {/* Phone Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Telefone</Text>
+              <Text style={styles.label}>{t('register.phone')}</Text>
               <View style={[styles.inputWrapper, errors.phone ? styles.inputError : null]}>
                 <MaterialIcons name="phone" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="(00) 00000-0000"
+                  placeholder={t('register.phonePlaceholder')}
                   placeholderTextColor="#999"
                   value={phone}
                   onChangeText={(text) => {
@@ -265,12 +282,12 @@ export default function Register() {
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Senha</Text>
+              <Text style={styles.label}>{t('register.password')}</Text>
               <View style={[styles.inputWrapper, errors.password ? styles.inputError : null]}>
                 <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t('register.passwordPlaceholder')}
                   placeholderTextColor="#999"
                   value={password}
                   onChangeText={(text) => {
@@ -299,12 +316,12 @@ export default function Register() {
 
             {/* Confirm Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirmar Senha</Text>
+              <Text style={styles.label}>{t('register.confirmPassword')}</Text>
               <View style={[styles.inputWrapper, errors.confirmPassword ? styles.inputError : null]}>
                 <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Digite a senha novamente"
+                  placeholder={t('register.confirmPasswordPlaceholder')}
                   placeholderTextColor="#999"
                   value={confirmPassword}
                   onChangeText={(text) => {
@@ -347,17 +364,17 @@ export default function Register() {
               {loading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.buttonText}>Criar Conta</Text>
+                <Text style={styles.buttonText}>{t('register.createAccount')}</Text>
               )}
             </TouchableOpacity>
 
             {/* Login Link */}
             <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Já tem uma conta? </Text>
+              <Text style={styles.loginText}>{t('register.hasAccount')}</Text>
               <TouchableOpacity
                 onPress={() => navigate('Login')}
               >
-                <Text style={styles.loginLink}>Entrar</Text>
+                <Text style={styles.loginLink}>{t('register.login')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -401,6 +418,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  languageButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  languageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+    marginLeft: 4,
   },
   logoContainer: {
     width: 80,

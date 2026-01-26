@@ -1,31 +1,65 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
 import Dashboard from "../pages/Dashboard/Dashboard";
+import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
+import { useLanguage } from "../contexts/LanguageContext";
+
+const LANGUAGE_STORAGE_KEY = '@costura_conectada:language';
 
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
   const { user, loading } = useAuth();
+  const { language } = useLanguage();
+  const [checkingLanguage, setCheckingLanguage] = useState(true);
+
+  // Verificar se já tem idioma salvo na primeira vez
+  useEffect(() => {
+    const checkLanguage = async () => {
+      try {
+        const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+        // Se já tem idioma salvo (no storage ou no perfil do usuário), pula a tela de seleção
+        if (savedLanguage || user?.language) {
+          if (currentScreen === "LanguageSelection") {
+            if (user) {
+              navigate("Dashboard");
+            } else {
+              navigate("Login");
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar idioma:', error);
+      } finally {
+        setCheckingLanguage(false);
+      }
+    };
+
+    if (!loading) {
+      checkLanguage();
+    }
+  }, [loading, user, currentScreen, navigate]);
 
   // Redirecionar para Dashboard se estiver autenticado e na tela de Login/Register
   useEffect(() => {
-    if (!loading && user && (currentScreen === "Login" || currentScreen === "Register")) {
+    if (!loading && !checkingLanguage && user && (currentScreen === "Login" || currentScreen === "Register")) {
       navigate("Dashboard");
     }
-  }, [user, loading, currentScreen, navigate]);
+  }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
   // Redirecionar para Login se não estiver autenticado e tentar acessar Dashboard
   useEffect(() => {
-    if (!loading && !user && currentScreen === "Dashboard") {
+    if (!loading && !checkingLanguage && !user && currentScreen === "Dashboard") {
       navigate("Login");
     }
-  }, [user, loading, currentScreen, navigate]);
+  }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
-  // Mostrar loading enquanto verifica autenticação
-  if (loading) {
+  // Mostrar loading enquanto verifica autenticação ou idioma
+  if (loading || checkingLanguage) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
         <ActivityIndicator size="large" color="#6366F1" />
@@ -35,6 +69,8 @@ export const AppRoutes = () => {
 
   // Renderizar tela baseada no currentScreen
   switch (currentScreen) {
+    case "LanguageSelection":
+      return <LanguageSelection />;
     case "Login":
       return <Login />;
     case "Register":
@@ -46,6 +82,6 @@ export const AppRoutes = () => {
       }
       return <Login />;
     default:
-      return <Login />;
+      return <LanguageSelection />;
   }
 };

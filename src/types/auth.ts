@@ -1,3 +1,5 @@
+  export type Language = 'pt' | 'es';
+
   export interface User {
     id: string;
     name: string;
@@ -5,6 +7,7 @@
     username?: string;
     phone?: string;
     photoURL?: string;
+    language?: Language;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -21,7 +24,9 @@
   }
   
   export interface RegisterCredentials extends LoginCredentials {
-      name: string;
-      password: string;
-      confirmPassword: string;
+    name: string;
+    companyName?: string;
+    phone?: string;
+    password: string;
+    confirmPassword?: string;
   }

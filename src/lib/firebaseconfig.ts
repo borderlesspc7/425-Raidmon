@@ -14,6 +14,9 @@ const firebaseConfig = {
 } as const;
 
 const app = initializeApp(firebaseConfig);
+
+// Nota: O aviso sobre AsyncStorage é apenas informativo
+// Para React Native, a persistência é gerenciada automaticamente pelo Firebase
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);

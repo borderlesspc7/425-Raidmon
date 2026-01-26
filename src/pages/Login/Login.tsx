@@ -14,10 +14,12 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function Login() {
   const { navigate } = useNavigation();
   const { login, loading, error, clearError } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,16 +29,22 @@ export default function Login() {
 
   useEffect(() => {
     clearError();
-  }, []);
+    console.log('Login - Idioma atual:', language);
+  }, [language, clearError]);
+
+  const toggleLanguage = async () => {
+    const newLang = language === 'pt' ? 'es' : 'pt';
+    await setLanguage(newLang);
+  };
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
-      setEmailError('E-mail é obrigatório');
+      setEmailError(t('login.emailRequired'));
       return false;
     }
     if (!emailRegex.test(email)) {
-      setEmailError('E-mail inválido');
+      setEmailError(t('login.emailInvalid'));
       return false;
     }
     setEmailError('');
@@ -45,11 +53,11 @@ export default function Login() {
 
   const validatePassword = (password: string) => {
     if (!password) {
-      setPasswordError('Senha é obrigatória');
+      setPasswordError(t('login.passwordRequired'));
       return false;
     }
     if (password.length < 6) {
-      setPasswordError('Senha deve ter pelo menos 6 caracteres');
+      setPasswordError(t('login.passwordMinLength'));
       return false;
     }
     setPasswordError('');
@@ -84,23 +92,31 @@ export default function Login() {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
+            <TouchableOpacity
+              onPress={toggleLanguage}
+              style={styles.languageButton}
+            >
+              <MaterialIcons name="language" size={24} color="#6366F1" />
+              <Text style={styles.languageText}>{language.toUpperCase()}</Text>
+            </TouchableOpacity>
+
             <View style={styles.logoContainer}>
               <MaterialIcons name="content-cut" size={50} color="#FFFFFF" />
             </View>
-            <Text style={styles.title}>Costura Conectada</Text>
-            <Text style={styles.subtitle}>Bem-vindo de volta!</Text>
+            <Text style={styles.title}>{t('login.title')}</Text>
+            <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>E-mail</Text>
+              <Text style={styles.label}>{t('login.email')}</Text>
               <View style={[styles.inputWrapper, emailError ? styles.inputError : null]}>
                 <MaterialIcons name="email" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="seu@email.com"
+                  placeholder={t('login.emailPlaceholder')}
                   placeholderTextColor="#999"
                   value={email}
                   onChangeText={(text) => {
@@ -118,12 +134,12 @@ export default function Login() {
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Senha</Text>
+              <Text style={styles.label}>{t('login.password')}</Text>
               <View style={[styles.inputWrapper, passwordError ? styles.inputError : null]}>
                 <MaterialIcons name="lock" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="••••••••"
+                  placeholder={t('login.passwordPlaceholder')}
                   placeholderTextColor="#999"
                   value={password}
                   onChangeText={(text) => {
@@ -166,17 +182,17 @@ export default function Login() {
               {loading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.buttonText}>Entrar</Text>
+                <Text style={styles.buttonText}>{t('login.enter')}</Text>
               )}
             </TouchableOpacity>
 
             {/* Register Link */}
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Não tem uma conta? </Text>
+              <Text style={styles.registerText}>{t('login.noAccount')}</Text>
               <TouchableOpacity
                 onPress={() => navigate('Register')}
               >
-                <Text style={styles.registerLink}>Cadastre-se</Text>
+                <Text style={styles.registerLink}>{t('login.register')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -203,6 +219,29 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 48,
+    position: 'relative',
+  },
+  languageButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  languageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6366F1',
+    marginLeft: 4,
   },
   logoContainer: {
     width: 100,
