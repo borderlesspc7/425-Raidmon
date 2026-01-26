@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {paths} from '../../routes/paths';
 
 export default function Login() {
   const { navigate } = useNavigation();
@@ -92,6 +93,15 @@ export default function Login() {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
+
+
+            <TouchableOpacity onPress={() => navigate(paths.languageSelection as never)} style={styles.backButton}>
+              <MaterialIcons name="arrow-back-ios"
+                size={24}
+                color="#6366F1"
+              />
+            </TouchableOpacity>
+            
             <TouchableOpacity
               onPress={toggleLanguage}
               style={styles.languageButton}
@@ -236,6 +246,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
   },
   languageText: {
     fontSize: 12,
