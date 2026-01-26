@@ -251,6 +251,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
+    padding: 12,
   },
   languageText: {
     fontSize: 12,
