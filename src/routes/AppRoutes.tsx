@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Text as RNText } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
@@ -14,7 +14,7 @@ const LANGUAGE_STORAGE_KEY = '@costura_conectada:language';
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
   const { user, loading } = useAuth();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [checkingLanguage, setCheckingLanguage] = useState(true);
 
   // Verificar se já tem idioma salvo na primeira vez
@@ -76,9 +76,30 @@ export const AppRoutes = () => {
     case "Register":
       return <Register />;
     case "Dashboard":
-      // Só mostrar Dashboard se estiver autenticado
+    case "Profile":
+    case "Workshops":
+    case "Cuts":
+    case "Batches":
+    case "WorkshopStatus":
+    case "FinishedProduction":
+    case "ReceivePieces":
+    case "Payments":
+    case "FinancialHistory":
+    case "GeneralHistory":
+    case "Metrics":
+    case "Plans":
+      // Só mostrar telas protegidas se estiver autenticado
       if (user) {
-        return <Dashboard />;
+        if (currentScreen === "Dashboard") {
+          return <Dashboard />;
+        }
+        // Placeholder para outras telas - você pode criar componentes específicos depois
+        return (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
+            <RNText style={{ fontSize: 18, color: "#1F2937", fontWeight: "600" }}>{currentScreen}</RNText>
+            <RNText style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>{t('common.loading')}</RNText>
+          </View>
+        );
       }
       return <Login />;
     default:

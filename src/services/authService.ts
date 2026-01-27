@@ -50,6 +50,8 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       phone: userData.phone,
       photoURL: userData.photoURL || firebaseUser.photoURL || '',
       language: userData.language || 'pt',
+      cpf: userData.cpf || '',
+      rg: userData.rg || '',
       createdAt: convertTimestampToDate(userData.createdAt),
       updatedAt: convertTimestampToDate(userData.updatedAt),
     };
@@ -86,6 +88,8 @@ export const authService = {
         phone: userData.phone,
         photoURL: userData.photoURL || firebaseUser.photoURL || '',
         language: userData.language || 'pt',
+        cpf: userData.cpf || '',
+        rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
         updatedAt: new Date(),
       };
@@ -146,6 +150,8 @@ export const authService = {
         id: firebaseUser.uid,
         name: credentials.name,
         email: credentials.email,
+        cpf: credentials.cpf,
+        rg: credentials.rg,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -215,6 +221,8 @@ export const authService = {
         phone: userData.phone,
         photoURL: userData.photoURL || '',
         language: userData.language || 'pt',
+        cpf: userData.cpf || '',
+        rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
         updatedAt: convertTimestampToDate(userData.updatedAt),
       };

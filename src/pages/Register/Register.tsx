@@ -24,6 +24,8 @@ export default function Register() {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [rg, setRg] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -98,6 +100,28 @@ export default function Register() {
         }
         break;
 
+      case 'cpf':
+        const cpfRegex = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$/;
+        if (!value) {
+          newErrors.cpf = t('register.cpfRequired');
+        } else if (!cpfRegex.test(value)) {
+          newErrors.cpf = t('register.cpfInvalid');
+        } else {
+          delete newErrors.cpf;
+        }
+        break;
+
+      case 'rg':
+        const rgRegex = /^[0-9]{2}\.[0-9]{3}\.[0-9]{3}-[0-9]{1}$/;
+        if (!value) {
+          newErrors.rg = t('register.rgRequired');
+        } else if (!rgRegex.test(value)) {
+          newErrors.rg = t('register.rgInvalid');
+        } else {
+          delete newErrors.rg;
+        }
+        break;
+
       case 'password':
         if (!value) {
           newErrors.password = t('register.passwordRequired');
@@ -135,8 +159,9 @@ export default function Register() {
     const isPhoneValid = validateField('phone', phone);
     const isPasswordValid = validateField('password', password);
     const isConfirmPasswordValid = validateField('confirmPassword', confirmPassword);
-
-    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
+    const isCpfValid = validateField('cpf', cpf);
+    const isRgValid = validateField('rg', rg);
+    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid || !isCpfValid || !isRgValid) {
       return;
     }
 
@@ -149,6 +174,8 @@ export default function Register() {
         phone: phoneNumbers,
         password,
         confirmPassword,
+        cpf,
+        rg,
       });
     } catch (err) {
       // Erro já é tratado pelo AuthContext
@@ -278,6 +305,48 @@ export default function Register() {
                 />
               </View>
               {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t('register.cpf')}</Text>
+              <View style={[styles.inputWrapper, errors.cpf ? styles.inputError : null]}>
+                <MaterialIcons name="phone" size={20} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('register.cpfPlaceholder')}
+                  placeholderTextColor="#999"
+                  value={cpf}
+                  onChangeText={(text) => {
+                    setCpf(text);
+                    if (errors.cpf) validateField('cpf', text);
+                  }}
+                  onBlur={() => validateField('cpf', cpf)}
+                  keyboardType="numeric"
+                  maxLength={15}
+                />
+              </View>
+              {errors.cpf ? <Text style={styles.errorText}>{errors.cpf}</Text> : null}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t('register.rg')}</Text>
+              <View style={[styles.inputWrapper, errors.rg ? styles.inputError : null]}>
+                <MaterialIcons name="person" size={20} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('register.rgPlaceholder')}
+                  placeholderTextColor="#999"
+                  value={rg}
+                  onChangeText={(text) => {
+                    setRg(text);
+                    if (errors.rg) validateField('rg', text);
+                  }}
+                  onBlur={() => validateField('rg', rg)}
+                  keyboardType="numeric"
+                  maxLength={15}
+                />
+              </View>
+              {errors.rg ? <Text style={styles.errorText}>{errors.rg}</Text> : null}
             </View>
 
             {/* Password Input */}

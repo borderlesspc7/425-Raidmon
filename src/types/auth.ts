@@ -8,6 +8,8 @@
     phone?: string;
     photoURL?: string;
     language?: Language;
+    cpf: string;
+    rg: string;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -29,4 +31,6 @@
     phone?: string;
     password: string;
     confirmPassword?: string;
+    cpf: string;
+    rg: string;
   }

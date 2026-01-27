@@ -5,6 +5,18 @@ export type ScreenName =
   | "Login"
   | "Register"
   | "Dashboard"
+  | "Profile"
+  | "Workshops"
+  | "Cuts"
+  | "Batches"
+  | "WorkshopStatus"
+  | "FinishedProduction"
+  | "ReceivePieces"
+  | "Payments"
+  | "FinancialHistory"
+  | "GeneralHistory"
+  | "Metrics"
+  | "Plans"
 
 interface NavigationParams {
   userId?: string;
