@@ -5,6 +5,7 @@ import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
+import Workshops from "../pages/Workshops/Workshops";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -92,6 +93,9 @@ export const AppRoutes = () => {
       if (user) {
         if (currentScreen === "Dashboard") {
           return <Dashboard />;
+        }
+        if (currentScreen === "Workshops") {
+          return <Workshops />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (

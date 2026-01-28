@@ -6,6 +6,7 @@
     email: string;
     username?: string;
     phone?: string;
+    companyName?: string;
     photoURL?: string;
     language?: Language;
     cpf: string;
