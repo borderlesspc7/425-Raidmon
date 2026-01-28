@@ -37,56 +37,43 @@ export default function Header({ onMenuPress }: HeaderProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Left Section - Logo and Menu */}
+        {/* Left Section - Menu and Logo */}
         <View style={styles.leftSection}>
           {onMenuPress && (
             <TouchableOpacity
               onPress={onMenuPress}
               style={styles.menuButton}
             >
-              <MaterialIcons name="menu" size={28} color="#1F2937" />
+              <MaterialIcons name="menu" size={26} color="#1F2937" />
             </TouchableOpacity>
           )}
           <View style={styles.logoContainer}>
-            <MaterialIcons name="content-cut" size={24} color="#6366F1" />
+            <MaterialIcons name="content-cut" size={22} color="#6366F1" />
           </View>
-          <Text style={styles.logoText}>Costura Conectada</Text>
+          <Text style={styles.logoText} numberOfLines={1}>Costura Conectada</Text>
         </View>
 
-        {/* Right Section - Language, User, Logout */}
+        {/* Right Section - Compact actions */}
         <View style={styles.rightSection}>
           {/* Language Toggle */}
           <TouchableOpacity
             onPress={toggleLanguage}
-            style={styles.languageButton}
+            style={styles.iconButton}
           >
-            <MaterialIcons name="language" size={20} color="#6366F1" />
-            <Text style={styles.languageText}>{language.toUpperCase()}</Text>
+            <MaterialIcons name="language" size={22} color="#6366F1" />
           </TouchableOpacity>
 
-          {/* User Info */}
+          {/* User Avatar */}
           {user && (
-            <View style={styles.userContainer}>
-              <View style={styles.userAvatar}>
-                <MaterialIcons name="person" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName} numberOfLines={1}>
-                  {user.name}
-                </Text>
-                {user.companyName && (
-                  <Text style={styles.userCompany} numberOfLines={1}>
-                    {user.companyName}
-                  </Text>
-                )}
-              </View>
-            </View>
+            <TouchableOpacity style={styles.userAvatar}>
+              <MaterialIcons name="person" size={18} color="#6366F1" />
+            </TouchableOpacity>
           )}
 
           {/* Logout Button */}
           <TouchableOpacity
             onPress={handleLogout}
-            style={styles.logoutButton}
+            style={styles.iconButton}
           >
             <MaterialIcons name="logout" size={20} color="#EF4444" />
           </TouchableOpacity>
@@ -104,8 +91,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -114,55 +101,45 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    minHeight: 60,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginRight: 8,
   },
   menuButton: {
-    marginRight: 12,
-    padding: 4,
+    padding: 6,
+    marginRight: 8,
   },
   logoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F0F4FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   logoText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#1F2937',
+    flex: 1,
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  languageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F0F4FF',
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-  },
-  languageText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6366F1',
-    marginLeft: 4,
-  },
-  userContainer: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    maxWidth: 200,
   },
   userAvatar: {
     width: 36,
@@ -171,23 +148,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F4FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  userCompany: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  logoutButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#FEE2E2',
   },
 });

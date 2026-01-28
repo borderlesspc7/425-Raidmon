@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -62,57 +63,60 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
       />
       
       {/* Sidebar */}
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t('navigation.menu')}</Text>
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeButton}
-          >
-            <MaterialIcons name="close" size={24} color="#1F2937" />
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{t('navigation.menu')}</Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="close" size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
-          {menuItems.map((item) => {
-            const isActive = currentRoute === item.route;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.menuItem,
-                  isActive && styles.menuItemActive,
-                ]}
-                onPress={() => handleNavigate(item.route)}
-                activeOpacity={0.7}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  isActive && styles.iconContainerActive,
-                ]}>
-                  <MaterialIcons
-                    name={item.icon}
-                    size={22}
-                    color={isActive ? '#6366F1' : '#6B7280'}
-                  />
-                </View>
-                <Text style={[
-                  styles.menuText,
-                  isActive && styles.menuTextActive,
-                ]}>
-                  {t(item.labelKey)}
-                </Text>
-                {isActive && (
-                  <View style={styles.activeIndicator} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {menuItems.map((item) => {
+              const isActive = currentRoute === item.route;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.menuItem,
+                    isActive && styles.menuItemActive,
+                  ]}
+                  onPress={() => handleNavigate(item.route)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.iconContainer,
+                    isActive && styles.iconContainerActive,
+                  ]}>
+                    <MaterialIcons
+                      name={item.icon}
+                      size={20}
+                      color={isActive ? '#6366F1' : '#6B7280'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.menuText,
+                    isActive && styles.menuTextActive,
+                  ]}>
+                    {t(item.labelKey)}
+                  </Text>
+                  {isActive && (
+                    <View style={styles.activeIndicator} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </SafeAreaView>
     </>
   );
 }
@@ -127,7 +131,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 998,
   },
-  container: {
+  safeArea: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -135,6 +139,10 @@ const styles = StyleSheet.create({
     width: 280,
     backgroundColor: '#FFFFFF',
     zIndex: 999,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.1,
@@ -145,11 +153,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     backgroundColor: '#F8F9FA',
+    minHeight: 56,
   },
   headerTitle: {
     fontSize: 18,
@@ -162,19 +171,22 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingVertical: 8,
+  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     position: 'relative',
   },
   menuItemActive: {
     backgroundColor: '#F0F4FF',
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
@@ -186,7 +198,7 @@ const styles = StyleSheet.create({
   },
   menuText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
     color: '#374151',
   },

@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
@@ -52,6 +53,80 @@ export default function Register() {
     } else {
       return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
     }
+  };
+
+  const formatCPF = (text: string) => {
+    const numbers = text.replace(/\D/g, '');
+    if (numbers.length <= 3) {
+      return numbers;
+    } else if (numbers.length <= 6) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    } else if (numbers.length <= 9) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    } else {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+    }
+  };
+
+  const formatRG = (text: string) => {
+    const numbers = text.replace(/\D/g, '');
+    if (numbers.length <= 2) {
+      return numbers;
+    } else if (numbers.length <= 5) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2)}`;
+    } else if (numbers.length <= 8) {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`;
+    } else {
+      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}-${numbers.slice(8, 9)}`;
+    }
+  };
+
+  const validateCPF = (cpf: string): boolean => {
+    const numbers = cpf.replace(/\D/g, '');
+    
+    // Verifica se tem 11 dígitos
+    if (numbers.length !== 11) {
+      return false;
+    }
+
+    // Verifica se todos os dígitos são iguais (CPF inválido)
+    if (/^(\d)\1{10}$/.test(numbers)) {
+      return false;
+    }
+
+    // Validação dos dígitos verificadores
+    let sum = 0;
+    let remainder;
+
+    // Valida primeiro dígito
+    for (let i = 1; i <= 9; i++) {
+      sum += parseInt(numbers.substring(i - 1, i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numbers.substring(9, 10))) {
+      return false;
+    }
+
+    // Valida segundo dígito
+    sum = 0;
+    for (let i = 1; i <= 10; i++) {
+      sum += parseInt(numbers.substring(i - 1, i)) * (12 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numbers.substring(10, 11))) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateRG = (rg: string): boolean => {
+    const numbers = rg.replace(/\D/g, '');
+    // RG brasileiro geralmente tem 8 ou 9 dígitos
+    // Vamos aceitar de 7 a 9 dígitos para flexibilidade
+    return numbers.length >= 7 && numbers.length <= 9;
   };
 
   const validateField = (field: string, value: string) => {
@@ -101,24 +176,30 @@ export default function Register() {
         break;
 
       case 'cpf':
-        const cpfRegex = /^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$/;
-        if (!value) {
+        if (!value || !value.trim()) {
           newErrors.cpf = t('register.cpfRequired');
-        } else if (!cpfRegex.test(value)) {
-          newErrors.cpf = t('register.cpfInvalid');
         } else {
-          delete newErrors.cpf;
+          const cpfNumbers = value.replace(/\D/g, '');
+          if (cpfNumbers.length !== 11) {
+            newErrors.cpf = t('register.cpfInvalid');
+          } else if (!validateCPF(cpfNumbers)) {
+            newErrors.cpf = t('register.cpfInvalid');
+          } else {
+            delete newErrors.cpf;
+          }
         }
         break;
 
       case 'rg':
-        const rgRegex = /^[0-9]{2}\.[0-9]{3}\.[0-9]{3}-[0-9]{1}$/;
-        if (!value) {
+        if (!value || !value.trim()) {
           newErrors.rg = t('register.rgRequired');
-        } else if (!rgRegex.test(value)) {
-          newErrors.rg = t('register.rgInvalid');
         } else {
-          delete newErrors.rg;
+          const rgNumbers = value.replace(/\D/g, '');
+          if (rgNumbers.length < 7 || rgNumbers.length > 9) {
+            newErrors.rg = t('register.rgInvalid');
+          } else {
+            delete newErrors.rg;
+          }
         }
         break;
 
@@ -211,7 +292,11 @@ export default function Register() {
             </TouchableOpacity>
 
             <View style={styles.logoContainer}>
-              <MaterialIcons name="content-cut" size={40} color="#FFFFFF" />
+              <Image 
+                source={require('../../../assets/logo1.jpeg')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.title}>{t('register.title')}</Text>
             <Text style={styles.subtitle}>{t('register.subtitle')}</Text>
@@ -307,43 +392,47 @@ export default function Register() {
               {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
             </View>
 
+            {/* CPF Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>{t('register.cpf')}</Text>
               <View style={[styles.inputWrapper, errors.cpf ? styles.inputError : null]}>
-                <MaterialIcons name="phone" size={20} color="#6B7280" style={styles.inputIcon} />
+                <MaterialIcons name="badge" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('register.cpfPlaceholder')}
                   placeholderTextColor="#999"
                   value={cpf}
                   onChangeText={(text) => {
-                    setCpf(text);
-                    if (errors.cpf) validateField('cpf', text);
+                    const formatted = formatCPF(text);
+                    setCpf(formatted);
+                    if (errors.cpf) validateField('cpf', formatted);
                   }}
                   onBlur={() => validateField('cpf', cpf)}
                   keyboardType="numeric"
-                  maxLength={15}
+                  maxLength={14}
                 />
               </View>
               {errors.cpf ? <Text style={styles.errorText}>{errors.cpf}</Text> : null}
             </View>
 
+            {/* RG Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>{t('register.rg')}</Text>
               <View style={[styles.inputWrapper, errors.rg ? styles.inputError : null]}>
-                <MaterialIcons name="person" size={20} color="#6B7280" style={styles.inputIcon} />
+                <MaterialIcons name="credit-card" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder={t('register.rgPlaceholder')}
                   placeholderTextColor="#999"
                   value={rg}
                   onChangeText={(text) => {
-                    setRg(text);
-                    if (errors.rg) validateField('rg', text);
+                    const formatted = formatRG(text);
+                    setRg(formatted);
+                    if (errors.rg) validateField('rg', formatted);
                   }}
                   onBlur={() => validateField('rg', rg)}
                   keyboardType="numeric"
-                  maxLength={15}
+                  maxLength={12}
                 />
               </View>
               {errors.rg ? <Text style={styles.errorText}>{errors.rg}</Text> : null}
@@ -511,19 +600,24 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#6366F1',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     marginTop: 20,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 28,

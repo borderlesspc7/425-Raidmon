@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
@@ -93,13 +94,8 @@ export default function Login() {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-
-
             <TouchableOpacity onPress={() => navigate(paths.languageSelection as never)} style={styles.backButton}>
-              <MaterialIcons name="arrow-back-ios"
-                size={24}
-                color="#6366F1"
-              />
+              <MaterialIcons name="arrow-back-ios" size={24} color="#6366F1" />
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -111,7 +107,11 @@ export default function Login() {
             </TouchableOpacity>
 
             <View style={styles.logoContainer}>
-              <MaterialIcons name="content-cut" size={50} color="#FFFFFF" />
+              <Image 
+                source={require('../../../assets/logo1.jpeg')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.title}>{t('login.title')}</Text>
             <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
@@ -260,18 +260,23 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#6366F1',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 32,
