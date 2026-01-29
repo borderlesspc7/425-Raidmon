@@ -6,11 +6,12 @@ import Register from "../pages/Register/Register";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import Workshops from "../pages/Workshops/Workshops";
+import Cuts from "../pages/Cuts/Cuts";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
 
-const LANGUAGE_STORAGE_KEY = '@costura_conectada:language';
+const LANGUAGE_STORAGE_KEY = "@costura_conectada:language";
 
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
@@ -34,7 +35,7 @@ export const AppRoutes = () => {
           }
         }
       } catch (error) {
-        console.error('Erro ao verificar idioma:', error);
+        console.error("Erro ao verificar idioma:", error);
       } finally {
         setCheckingLanguage(false);
       }
@@ -47,14 +48,24 @@ export const AppRoutes = () => {
 
   // Redirecionar para Dashboard se estiver autenticado e na tela de Login/Register
   useEffect(() => {
-    if (!loading && !checkingLanguage && user && (currentScreen === "Login" || currentScreen === "Register")) {
+    if (
+      !loading &&
+      !checkingLanguage &&
+      user &&
+      (currentScreen === "Login" || currentScreen === "Register")
+    ) {
       navigate("Dashboard");
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
   // Redirecionar para Login se não estiver autenticado e tentar acessar Dashboard
   useEffect(() => {
-    if (!loading && !checkingLanguage && !user && currentScreen === "Dashboard") {
+    if (
+      !loading &&
+      !checkingLanguage &&
+      !user &&
+      currentScreen === "Dashboard"
+    ) {
       navigate("Login");
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
@@ -62,7 +73,14 @@ export const AppRoutes = () => {
   // Mostrar loading enquanto verifica autenticação ou idioma
   if (loading || checkingLanguage) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#F8F9FA",
+        }}
+      >
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
@@ -97,11 +115,27 @@ export const AppRoutes = () => {
         if (currentScreen === "Workshops") {
           return <Workshops />;
         }
+        if (currentScreen === "Cuts") {
+          return <Cuts />;
+        }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F8F9FA" }}>
-            <RNText style={{ fontSize: 18, color: "#1F2937", fontWeight: "600" }}>{currentScreen}</RNText>
-            <RNText style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>{t('common.loading')}</RNText>
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "#F8F9FA",
+            }}
+          >
+            <RNText
+              style={{ fontSize: 18, color: "#1F2937", fontWeight: "600" }}
+            >
+              {currentScreen}
+            </RNText>
+            <RNText style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>
+              {t("common.loading")}
+            </RNText>
           </View>
         );
       }
