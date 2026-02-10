@@ -7,6 +7,7 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import Workshops from "../pages/Workshops/Workshops";
 import Cuts from "../pages/Cuts/Cuts";
+import Profile from "../pages/Profile/Profile";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -111,6 +112,9 @@ export const AppRoutes = () => {
       if (user) {
         if (currentScreen === "Dashboard") {
           return <Dashboard />;
+        }
+        if (currentScreen === "Profile") {
+          return <Profile />;
         }
         if (currentScreen === "Workshops") {
           return <Workshops />;
