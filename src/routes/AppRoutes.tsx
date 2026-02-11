@@ -8,6 +8,7 @@ import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import Workshops from "../pages/Workshops/Workshops";
 import Cuts from "../pages/Cuts/Cuts";
 import Profile from "../pages/Profile/Profile";
+import Batches from "../pages/Batches/Batches";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -121,6 +122,9 @@ export const AppRoutes = () => {
         }
         if (currentScreen === "Cuts") {
           return <Cuts />;
+        }
+        if (currentScreen === "Batches") {
+          return <Batches />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (
