@@ -95,8 +95,7 @@ export async function getWorkshopsByUser(userId: string): Promise<Workshop[]> {
 
     const q = query(
       collection(db, WORKSHOPS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', userId)
     );
 
     const querySnapshot = await getDocs(q);
@@ -106,7 +105,8 @@ export async function getWorkshopsByUser(userId: string): Promise<Workshop[]> {
       workshops.push(convertFirestoreToWorkshop(doc.id, doc.data()));
     });
 
-    return workshops;
+    // Ordenar em memória por data de criação (mais recente primeiro)
+    return workshops.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error: any) {
     console.error('Error fetching workshops:', error);
     throw new Error(error.message || 'Erro ao buscar oficinas');

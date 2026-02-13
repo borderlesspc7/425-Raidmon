@@ -93,13 +93,15 @@ export async function getBatchesByUser(userId: string): Promise<Batch[]> {
     const q = query(
       collection(db, BATCHES_COLLECTION),
       where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) =>
+    const batches = querySnapshot.docs.map((doc) =>
       convertFirestoreToBatch(doc.id, doc.data()),
     );
+    
+    // Ordenar em memória por data de criação (mais recente primeiro)
+    return batches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error: any) {
     console.error("Erro ao buscar lotes:", error);
     throw new Error(error.message || "Erro ao buscar lotes");
