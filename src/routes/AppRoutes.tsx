@@ -11,6 +11,7 @@ import Profile from "../pages/Profile/Profile";
 import Batches from "../pages/Batches/Batches";
 import WorkshopStatus from "../pages/WorkshopStatus/WorkshopStatus";
 import FinishedProduction from "../pages/FinishedProduction/FinishedProduction";
+import ReceivePieces from "../pages/ReceivePieces/ReceivePieces";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -133,6 +134,9 @@ export const AppRoutes = () => {
         }
         if (currentScreen === "FinishedProduction") {
           return <FinishedProduction />;
+        }
+        if (currentScreen === "ReceivePieces") {
+          return <ReceivePieces />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (
