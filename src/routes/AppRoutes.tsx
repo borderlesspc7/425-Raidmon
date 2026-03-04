@@ -13,6 +13,8 @@ import WorkshopStatus from "../pages/WorkshopStatus/WorkshopStatus";
 import FinishedProduction from "../pages/FinishedProduction/FinishedProduction";
 import ReceivePieces from "../pages/ReceivePieces/ReceivePieces";
 import Payments from "../pages/Payments/Payments";
+import FinancialHistory from "../pages/FinancialHistory/FinancialHistory";
+import GeneralHistory from "../pages/GeneralHistory/GeneralHistory";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -141,6 +143,12 @@ export const AppRoutes = () => {
         }
         if (currentScreen === "Payments") {
           return <Payments />;
+        }
+        if (currentScreen === "FinancialHistory") {
+          return <FinancialHistory />;
+        }
+        if (currentScreen === "GeneralHistory") {
+          return <GeneralHistory />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (
