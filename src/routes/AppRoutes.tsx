@@ -16,6 +16,7 @@ import Payments from "../pages/Payments/Payments";
 import FinancialHistory from "../pages/FinancialHistory/FinancialHistory";
 import GeneralHistory from "../pages/GeneralHistory/GeneralHistory";
 import Metrics from "../pages/Metrics/Metrics";
+import Plans from "../pages/Plans/Plans";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -153,6 +154,9 @@ export const AppRoutes = () => {
         }
         if (currentScreen === "Metrics") {
           return <Metrics />;
+        }
+        if (currentScreen === "Plans") {
+          return <Plans />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (
