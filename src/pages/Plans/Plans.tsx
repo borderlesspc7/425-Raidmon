@@ -11,6 +11,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useNavigation } from "../../routes/NavigationContext";
 
 type PlanType = "basic" | "premium" | "enterprise";
 
@@ -29,6 +30,7 @@ interface Plan {
 export default function Plans() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { navigate } = useNavigation();
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -92,6 +94,21 @@ export default function Plans() {
       style: "currency",
       currency: "BRL",
     }).format(value);
+
+  const goToPlanDetails = (planId: PlanType) => {
+    if (planId === "basic") {
+      navigate("BasicPlan");
+      return;
+    }
+    if (planId === "premium") {
+      navigate("PremiumPlan");
+      return;
+    }
+    if (planId === "enterprise") {
+      navigate("EnterprisePlan");
+      return;
+    }
+  };
 
   const handleSelectPlan = async (planId: PlanType) => {
     setSelectedPlan(planId);
@@ -205,7 +222,7 @@ export default function Plans() {
                       opacity: loading && selectedPlan === plan.id ? 0.7 : 1,
                     },
                   ]}
-                  onPress={() => handleSelectPlan(plan.id)}
+                  onPress={() => goToPlanDetails(plan.id)}
                   disabled={loading}
                 >
                   {loading && selectedPlan === plan.id ? (

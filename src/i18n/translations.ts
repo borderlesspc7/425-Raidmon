@@ -444,15 +444,25 @@ export const translations = {
       subtitle: "Escolha o plano ideal para sua confecção",
       monthly: "mês",
       currentPlan: "Plano Atual",
-      currentPlanDescription: "Você está usando o plano gratuito. Atualize para desbloquear mais recursos!",
+      currentPlanDescription:
+        "Você está usando o plano gratuito. Atualize para desbloquear mais recursos!",
       popular: "Mais Popular",
       select: "Selecionar Plano",
       selectPopular: "Começar Agora",
       processing: "Processando",
       success: "Sucesso",
       successMessage: "Assinatura do plano {plan} processada com sucesso!",
+      overview: "Visão geral",
+      features: "Funcionalidades incluídas",
       basic: {
         name: "Básico",
+        subtitle: "Ideal para quem está começando a organizar a produção",
+        description:
+          "Tenha controle simples das suas oficinas, lotes e pagamentos em um único lugar.",
+        forWhoTitle: "Para quem é este plano?",
+        forWho:
+          "Para pequenas confecções que estão iniciando a gestão da produção e precisam de um sistema simples e direto.",
+        cta: "Começar com o Básico",
         feature1: "Até 3 oficinas",
         feature2: "Até 10 lotes por mês",
         feature3: "Histórico de pagamentos",
@@ -461,6 +471,13 @@ export const translations = {
       },
       premium: {
         name: "Premium",
+        subtitle: "Para confecções que precisam de controle completo",
+        description:
+          "Tenha visão detalhada de toda a produção, métricas avançadas e relatórios completos.",
+        forWhoTitle: "Para quem é este plano?",
+        forWho:
+          "Para confecções em crescimento que precisam acompanhar resultados, produtividade e finanças em tempo real.",
+        cta: "Assinar plano Premium",
         feature1: "Oficinas ilimitadas",
         feature2: "Lotes ilimitados",
         feature3: "Histórico completo",
@@ -470,6 +487,13 @@ export const translations = {
       },
       enterprise: {
         name: "Enterprise",
+        subtitle: "Solução completa e personalizada para o seu negócio",
+        description:
+          "Recursos avançados, integrações sob medida e acompanhamento próximo para grandes operações.",
+        forWhoTitle: "Para quem é este plano?",
+        forWho:
+          "Para grandes confecções, grupos ou redes que precisam de integrações, API e um acompanhamento dedicado.",
+        cta: "Falar com o time comercial",
         feature1: "Tudo do Premium",
         feature2: "API personalizada",
         feature3: "Integrações avançadas",
@@ -481,11 +505,14 @@ export const translations = {
       faq: {
         title: "Perguntas Frequentes",
         question1: "Posso mudar de plano a qualquer momento?",
-        answer1: "Sim! Você pode atualizar ou fazer downgrade do seu plano a qualquer momento. As alterações serão aplicadas no próximo ciclo de cobrança.",
+        answer1:
+          "Sim! Você pode atualizar ou fazer downgrade do seu plano a qualquer momento. As alterações serão aplicadas no próximo ciclo de cobrança.",
         question2: "O que acontece se eu cancelar?",
-        answer2: "Você continuará tendo acesso aos recursos do seu plano até o final do período pago. Após isso, sua conta será convertida para o plano gratuito.",
+        answer2:
+          "Você continuará tendo acesso aos recursos do seu plano até o final do período pago. Após isso, sua conta será convertida para o plano gratuito.",
         question3: "Os planos têm garantia de reembolso?",
-        answer3: "Sim! Oferecemos garantia de 30 dias. Se não estiver satisfeito, reembolsaremos 100% do valor pago.",
+        answer3:
+          "Sim! Oferecemos garantia de 30 dias. Se não estiver satisfeito, reembolsaremos 100% do valor pago.",
       },
     },
   },
@@ -933,15 +960,25 @@ export const translations = {
       subtitle: "Elige el plan ideal para tu confección",
       monthly: "mes",
       currentPlan: "Plan Actual",
-      currentPlanDescription: "Estás usando el plan gratuito. ¡Actualiza para desbloquear más funciones!",
+      currentPlanDescription:
+        "Estás usando el plan gratuito. Actualiza para desbloquear más funciones.",
       popular: "Más Popular",
       select: "Seleccionar Plan",
       selectPopular: "Comenzar Ahora",
       processing: "Procesando",
       success: "Éxito",
       successMessage: "¡Suscripción del plan {plan} procesada con éxito!",
+      overview: "Visión general",
+      features: "Funcionalidades incluidas",
       basic: {
         name: "Básico",
+        subtitle: "Ideal para quienes empiezan a organizar la producción",
+        description:
+          "Ten un control sencillo de tus talleres, lotes y pagos en un solo lugar.",
+        forWhoTitle: "¿Para quién es este plan?",
+        forWho:
+          "Para pequeñas confecciones que están empezando a gestionar la producción y necesitan un sistema simple y directo.",
+        cta: "Comenzar con el Básico",
         feature1: "Hasta 3 talleres",
         feature2: "Hasta 10 lotes por mes",
         feature3: "Historial de pagos",
@@ -950,6 +987,13 @@ export const translations = {
       },
       premium: {
         name: "Premium",
+        subtitle: "Para confecciones que necesitan un control completo",
+        description:
+          "Ten una visión detallada de toda la producción, métricas avanzadas y reportes completos.",
+        forWhoTitle: "¿Para quién es este plan?",
+        forWho:
+          "Para confecciones en crecimiento que necesitan acompañar resultados, productividad y finanzas en tiempo real.",
+        cta: "Suscribirse al plan Premium",
         feature1: "Talleres ilimitados",
         feature2: "Lotes ilimitados",
         feature3: "Historial completo",
@@ -959,6 +1003,13 @@ export const translations = {
       },
       enterprise: {
         name: "Enterprise",
+        subtitle: "Solución completa y personalizada para tu negocio",
+        description:
+          "Recursos avanzados, integraciones a medida y acompañamiento cercano para grandes operaciones.",
+        forWhoTitle: "¿Para quién es este plan?",
+        forWho:
+          "Para grandes confecciones, grupos o redes que necesitan integraciones, API y un acompañamiento dedicado.",
+        cta: "Hablar con el equipo comercial",
         feature1: "Todo del Premium",
         feature2: "API personalizada",
         feature3: "Integraciones avanzadas",
@@ -970,11 +1021,14 @@ export const translations = {
       faq: {
         title: "Preguntas Frecuentes",
         question1: "¿Puedo cambiar de plan en cualquier momento?",
-        answer1: "¡Sí! Puedes actualizar o degradar tu plan en cualquier momento. Los cambios se aplicarán en el próximo ciclo de facturación.",
+        answer1:
+          "¡Sí! Puedes actualizar o degradar tu plan en cualquier momento. Los cambios se aplicarán en el próximo ciclo de facturación.",
         question2: "¿Qué pasa si cancelo?",
-        answer2: "Continuarás teniendo acceso a las funciones de tu plan hasta el final del período pagado. Después de eso, tu cuenta se convertirá al plan gratuito.",
+        answer2:
+          "Continuarás teniendo acceso a las funciones de tu plan hasta el final del período pagado. Después de eso, tu cuenta se convertirá al plan gratuito.",
         question3: "¿Los planes tienen garantía de reembolso?",
-        answer3: "¡Sí! Ofrecemos una garantía de 30 días. Si no estás satisfecho, reembolsaremos el 100% del valor pagado.",
+        answer3:
+          "¡Sí! Ofrecemos una garantía de 30 días. Si no estás satisfecho, reembolsaremos el 100% del valor pagado.",
       },
     },
   },

@@ -17,6 +17,9 @@ import FinancialHistory from "../pages/FinancialHistory/FinancialHistory";
 import GeneralHistory from "../pages/GeneralHistory/GeneralHistory";
 import Metrics from "../pages/Metrics/Metrics";
 import Plans from "../pages/Plans/Plans";
+import BasicPlan from "../pages/Plans/BasicPlan";
+import PremiumPlan from "../pages/Plans/PremiumPlan";
+import EnterprisePlan from "../pages/Plans/EnterprisePlan";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -117,6 +120,9 @@ export const AppRoutes = () => {
     case "GeneralHistory":
     case "Metrics":
     case "Plans":
+    case "BasicPlan":
+    case "PremiumPlan":
+    case "EnterprisePlan":
       // Só mostrar telas protegidas se estiver autenticado
       if (user) {
         if (currentScreen === "Dashboard") {
@@ -157,6 +163,15 @@ export const AppRoutes = () => {
         }
         if (currentScreen === "Plans") {
           return <Plans />;
+        }
+        if (currentScreen === "BasicPlan") {
+          return <BasicPlan />;
+        }
+        if (currentScreen === "PremiumPlan") {
+          return <PremiumPlan />;
+        }
+        if (currentScreen === "EnterprisePlan") {
+          return <EnterprisePlan />;
         }
         // Placeholder para outras telas - você pode criar componentes específicos depois
         return (

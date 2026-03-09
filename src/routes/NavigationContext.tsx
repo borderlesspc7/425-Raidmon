@@ -17,6 +17,9 @@ export type ScreenName =
   | "GeneralHistory"
   | "Metrics"
   | "Plans"
+  | "BasicPlan"
+  | "PremiumPlan"
+  | "EnterprisePlan";
 
 interface NavigationParams {
   userId?: string;
