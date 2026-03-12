@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "425-Raidmon",
-    "slug": "425-Raidmon",
+    "name": "Costura Conectada",
+    "slug": "costura-conectada",
+    "owner": "borderlesspc12",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -28,7 +29,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "9d95a834-83b1-4c27-b0d9-13865f4b862f"
+        "projectId": "21ff81ff-9096-4e3b-ae48-c5ba21aa3ee0"
       }
     }
   }
