@@ -9,6 +9,8 @@
     companyName?: string;
     photoURL?: string;
     language?: Language;
+    address?: string;
+    about?: string;
     cpf: string;
     rg: string;
     createdAt: Date;

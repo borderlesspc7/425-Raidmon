@@ -28,6 +28,9 @@ export default function Profile() {
   // Form state
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [username, setUsername] = useState("");
+  const [address, setAddress] = useState("");
+  const [about, setAbout] = useState("");
   const [phone, setPhone] = useState("");
   const [cpf, setCpf] = useState("");
   const [rg, setRg] = useState("");
@@ -39,6 +42,9 @@ export default function Profile() {
     if (user) {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
+      setUsername(user.username || "");
+      setAddress(user.address || "");
+      setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
       setRg(user.rg || "");
@@ -49,6 +55,9 @@ export default function Profile() {
     if (user) {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
+      setUsername(user.username || "");
+      setAddress(user.address || "");
+      setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
       setRg(user.rg || "");
@@ -62,6 +71,9 @@ export default function Profile() {
     if (user) {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
+      setUsername(user.username || "");
+      setAddress(user.address || "");
+      setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
       setRg(user.rg || "");
@@ -152,6 +164,9 @@ export default function Profile() {
       const updateData: Partial<User> = {
         name: name.trim(),
         companyName: companyName.trim() || undefined,
+        username: username.trim() || undefined,
+        address: address.trim() || undefined,
+        about: about.trim() || undefined,
         phone: phone.trim(),
         cpf: cpf.replace(/\D/g, ""),
         rg: rg.replace(/\D/g, ""),
@@ -244,6 +259,19 @@ export default function Profile() {
                 </View>
               )}
 
+              {/* Username */}
+              {user.username && (
+                <View style={styles.infoItem}>
+                  <View style={styles.infoIconContainer}>
+                    <MaterialIcons name="tag" size={20} color="#6366F1" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>{t("profile.username")}</Text>
+                    <Text style={styles.infoValue}>{user.username}</Text>
+                  </View>
+                </View>
+              )}
+
               {/* Phone */}
               {user.phone && (
                 <View style={styles.infoItem}>
@@ -253,6 +281,19 @@ export default function Profile() {
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>{t("profile.phone")}</Text>
                     <Text style={styles.infoValue}>{user.phone}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Address */}
+              {user.address && (
+                <View style={styles.infoItem}>
+                  <View style={styles.infoIconContainer}>
+                    <MaterialIcons name="location-on" size={20} color="#6366F1" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>{t("profile.address")}</Text>
+                    <Text style={styles.infoValue}>{user.address}</Text>
                   </View>
                 </View>
               )}
@@ -283,6 +324,19 @@ export default function Profile() {
                     <Text style={styles.infoValue}>
                       {user.rg.replace(/(\d{2})(\d{3})(\d{3})(\d{1})/, "$1.$2.$3-$4")}
                     </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* About */}
+              {user.about && (
+                <View style={styles.infoItem}>
+                  <View style={styles.infoIconContainer}>
+                    <MaterialIcons name="info-outline" size={20} color="#6366F1" />
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>{t("profile.about")}</Text>
+                    <Text style={styles.infoValue}>{user.about}</Text>
                   </View>
                 </View>
               )}
@@ -363,6 +417,44 @@ export default function Profile() {
                   </View>
                 </View>
 
+                {/* Username */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t("profile.username")}</Text>
+                  <View style={styles.inputContainer}>
+                    <MaterialIcons
+                      name="tag"
+                      size={20}
+                      color="#6B7280"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={username}
+                      onChangeText={setUsername}
+                      placeholder={t("profile.usernamePlaceholder")}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
+                {/* Endereço */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t("profile.address")}</Text>
+                  <View style={styles.inputContainer}>
+                    <MaterialIcons
+                      name="location-on"
+                      size={20}
+                      color="#6B7280"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={address}
+                      onChangeText={setAddress}
+                      placeholder={t("profile.addressPlaceholder")}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+
                 {/* Telefone */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{t("profile.phone")}</Text>
@@ -420,6 +512,26 @@ export default function Profile() {
                   {errors.rg && (
                     <Text style={styles.errorText}>{errors.rg}</Text>
                   )}
+                </View>
+
+                {/* Sobre / Observações */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t("profile.about")}</Text>
+                  <View style={[styles.inputContainer, { alignItems: "flex-start" }]}>
+                    <MaterialIcons
+                      name="info-outline"
+                      size={20}
+                      color="#6B7280"
+                    />
+                    <TextInput
+                      style={[styles.input, { height: 80 }]}
+                      value={about}
+                      onChangeText={setAbout}
+                      placeholder={t("profile.aboutPlaceholder")}
+                      placeholderTextColor="#9CA3AF"
+                      multiline
+                    />
+                  </View>
                 </View>
               </ScrollView>
 

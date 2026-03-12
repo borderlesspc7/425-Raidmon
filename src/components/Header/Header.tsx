@@ -65,7 +65,10 @@ export default function Header({ onMenuPress }: HeaderProps) {
 
           {/* User Avatar */}
           {user && (
-            <TouchableOpacity style={styles.userAvatar}>
+            <TouchableOpacity
+              style={styles.userAvatar}
+              onPress={() => navigate('Profile')}
+            >
               <MaterialIcons name="person" size={18} color="#6366F1" />
             </TouchableOpacity>
           )}
