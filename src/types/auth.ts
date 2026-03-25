@@ -4,6 +4,8 @@
     id: string;
     name: string;
     email: string;
+    // Current plan id: 'basic' | 'premium' | 'enterprise'
+    plan?: 'basic' | 'premium' | 'enterprise';
     username?: string;
     phone?: string;
     companyName?: string;

@@ -16,6 +16,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { authService } from "../../services/authService";
 import { User } from "../../types/auth";
+import { MaterialIcons as Icon } from "@expo/vector-icons";
 
 export default function Profile() {
   const { user, login } = useAuth();
@@ -242,6 +243,25 @@ export default function Profile() {
               </View>
               <Text style={styles.userName}>{user.name}</Text>
               <Text style={styles.userEmail}>{user.email}</Text>
+
+              {/* Current Plan Badge */}
+              {user.plan && (
+                (() => {
+                  const planMap: Record<string, { color: string; bgColor: string; label: string }> = {
+                    basic: { color: "#6366F1", bgColor: "#F0F4FF", label: t("plans.basic.name") },
+                    premium: { color: "#10B981", bgColor: "#D1FAE5", label: t("plans.premium.name") },
+                    enterprise: { color: "#8B5CF6", bgColor: "#EDE9FE", label: t("plans.enterprise.name") },
+                  };
+
+                  const planInfo = planMap[user.plan as string] || planMap.basic;
+
+                  return (
+                    <View style={[styles.planBadge, { backgroundColor: planInfo.bgColor, borderColor: planInfo.color }] }>
+                      <Text style={[styles.planBadgeText, { color: planInfo.color }]}>{planInfo.label}</Text>
+                    </View>
+                  );
+                })()
+              )}
             </View>
 
             {/* Info Section */}
@@ -351,6 +371,17 @@ export default function Profile() {
                   <Text style={styles.infoLabel}>{t("profile.memberSince")}</Text>
                   <Text style={styles.infoValue}>{formatDate(user.createdAt)}</Text>
                 </View>
+              </View>
+
+              {/* Current Plan Info - show plan name or default description when not set */}
+              <View style={styles.currentPlanCardSmall}>
+                <View style={styles.currentPlanHeaderSmall}>
+                  <MaterialIcons name="card-membership" size={18} color="#6366F1" />
+                  <Text style={styles.currentPlanTitleSmall}>{t("plans.currentPlan")}</Text>
+                </View>
+                <Text style={styles.currentPlanTextSmall}>
+                  {user.plan ? t(`plans.${user.plan}.name`) : t("plans.currentPlanDescription")}
+                </Text>
               </View>
             </View>
           </View>
@@ -654,6 +685,42 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  planBadge: {
+    marginTop: 8,
+    alignSelf: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  planBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  currentPlanCardSmall: {
+    marginTop: 12,
+    backgroundColor: "#F0F4FF",
+    borderRadius: 10,
+    padding: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: "#6366F1",
+  },
+  currentPlanHeaderSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  currentPlanTitleSmall: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  currentPlanTextSmall: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 18,
   },
   infoSection: {
     gap: 16,

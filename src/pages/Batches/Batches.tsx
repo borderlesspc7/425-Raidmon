@@ -284,44 +284,43 @@ export default function Batches() {
           </TouchableOpacity>
         </View>
 
-        {/* Statistics Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="inventory" size={24} color="#6366F1" />
-            </View>
-            <Text style={styles.statValue}>{totalBatches}</Text>
-            <Text style={styles.statLabel}>{t("batches.totalBatches")}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="check-circle" size={24} color="#10B981" />
-            </View>
-            <Text style={styles.statValue}>{completedBatches}</Text>
-            <Text style={styles.statLabel}>{t("batches.completed")}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="schedule" size={24} color="#6366F1" />
-            </View>
-            <Text style={styles.statValue}>{inProgressBatches}</Text>
-            <Text style={styles.statLabel}>{t("batches.inProgress")}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <MaterialIcons name="pending" size={24} color="#6B7280" />
-            </View>
-            <Text style={styles.statValue}>{pendingBatches}</Text>
-            <Text style={styles.statLabel}>{t("batches.pending")}</Text>
-          </View>
-        </View>
-
         {/* Batches List */}
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Statistics Cards (moved inside scrollable area so they scroll with content) */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <View style={styles.statIconContainer}>
+                <MaterialIcons name="inventory" size={24} color="#6366F1" />
+              </View>
+              <Text style={styles.statValue}>{totalBatches}</Text>
+              <Text style={styles.statLabel}>{t("batches.totalBatches")}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View style={styles.statIconContainer}>
+                <MaterialIcons name="check-circle" size={24} color="#10B981" />
+              </View>
+              <Text style={styles.statValue}>{completedBatches}</Text>
+              <Text style={styles.statLabel}>{t("batches.completed")}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View style={styles.statIconContainer}>
+                <MaterialIcons name="schedule" size={24} color="#6366F1" />
+              </View>
+              <Text style={styles.statValue}>{inProgressBatches}</Text>
+              <Text style={styles.statLabel}>{t("batches.inProgress")}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View style={styles.statIconContainer}>
+                <MaterialIcons name="pending" size={24} color="#6B7280" />
+              </View>
+              <Text style={styles.statValue}>{pendingBatches}</Text>
+              <Text style={styles.statLabel}>{t("batches.pending")}</Text>
+            </View>
+          </View>
           {batches.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="inventory" size={64} color="#D1D5DB" />

@@ -58,16 +58,22 @@ export async function createBatch(
       throw new Error("User ID is required");
     }
 
-    const batchRef = await addDoc(collection(db, BATCHES_COLLECTION), {
-      ...batchData,
-      userId,
+    // Build payload and avoid including properties with `undefined` values
+    const payload: any = {
+      name: batchData.name,
+      totalPieces: batchData.totalPieces,
       status: batchData.status || "pending",
+      userId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      deliveryDate: batchData.deliveryDate
-        ? Timestamp.fromDate(batchData.deliveryDate)
-        : undefined,
-    });
+    };
+
+    if (batchData.workshopId !== undefined) payload.workshopId = batchData.workshopId;
+    if (batchData.workshopName !== undefined) payload.workshopName = batchData.workshopName;
+    if (batchData.observations !== undefined) payload.observations = batchData.observations;
+    if (batchData.deliveryDate) payload.deliveryDate = Timestamp.fromDate(batchData.deliveryDate);
+
+    const batchRef = await addDoc(collection(db, BATCHES_COLLECTION), payload);
 
     const batchDoc = await getDoc(batchRef);
     if (!batchDoc.exists()) {
@@ -143,6 +149,13 @@ export async function updateBatch(
     if (updateData.deliveryDate) {
       updatePayload.deliveryDate = Timestamp.fromDate(updateData.deliveryDate);
     }
+
+    // Remove keys with undefined values to avoid Firestore errors
+    Object.keys(updatePayload).forEach((key) => {
+      if (updatePayload[key] === undefined) {
+        delete updatePayload[key];
+      }
+    });
 
     await updateDoc(batchRef, updatePayload);
   } catch (error: any) {
