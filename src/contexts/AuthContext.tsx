@@ -16,6 +16,7 @@ interface AuthContextType {
     register: (credentials: RegisterCredentials) => Promise<void>;
     logout: () => Promise<void>;
     clearError: () => void;
+    updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,6 +80,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null)
     }
 
+    const updateProfile = async (data: Partial<User>) => {
+        if (!user) throw new Error('Usuário não autenticado');
+        try {
+            setLoading(true);
+            await authService.updateProfile(user.id, data);
+            const updatedUser: User = {
+                ...user,
+                ...data,
+                updatedAt: new Date(),
+            } as User;
+            setUser(updatedUser);
+            setLoading(false);
+        } catch (error) {
+            setLoading(false);
+            console.error('Erro ao atualizar perfil no contexto:', error);
+            throw error;
+        }
+    }
+
     const value = {
         user,
         loading,
@@ -87,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         clearError,
+        updateProfile,
     }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -245,23 +245,22 @@ export default function Profile() {
               <Text style={styles.userEmail}>{user.email}</Text>
 
               {/* Current Plan Badge */}
-              {user.plan && (
-                (() => {
-                  const planMap: Record<string, { color: string; bgColor: string; label: string }> = {
-                    basic: { color: "#6366F1", bgColor: "#F0F4FF", label: t("plans.basic.name") },
-                    premium: { color: "#10B981", bgColor: "#D1FAE5", label: t("plans.premium.name") },
-                    enterprise: { color: "#8B5CF6", bgColor: "#EDE9FE", label: t("plans.enterprise.name") },
-                  };
+              {user.plan && (() => {
+                const planMap: Record<string, { color: string; bgColor: string; label: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
+                  basic: { color: "#6366F1", bgColor: "#F0F4FF", label: t("plans.basic.name"), icon: 'star' },
+                  premium: { color: "#10B981", bgColor: "#D1FAE5", label: t("plans.premium.name"), icon: 'workspace-premium' },
+                  enterprise: { color: "#8B5CF6", bgColor: "#EDE9FE", label: t("plans.enterprise.name"), icon: 'business' },
+                };
 
-                  const planInfo = planMap[user.plan as string] || planMap.basic;
+                const planInfo = planMap[user.plan as string] || planMap.basic;
 
-                  return (
-                    <View style={[styles.planBadge, { backgroundColor: planInfo.bgColor, borderColor: planInfo.color }] }>
-                      <Text style={[styles.planBadgeText, { color: planInfo.color }]}>{planInfo.label}</Text>
-                    </View>
-                  );
-                })()
-              )}
+                return (
+                  <View style={[styles.planBadgePill, { backgroundColor: planInfo.color }] }>
+                    <MaterialIcons name={planInfo.icon} size={14} color="#FFFFFF" style={styles.planBadgeIcon} />
+                    <Text style={styles.planBadgeTextPill}>{planInfo.label}</Text>
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Info Section */}
@@ -373,16 +372,7 @@ export default function Profile() {
                 </View>
               </View>
 
-              {/* Current Plan Info - show plan name or default description when not set */}
-              <View style={styles.currentPlanCardSmall}>
-                <View style={styles.currentPlanHeaderSmall}>
-                  <MaterialIcons name="card-membership" size={18} color="#6366F1" />
-                  <Text style={styles.currentPlanTitleSmall}>{t("plans.currentPlan")}</Text>
-                </View>
-                <Text style={styles.currentPlanTextSmall}>
-                  {user.plan ? t(`plans.${user.plan}.name`) : t("plans.currentPlanDescription")}
-                </Text>
-              </View>
+              {/* Current Plan Info removed to avoid duplication (badge above email present) */}
             </View>
           </View>
         </ScrollView>
@@ -689,14 +679,22 @@ const styles = StyleSheet.create({
   planBadge: {
     marginTop: 8,
     alignSelf: "center",
+  },
+  planBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
+    marginTop: 12,
+    borderRadius: 999,
   },
-  planBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
+  planBadgeIcon: {
+    marginRight: 8,
+  },
+  planBadgeTextPill: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   currentPlanCardSmall: {
     marginTop: 12,

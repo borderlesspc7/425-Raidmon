@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import Header from '../Header/Header';
 import Sidebar from '../Sidebar/Sidebar';
@@ -32,7 +33,13 @@ export default function Layout({ children }: LayoutProps) {
         currentRoute={currentScreen}
       />
       <View style={styles.content}>
-        {children}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
       </View>
     </View>
   );

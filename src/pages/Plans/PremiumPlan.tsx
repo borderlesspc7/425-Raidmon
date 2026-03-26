@@ -4,6 +4,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
+import { useAuth } from "../../hooks/useAuth";
+import { Alert } from "react-native";
 
 export default function PremiumPlan() {
   const { t } = useLanguage();
@@ -15,6 +17,28 @@ export default function PremiumPlan() {
 
   const handleSubscribe = () => {
     // Lógica real de assinatura pode ser adicionada depois
+  };
+  const { user, updateProfile } = useAuth();
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubscribeAction = async () => {
+    if (!user) {
+      Alert.alert(t("common.error"), "Usuário não autenticado");
+      return;
+    }
+    try {
+      setLoading(true);
+      await updateProfile({ plan: "premium" });
+      Alert.alert(
+        t("plans.success"),
+        t("plans.successMessage").replace("{plan}", t("plans.premium.name")),
+        [{ text: "OK", onPress: () => navigate("Plans") }]
+      );
+    } catch (error: any) {
+      Alert.alert(t("common.error"), error?.message || "Erro ao assinar");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -78,8 +102,14 @@ export default function PremiumPlan() {
 
           {/* CTA */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleSubscribe}>
-              <Text style={styles.primaryButtonText}>{t("plans.premium.cta")}</Text>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleSubscribeAction}
+              disabled={loading}
+            >
+              <Text style={styles.primaryButtonText}>
+                {loading ? t("plans.processing") + "..." : t("plans.premium.cta")}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
