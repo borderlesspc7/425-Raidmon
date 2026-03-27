@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, Text as RNText } from "react-native";
+import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
@@ -22,29 +22,54 @@ import PremiumPlan from "../pages/Plans/PremiumPlan";
 import EnterprisePlan from "../pages/Plans/EnterprisePlan";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
-import { useLanguage } from "../contexts/LanguageContext";
+import {
+  paths,
+  protectedRoutes,
+  type ScreenName,
+} from "./paths";
 
 const LANGUAGE_STORAGE_KEY = "@costura_conectada:language";
+
+const screenComponents: Record<ScreenName, React.ComponentType> = {
+  LanguageSelection,
+  Login,
+  Register,
+  Dashboard,
+  Profile,
+  Workshops,
+  Cuts,
+  Batches,
+  WorkshopStatus,
+  FinishedProduction,
+  ReceivePieces,
+  Payments,
+  FinancialHistory,
+  GeneralHistory,
+  Metrics,
+  Plans,
+  BasicPlan,
+  PremiumPlan,
+  EnterprisePlan,
+};
+
+const guestOnlyRoutes = new Set<ScreenName>([paths.login, paths.register]);
+const authRequiredRoutes = new Set<ScreenName>(protectedRoutes);
 
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
   const { user, loading } = useAuth();
-  const { language, t } = useLanguage();
   const [checkingLanguage, setCheckingLanguage] = useState(true);
 
-  // Verificar se já tem idioma salvo na primeira vez
+  // Verificar se já tem idioma salvo para pular seleção
   useEffect(() => {
     const checkLanguage = async () => {
       try {
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-        // Se já tem idioma salvo (no storage ou no perfil do usuário), pula a tela de seleção
-        if (savedLanguage || user?.language) {
-          if (currentScreen === "LanguageSelection") {
-            if (user) {
-              navigate("Dashboard");
-            } else {
-              navigate("Login");
-            }
+        if ((savedLanguage || user?.language) && currentScreen === paths.languageSelection) {
+          if (user) {
+            navigate(paths.dashboard);
+          } else {
+            navigate(paths.login);
           }
         }
       } catch (error) {
@@ -59,31 +84,30 @@ export const AppRoutes = () => {
     }
   }, [loading, user, currentScreen, navigate]);
 
-  // Redirecionar para Dashboard se estiver autenticado e na tela de Login/Register
+  // Usuário autenticado não deve ficar em tela de autenticação
   useEffect(() => {
     if (
       !loading &&
       !checkingLanguage &&
       user &&
-      (currentScreen === "Login" || currentScreen === "Register")
+      guestOnlyRoutes.has(currentScreen)
     ) {
-      navigate("Dashboard");
+      navigate(paths.dashboard);
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
-  // Redirecionar para Login se não estiver autenticado e tentar acessar Dashboard
+  // Usuário não autenticado não acessa rotas protegidas
   useEffect(() => {
     if (
       !loading &&
       !checkingLanguage &&
       !user &&
-      currentScreen === "Dashboard"
+      authRequiredRoutes.has(currentScreen)
     ) {
-      navigate("Login");
+      navigate(paths.login);
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
-  // Mostrar loading enquanto verifica autenticação ou idioma
   if (loading || checkingLanguage) {
     return (
       <View
@@ -99,103 +123,10 @@ export const AppRoutes = () => {
     );
   }
 
-  // Renderizar tela baseada no currentScreen
-  switch (currentScreen) {
-    case "LanguageSelection":
-      return <LanguageSelection />;
-    case "Login":
-      return <Login />;
-    case "Register":
-      return <Register />;
-    case "Dashboard":
-    case "Profile":
-    case "Workshops":
-    case "Cuts":
-    case "Batches":
-    case "WorkshopStatus":
-    case "FinishedProduction":
-    case "ReceivePieces":
-    case "Payments":
-    case "FinancialHistory":
-    case "GeneralHistory":
-    case "Metrics":
-    case "Plans":
-    case "BasicPlan":
-    case "PremiumPlan":
-    case "EnterprisePlan":
-      // Só mostrar telas protegidas se estiver autenticado
-      if (user) {
-        if (currentScreen === "Dashboard") {
-          return <Dashboard />;
-        }
-        if (currentScreen === "Profile") {
-          return <Profile />;
-        }
-        if (currentScreen === "Workshops") {
-          return <Workshops />;
-        }
-        if (currentScreen === "Cuts") {
-          return <Cuts />;
-        }
-        if (currentScreen === "Batches") {
-          return <Batches />;
-        }
-        if (currentScreen === "WorkshopStatus") {
-          return <WorkshopStatus />;
-        }
-        if (currentScreen === "FinishedProduction") {
-          return <FinishedProduction />;
-        }
-        if (currentScreen === "ReceivePieces") {
-          return <ReceivePieces />;
-        }
-        if (currentScreen === "Payments") {
-          return <Payments />;
-        }
-        if (currentScreen === "FinancialHistory") {
-          return <FinancialHistory />;
-        }
-        if (currentScreen === "GeneralHistory") {
-          return <GeneralHistory />;
-        }
-        if (currentScreen === "Metrics") {
-          return <Metrics />;
-        }
-        if (currentScreen === "Plans") {
-          return <Plans />;
-        }
-        if (currentScreen === "BasicPlan") {
-          return <BasicPlan />;
-        }
-        if (currentScreen === "PremiumPlan") {
-          return <PremiumPlan />;
-        }
-        if (currentScreen === "EnterprisePlan") {
-          return <EnterprisePlan />;
-        }
-        // Placeholder para outras telas - você pode criar componentes específicos depois
-        return (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              backgroundColor: "#F8F9FA",
-            }}
-          >
-            <RNText
-              style={{ fontSize: 18, color: "#1F2937", fontWeight: "600" }}
-            >
-              {currentScreen}
-            </RNText>
-            <RNText style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>
-              {t("common.loading")}
-            </RNText>
-          </View>
-        );
-      }
-      return <Login />;
-    default:
-      return <LanguageSelection />;
+  if (!user && authRequiredRoutes.has(currentScreen)) {
+    return <Login />;
   }
+
+  const ActiveScreen = screenComponents[currentScreen] || LanguageSelection;
+  return <ActiveScreen />;
 };

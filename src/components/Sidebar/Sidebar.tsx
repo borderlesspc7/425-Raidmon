@@ -10,18 +10,19 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
+import type { ScreenName } from '../../routes/paths';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  currentRoute?: string;
+  currentRoute?: ScreenName;
 }
 
 interface MenuItem {
   id: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   labelKey: string;
-  route: string;
+  route: ScreenName;
 }
 
 const menuItems: MenuItem[] = [
@@ -44,8 +45,8 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
   const { t } = useLanguage();
   const { navigate } = useNavigation();
 
-  const handleNavigate = (route: string) => {
-    navigate(route as any);
+  const handleNavigate = (route: ScreenName) => {
+    navigate(route);
     onClose();
   };
 
@@ -61,7 +62,7 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
         activeOpacity={1}
         onPress={onClose}
       />
-      
+
       {/* Sidebar */}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
@@ -92,20 +93,24 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
                   onPress={() => handleNavigate(item.route)}
                   activeOpacity={0.7}
                 >
-                  <View style={[
-                    styles.iconContainer,
-                    isActive && styles.iconContainerActive,
-                  ]}>
+                  <View
+                    style={[
+                      styles.iconContainer,
+                      isActive && styles.iconContainerActive,
+                    ]}
+                  >
                     <MaterialIcons
                       name={item.icon}
                       size={20}
                       color={isActive ? '#6366F1' : '#6B7280'}
                     />
                   </View>
-                  <Text style={[
-                    styles.menuText,
-                    isActive && styles.menuTextActive,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.menuText,
+                      isActive && styles.menuTextActive,
+                    ]}
+                  >
                     {t(item.labelKey)}
                   </Text>
                   {isActive && (

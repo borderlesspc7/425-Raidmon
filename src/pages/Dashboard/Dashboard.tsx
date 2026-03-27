@@ -1,229 +1,528 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import Layout from '../../components/Layout/Layout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../routes/NavigationContext';
 import { getCutStatistics } from '../../services/cutService';
+import { getBatchStatistics } from '../../services/batchService';
 import { getWorkshopsByUser } from '../../services/workshopService';
 import { getPaymentStatistics } from '../../services/paymentService';
+import { getReceivePiecesStatistics } from '../../services/receivePiecesService';
 import { MaterialIcons } from '@expo/vector-icons';
-import { getPaymentsSummary } from '../../services/paymentService';
+import type { ScreenName } from '../../routes/paths';
 
 type Stats = {
-  totalCuts?: number;
-  totalPieces?: number;
-  workshops?: number;
-  paymentsDue?: number;
+  totalCuts: number;
+  totalCutPieces: number;
+  totalBatches: number;
+  completedBatches: number;
+  inProgressBatches: number;
+  totalWorkshops: number;
+  workshopsBusy: number;
+  workshopsCritical: number;
+  pendingPayments: number;
+  overduePayments: number;
+  pendingAmount: number;
+  overdueAmount: number;
+  totalReceives: number;
+  piecesReceived: number;
+  receivesThisMonth: number;
+};
+
+type HighlightCard = {
+  id: string;
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  color: string;
+  route: ScreenName;
+};
+
+type Shortcut = {
+  id: string;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  route: ScreenName;
+};
+
+const INITIAL_STATS: Stats = {
+  totalCuts: 0,
+  totalCutPieces: 0,
+  totalBatches: 0,
+  completedBatches: 0,
+  inProgressBatches: 0,
+  totalWorkshops: 0,
+  workshopsBusy: 0,
+  workshopsCritical: 0,
+  pendingPayments: 0,
+  overduePayments: 0,
+  pendingAmount: 0,
+  overdueAmount: 0,
+  totalReceives: 0,
+  piecesReceived: 0,
+  receivesThisMonth: 0,
 };
 
 export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const [stats, setStats] = useState<Stats>({});
+  const { navigate } = useNavigation();
+
+  const [stats, setStats] = useState<Stats>(INITIAL_STATS);
+  const [loading, setLoading] = useState(true);
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0,
+    }).format(value);
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
-        if (!user?.id) return;
+        if (!user?.id) {
+          if (mounted) {
+            setStats(INITIAL_STATS);
+            setLoading(false);
+          }
+          return;
+        }
 
-        const [cutsStats, workshops, paymentsStats] = await Promise.all([
+        setLoading(true);
+
+        const [cutsStats, batchesStats, workshops, paymentsStats, receiveStats] = await Promise.all([
           getCutStatistics(user.id),
+          getBatchStatistics(user.id),
           getWorkshopsByUser(user.id),
           getPaymentStatistics(user.id),
+          getReceivePiecesStatistics(user.id),
         ]);
 
         if (!mounted) return;
 
+        const workshopsBusy = workshops.filter(
+          (workshop) => workshop.status === 'yellow' || workshop.status === 'orange'
+        ).length;
+
+        const workshopsCritical = workshops.filter(
+          (workshop) => workshop.status === 'red'
+        ).length;
+
         setStats({
           totalCuts: cutsStats.totalCuts,
-          totalPieces: cutsStats.totalPieces,
-          workshops: workshops.length,
-          paymentsDue: paymentsStats.pending || 0,
+          totalCutPieces: cutsStats.totalPieces,
+          totalBatches: batchesStats.totalBatches,
+          completedBatches: batchesStats.completedBatches,
+          inProgressBatches: batchesStats.inProgressBatches,
+          totalWorkshops: workshops.length,
+          workshopsBusy,
+          workshopsCritical,
+          pendingPayments: paymentsStats.pending,
+          overduePayments: paymentsStats.overdue,
+          pendingAmount: paymentsStats.pendingAmount,
+          overdueAmount: paymentsStats.overdueAmount,
+          totalReceives: receiveStats.totalReceives,
+          piecesReceived: receiveStats.totalPiecesReceived,
+          receivesThisMonth: receiveStats.thisMonthReceives,
         });
-      } catch (err) {
-        // ignore — keep placeholders
+      } catch (error) {
+        console.error('Erro ao carregar dashboard:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [user?.id]);
 
-  const { navigate } = useNavigation();
+  const highlights = useMemo<HighlightCard[]>(
+    () => [
+      {
+        id: 'cuts',
+        title: t('dashboard.totalCuts'),
+        value: String(stats.totalCuts),
+        subtitle: `${stats.totalCutPieces} ${t('dashboard.pieces')}`,
+        icon: 'content-cut',
+        color: '#6366F1',
+        route: 'Cuts',
+      },
+      {
+        id: 'batches',
+        title: t('dashboard.inProgressBatches'),
+        value: String(stats.inProgressBatches),
+        subtitle: `${stats.completedBatches} ${t('dashboard.completedBatches')}`,
+        icon: 'inventory',
+        color: '#3B82F6',
+        route: 'Batches',
+      },
+      {
+        id: 'workshops',
+        title: t('dashboard.busyWorkshops'),
+        value: String(stats.workshopsBusy),
+        subtitle: `${stats.workshopsCritical} ${t('dashboard.critical')}`,
+        icon: 'business',
+        color: '#F97316',
+        route: 'WorkshopStatus',
+      },
+      {
+        id: 'finance',
+        title: t('dashboard.pendingAmount'),
+        value: formatCurrency(stats.pendingAmount),
+        subtitle: `${stats.overduePayments} ${t('dashboard.overduePayments')}`,
+        icon: 'payments',
+        color: '#EF4444',
+        route: 'FinancialHistory',
+      },
+    ],
+    [
+      stats.totalCuts,
+      stats.totalCutPieces,
+      stats.inProgressBatches,
+      stats.completedBatches,
+      stats.workshopsBusy,
+      stats.workshopsCritical,
+      stats.pendingAmount,
+      stats.overduePayments,
+      t,
+    ]
+  );
 
-  const shortcuts = [
-    { id: 'cuts', label: t('navigation.cuts'), icon: 'content-cut' },
-    { id: 'workshops', label: t('navigation.workshops'), icon: 'business' },
-    { id: 'payments', label: t('navigation.payments'), icon: 'payment' },
-    { id: 'metrics', label: t('navigation.metrics'), icon: 'bar-chart' },
-  ];
+  const shortcuts = useMemo<Shortcut[]>(
+    () => [
+      { id: 'cuts', label: t('navigation.cuts'), icon: 'content-cut', route: 'Cuts' },
+      { id: 'batches', label: t('navigation.batches'), icon: 'inventory', route: 'Batches' },
+      { id: 'workshops', label: t('navigation.workshops'), icon: 'business', route: 'Workshops' },
+      { id: 'payments', label: t('navigation.payments'), icon: 'payment', route: 'Payments' },
+      { id: 'receives', label: t('navigation.receivePieces'), icon: 'inbox', route: 'ReceivePieces' },
+      { id: 'metrics', label: t('navigation.metrics'), icon: 'bar-chart', route: 'Metrics' },
+    ],
+    [t]
+  );
 
   return (
     <Layout>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View>
+      <View style={styles.container}>
+        <View style={styles.headerCard}>
+          <View style={styles.headerTextBlock}>
             <Text style={styles.title}>{t('navigation.dashboard')}</Text>
-            <Text style={styles.subtitle}>{t('dashboard.welcome', { name: user?.name || t('common.user') })}</Text>
+            <Text style={styles.subtitle}>{t('dashboard.subtitle')}</Text>
+            <Text style={styles.welcome}>{`${t('dashboard.hello')}, ${user?.name ?? '...'}`}</Text>
+          </View>
+          <View style={styles.headerIconWrap}>
+            <MaterialIcons name="dashboard" size={28} color="#6366F1" />
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <TouchableOpacity style={[styles.statCard, styles.purple]} onPress={() => navigate('Cuts')}>
-            <MaterialIcons name="content-cut" size={22} color="#ffffff" />
-            <Text style={styles.statValue}>{stats.totalCuts ?? '—'}</Text>
-            <Text style={styles.statLabel}>{t('dashboard.totalCuts')}</Text>
-          </TouchableOpacity>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color="#6366F1" />
+          </View>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('dashboard.mainKpis')}</Text>
+              <View style={styles.grid}>
+                {highlights.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.highlightCard}
+                    onPress={() => navigate(item.route)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.highlightIcon, { backgroundColor: `${item.color}20` }]}>
+                      <MaterialIcons name={item.icon} size={20} color={item.color} />
+                    </View>
 
-          <TouchableOpacity style={[styles.statCard, styles.green]} onPress={() => navigate('Batches')}>
-            <MaterialIcons name="inventory" size={22} color="#ffffff" />
-            <Text style={styles.statValue}>{stats.totalPieces ?? '—'}</Text>
-            <Text style={styles.statLabel}>{t('dashboard.totalPieces')}</Text>
-          </TouchableOpacity>
+                    <Text style={styles.highlightTitle}>{item.title}</Text>
+                    <Text style={styles.highlightValue}>{item.value}</Text>
+                    <Text style={styles.highlightSubtitle}>{item.subtitle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-          <TouchableOpacity style={[styles.statCard, styles.blue]} onPress={() => navigate('Workshops')}>
-            <MaterialIcons name="business" size={22} color="#ffffff" />
-            <Text style={styles.statValue}>{stats.workshops ?? '—'}</Text>
-            <Text style={styles.statLabel}>{t('dashboard.workshops')}</Text>
-          </TouchableOpacity>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('dashboard.operations')}</Text>
+              <View style={styles.infoRow}>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoLabel}>{t('navigation.batches')}</Text>
+                  <Text style={styles.infoValue}>{stats.totalBatches}</Text>
+                  <Text style={styles.infoCaption}>{t('dashboard.totalBatches')}</Text>
+                </View>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoLabel}>{t('navigation.receivePieces')}</Text>
+                  <Text style={styles.infoValue}>{stats.receivesThisMonth}</Text>
+                  <Text style={styles.infoCaption}>{t('dashboard.receivesThisMonth')}</Text>
+                </View>
+              </View>
 
-          <TouchableOpacity style={[styles.statCard, styles.red]} onPress={() => navigate('Payments')}>
-            <MaterialIcons name="payment" size={22} color="#ffffff" />
-            <Text style={styles.statValue}>{stats.paymentsDue ?? '—'}</Text>
-            <Text style={styles.statLabel}>{t('dashboard.paymentsDue')}</Text>
-          </TouchableOpacity>
-        </View>
+              <View style={styles.infoRow}>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoLabel}>{t('dashboard.piecesReceived')}</Text>
+                  <Text style={styles.infoValue}>{stats.piecesReceived}</Text>
+                  <Text style={styles.infoCaption}>{t('dashboard.pieces')}</Text>
+                </View>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoLabel}>{t('navigation.workshops')}</Text>
+                  <Text style={styles.infoValue}>{stats.totalWorkshops}</Text>
+                  <Text style={styles.infoCaption}>{t('dashboard.activeWorkshops')}</Text>
+                </View>
+              </View>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.shortcuts')}</Text>
-          <View style={styles.shortcutsRow}>
-            {shortcuts.map((s) => (
-              <TouchableOpacity key={s.id} style={styles.shortcut}>
-                <MaterialIcons name={s.icon as any} size={20} color="#6366F1" />
-                <Text style={styles.shortcutText}>{s.label}</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('dashboard.finance')}</Text>
+
+              <TouchableOpacity
+                style={styles.financeCard}
+                onPress={() => navigate('Payments')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.financeHeader}>
+                  <Text style={styles.financeTitle}>{t('navigation.payments')}</Text>
+                  <MaterialIcons name="trending-down" size={20} color="#EF4444" />
+                </View>
+                <View style={styles.financeNumbers}>
+                  <View>
+                    <Text style={styles.financeNumber}>{stats.pendingPayments}</Text>
+                    <Text style={styles.financeLabel}>{t('payments.pending')}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.financeNumber, { color: '#EF4444' }]}>{stats.overduePayments}</Text>
+                    <Text style={styles.financeLabel}>{t('payments.overdue')}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.financeAmount}>{formatCurrency(stats.overdueAmount)}</Text>
+                    <Text style={styles.financeLabel}>{t('dashboard.overdueAmount')}</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.insights')}</Text>
-          <View style={styles.card}>
-            <Text style={styles.cardText}>{t('dashboard.insightsPlaceholder')}</Text>
-          </View>
-        </View>
-      </ScrollView>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('dashboard.shortcuts')}</Text>
+              <View style={styles.shortcutsGrid}>
+                {shortcuts.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.shortcutCard}
+                    onPress={() => navigate(item.route)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name={item.icon} size={18} color="#6366F1" />
+                    <Text style={styles.shortcutText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+      </View>
     </Layout>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 20,
+    gap: 12,
   },
-  content: {
-    padding: 20,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  cardsContainer: {
-    gap: 16,
-  },
-  card: {
+  headerCard: {
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  cardText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  statsRow: {
+    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  statCard: {
+  headerTextBlock: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    paddingRight: 8,
+  },
+  headerIconWrap: {
+    width: 46,
+    height: 46,
     borderRadius: 12,
-    padding: 14,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  welcome: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  loadingBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    minHeight: 130,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  purple: { backgroundColor: '#6366F1' },
-  green: { backgroundColor: '#10B981' },
-  blue: { backgroundColor: '#3B82F6' },
-  red: { backgroundColor: '#EF4444' },
   section: {
-    marginTop: 12,
+    marginTop: 2,
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 8,
   },
-  shortcutsRow: {
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  highlightCard: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  highlightIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  highlightTitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  highlightValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  highlightSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  infoRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  shortcut: {
+  infoCard: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EEF2FF',
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  infoValue: {
+    fontSize: 21,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 6,
+  },
+  infoCaption: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  financeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+  },
+  financeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  financeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  financeNumbers: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  financeNumber: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  financeAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  financeLabel: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  shortcutsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shortcutCard: {
+    width: '31%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    minHeight: 84,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -232,7 +531,8 @@ const styles = StyleSheet.create({
   },
   shortcutText: {
     marginTop: 6,
-    fontSize: 13,
+    textAlign: 'center',
+    fontSize: 12,
     color: '#374151',
     fontWeight: '600',
   },

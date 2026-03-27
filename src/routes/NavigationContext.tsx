@@ -1,25 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-
-export type ScreenName =
-  | "LanguageSelection"
-  | "Login"
-  | "Register"
-  | "Dashboard"
-  | "Profile"
-  | "Workshops"
-  | "Cuts"
-  | "Batches"
-  | "WorkshopStatus"
-  | "FinishedProduction"
-  | "ReceivePieces"
-  | "Payments"
-  | "FinancialHistory"
-  | "GeneralHistory"
-  | "Metrics"
-  | "Plans"
-  | "BasicPlan"
-  | "PremiumPlan"
-  | "EnterprisePlan";
+import { paths, type ScreenName } from "./paths";
 
 interface NavigationParams {
   userId?: string;
@@ -36,7 +16,7 @@ const NavigationContext = createContext<NavigationContextType | undefined>(
 );
 
 export const NavigationProvider = ({ children }: { children: ReactNode }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenName>("LanguageSelection");
+  const [currentScreen, setCurrentScreen] = useState<ScreenName>(paths.languageSelection);
   const [navigationParams, setNavigationParams] = useState<NavigationParams>({});
 
   const navigate = (screen: ScreenName, params?: NavigationParams) => {
