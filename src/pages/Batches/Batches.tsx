@@ -14,12 +14,15 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { usePlanGuard } from "../../hooks/usePlanGuard";
+import PlanLimitModal from "../../components/PlanLimitModal";
 import {
   createBatch,
   getBatchesByUser,
   updateBatch,
   deleteBatch,
   getBatchStatistics,
+  getBatchCountThisMonth,
 } from "../../services/batchService";
 import { Batch, CreateBatchData, BatchStatus } from "../../types/batch";
 import { getWorkshopsByUser } from "../../services/workshopService";
@@ -28,10 +31,13 @@ import { Workshop } from "../../types/workshop";
 export default function Batches() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { canAddBatch, getUserLimits } = usePlanGuard();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [planLimitModalVisible, setPlanLimitModalVisible] = useState(false);
+  const [batchesThisMonth, setBatchesThisMonth] = useState(0);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
@@ -77,9 +83,10 @@ export default function Batches() {
 
     try {
       setLoading(true);
-      const [batchesData, stats] = await Promise.all([
+      const [batchesData, stats, currentMonthCount] = await Promise.all([
         getBatchesByUser(user.id),
         getBatchStatistics(user.id),
+        getBatchCountThisMonth(user.id),
       ]);
 
       setBatches(batchesData);
@@ -88,6 +95,7 @@ export default function Batches() {
       setPendingBatches(stats.pendingBatches);
       setInProgressBatches(stats.inProgressBatches);
       setCompletedBatches(stats.completedBatches);
+      setBatchesThisMonth(currentMonthCount);
     } catch (error: any) {
       Alert.alert(
         t("common.error"),
@@ -119,6 +127,15 @@ export default function Batches() {
       resetForm();
     }
     setModalVisible(true);
+  };
+
+  const handleAddBatch = () => {
+    if (canAddBatch(batchesThisMonth)) {
+      openModal();
+      return;
+    }
+
+    setPlanLimitModalVisible(true);
   };
 
   const closeModal = () => {
@@ -278,7 +295,7 @@ export default function Batches() {
           </View>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => openModal()}
+            onPress={handleAddBatch}
           >
             <MaterialIcons name="add" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -327,7 +344,7 @@ export default function Batches() {
               <Text style={styles.emptyText}>{t("batches.empty")}</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={() => openModal()}
+                onPress={handleAddBatch}
               >
                 <Text style={styles.emptyButtonText}>
                   {t("batches.addFirst")}
@@ -679,6 +696,15 @@ export default function Batches() {
             </View>
           </View>
         </Modal>
+
+        <PlanLimitModal
+          visible={planLimitModalVisible}
+          onClose={() => setPlanLimitModalVisible(false)}
+          featureType="batch"
+          currentCount={batchesThisMonth}
+          limit={getUserLimits().maxBatchesPerMonth}
+          currentPlan={user?.plan}
+        />
       </View>
     </Layout>
   );

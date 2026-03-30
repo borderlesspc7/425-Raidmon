@@ -201,3 +201,26 @@ export async function getBatchStatistics(userId: string): Promise<{
     throw new Error(error.message || "Erro ao buscar estatísticas");
   }
 }
+
+/** Retorna a quantidade de lotes criados pelo usuário no mês atual */
+export async function getBatchCountThisMonth(userId: string): Promise<number> {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const startOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
+    const startOfMonthTimestamp = Timestamp.fromDate(startOfMonth);
+
+    const q = query(
+      collection(db, BATCHES_COLLECTION),
+      where("userId", "==", userId),
+      where("createdAt", ">=", startOfMonthTimestamp),
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.size;
+  } catch (error: any) {
+    console.error("Erro ao contar lotes do mês:", error);
+    throw new Error(error.message || "Erro ao contar lotes do mês");
+  }
+}
