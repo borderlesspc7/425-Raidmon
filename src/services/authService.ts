@@ -46,6 +46,8 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       id: firebaseUser.uid,
       name: userData.name || '',
       email: userData.email || firebaseUser.email || '',
+      role: userData.role || 'admin',
+      workshopId: userData.workshopId ?? undefined,
       plan: userData.plan || undefined,
       username: userData.username,
       phone: userData.phone,
@@ -88,6 +90,8 @@ export const authService = {
         id: firebaseUser.uid,
         name: userData.name || '',
         email: userData.email || firebaseUser.email || '',
+        role: userData.role || 'admin',
+        workshopId: userData.workshopId ?? undefined,
         plan: userData.plan || undefined,
         username: userData.username,
         phone: userData.phone,
@@ -158,18 +162,28 @@ export const authService = {
         id: firebaseUser.uid,
         name: credentials.name,
         email: credentials.email,
+        role: credentials.role,
+        workshopId: credentials.role === 'workshop' ? '' : undefined,
         username: credentials.email.split('@')[0],
+        companyName: credentials.companyName,
+        phone: credentials.phone,
         cpf: credentials.cpf,
         rg: credentials.rg,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      await setDoc(doc(db, 'users', firebaseUser.uid), {
+      const userPayload: any = {
         ...userData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      if (credentials.role !== 'workshop') {
+        delete userPayload.workshopId;
+      }
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), userPayload);
 
       return userData;
     } catch (error: any) {
@@ -226,6 +240,8 @@ export const authService = {
         id: userDoc.id,
         name: userData.name || '',
         email: userData.email || '',
+        role: userData.role || 'admin',
+        workshopId: userData.workshopId ?? undefined,
         plan: userData.plan || undefined,
         username: userData.username,
         phone: userData.phone,

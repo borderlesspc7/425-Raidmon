@@ -6,6 +6,7 @@ export interface Workshop {
   address: string;
   contact1: string; // WhatsApp principal
   contact2?: string; // Contato secundário
+  workshopUserId?: string; // uid do Firebase Auth da conta da oficina
   status: WorkshopStatus;
   totalPieces: number;
   userId: string; // ID do dono da confecção
@@ -23,4 +24,5 @@ export interface CreateWorkshopData {
 
 export interface UpdateWorkshopData extends Partial<CreateWorkshopData> {
   totalPieces?: number;
+  workshopUserId?: string;
 }

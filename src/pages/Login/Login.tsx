@@ -13,10 +13,12 @@ import {
   Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { doc, getDoc } from 'firebase/firestore';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { paths } from '../../routes/paths';
+import { auth, db } from '../../lib/firebaseconfig';
 
 export default function Login() {
   const { navigate } = useNavigation();
@@ -76,7 +78,19 @@ export default function Login() {
 
     try {
       await login({ email, password });
-      navigate('Dashboard');
+
+      const firebaseUser = auth.currentUser;
+      let role: 'admin' | 'workshop' = 'admin';
+
+      if (firebaseUser?.uid) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          role = userData.role === 'workshop' ? 'workshop' : 'admin';
+        }
+      }
+
+      navigate(role === 'workshop' ? paths.workshopHome : paths.dashboard);
     } catch (err) {
       // Erro já é tratado pelo AuthContext
     }

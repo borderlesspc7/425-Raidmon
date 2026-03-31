@@ -1,9 +1,13 @@
   export type Language = 'pt' | 'es';
 
+  export type UserRole = 'admin' | 'workshop';
+
   export interface User {
     id: string;
     name: string;
     email: string;
+    role: UserRole;
+    workshopId?: string;
     // Current plan id: 'basic' | 'premium' | 'enterprise'
     plan?: 'basic' | 'premium' | 'enterprise';
     username?: string;
@@ -32,6 +36,7 @@
   
   export interface RegisterCredentials extends LoginCredentials {
     name: string;
+    role: UserRole;
     companyName?: string;
     phone?: string;
     password: string;

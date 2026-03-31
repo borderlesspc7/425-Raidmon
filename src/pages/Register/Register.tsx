@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import type { UserRole } from '../../types/auth';
 
 export default function Register() {
   const { navigate } = useNavigation();
@@ -22,6 +23,7 @@ export default function Register() {
   const { t, language, setLanguage } = useLanguage();
   
   const [name, setName] = useState('');
+  const [role, setRole] = useState<UserRole>('admin');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -250,6 +252,7 @@ export default function Register() {
       const phoneNumbers = phone.replace(/\D/g, '');
       await register({
         name: name.trim(),
+        role,
         companyName: companyName.trim(),
         email: email.trim().toLowerCase(),
         phone: phoneNumbers,
@@ -304,6 +307,46 @@ export default function Register() {
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Role Selector */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Perfil</Text>
+              <View style={styles.roleSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.roleButton,
+                    role === 'admin' && styles.roleButtonActive,
+                  ]}
+                  onPress={() => setRole('admin')}
+                >
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      role === 'admin' && styles.roleButtonTextActive,
+                    ]}
+                  >
+                    Administrador
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.roleButton,
+                    role === 'workshop' && styles.roleButtonActive,
+                  ]}
+                  onPress={() => setRole('workshop')}
+                >
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      role === 'workshop' && styles.roleButtonTextActive,
+                    ]}
+                  >
+                    Oficina
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Name Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>{t('register.name')}</Text>
@@ -327,12 +370,14 @@ export default function Register() {
 
             {/* Company Name Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>{t('register.companyName')}</Text>
+              <Text style={styles.label}>
+                {role === 'workshop' ? 'Nome da oficina' : t('register.companyName')}
+              </Text>
               <View style={[styles.inputWrapper, errors.companyName ? styles.inputError : null]}>
                 <MaterialIcons name="business" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder={t('register.companyNamePlaceholder')}
+                  placeholder={role === 'workshop' ? 'Digite o nome da oficina' : t('register.companyNamePlaceholder')}
                   placeholderTextColor="#999"
                   value={companyName}
                   onChangeText={(text) => {
@@ -633,6 +678,31 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    padding: 4,
+    gap: 6,
+  },
+  roleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleButtonActive: {
+    backgroundColor: '#6366F1',
+  },
+  roleButtonText: {
+    color: '#4B5563',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  roleButtonTextActive: {
+    color: '#FFFFFF',
   },
   inputContainer: {
     marginBottom: 18,
