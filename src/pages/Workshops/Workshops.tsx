@@ -14,8 +14,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Layout from '../../components/Layout/Layout';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { usePlanGuard } from '../../hooks/usePlanGuard';
-import PlanLimitModal from '../../components/PlanLimitModal';
 import {
   createWorkshop,
   getWorkshopsByUser,
@@ -28,12 +26,10 @@ import { Workshop, WorkshopStatus, CreateWorkshopData } from '../../types/worksh
 export default function Workshops() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { canAddWorkshop, getUserLimits } = usePlanGuard();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [planLimitModalVisible, setPlanLimitModalVisible] = useState(false);
   const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -77,15 +73,6 @@ export default function Workshops() {
       resetForm();
     }
     setModalVisible(true);
-  };
-
-  const handleAddWorkshop = () => {
-    if (canAddWorkshop(workshops.length)) {
-      openModal();
-      return;
-    }
-
-    setPlanLimitModalVisible(true);
   };
 
   const closeModal = () => {
@@ -238,7 +225,7 @@ export default function Workshops() {
           </View>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={handleAddWorkshop}
+            onPress={() => openModal()}
           >
             <MaterialIcons name="add" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -256,7 +243,7 @@ export default function Workshops() {
               <Text style={styles.emptyText}>{t('workshops.empty')}</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={handleAddWorkshop}
+                onPress={() => openModal()}
               >
                 <Text style={styles.emptyButtonText}>{t('workshops.addFirst')}</Text>
               </TouchableOpacity>
@@ -499,15 +486,6 @@ export default function Workshops() {
             </View>
           </View>
         </Modal>
-
-        <PlanLimitModal
-          visible={planLimitModalVisible}
-          onClose={() => setPlanLimitModalVisible(false)}
-          featureType="workshop"
-          currentCount={workshops.length}
-          limit={getUserLimits().maxWorkshops}
-          currentPlan={user?.plan}
-        />
       </View>
     </Layout>
   );
