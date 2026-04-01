@@ -2,7 +2,6 @@ export const paths = {
     languageSelection: "LanguageSelection",
     login: "Login",
     register: "Register",
-    workshopHome: "WorkshopHome",
     dashboard: "Dashboard",
     profile: "Profile",
     workshops: "Workshops",
@@ -29,11 +28,7 @@ export const publicRoutes: ScreenName[] = [
     paths.register,
 ];
 
-export const workshopRoutes: ScreenName[] = [
-    paths.workshopHome,
-];
-
-export const adminRoutes: ScreenName[] = [
+export const protectedRoutes: ScreenName[] = [
     paths.dashboard,
     paths.profile,
     paths.workshops,
@@ -50,9 +45,4 @@ export const adminRoutes: ScreenName[] = [
     paths.basicPlan,
     paths.premiumPlan,
     paths.enterprisePlan,
-];
-
-export const protectedRoutes: ScreenName[] = [
-    ...workshopRoutes,
-    ...adminRoutes,
 ];

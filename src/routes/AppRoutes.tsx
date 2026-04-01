@@ -3,7 +3,6 @@ import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
-import WorkshopHome from "../pages/Workshop/WorkshopHome";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import Workshops from "../pages/Workshops/Workshops";
@@ -24,10 +23,8 @@ import EnterprisePlan from "../pages/Plans/EnterprisePlan";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import {
-  adminRoutes,
   paths,
   protectedRoutes,
-  workshopRoutes,
   type ScreenName,
 } from "./paths";
 
@@ -37,7 +34,6 @@ const screenComponents: Record<ScreenName, React.ComponentType> = {
   LanguageSelection,
   Login,
   Register,
-  WorkshopHome,
   Dashboard,
   Profile,
   Workshops,
@@ -58,12 +54,6 @@ const screenComponents: Record<ScreenName, React.ComponentType> = {
 
 const guestOnlyRoutes = new Set<ScreenName>([paths.login, paths.register]);
 const authRequiredRoutes = new Set<ScreenName>(protectedRoutes);
-const adminOnlyRoutes = new Set<ScreenName>(adminRoutes);
-const workshopOnlyRoutes = new Set<ScreenName>(workshopRoutes);
-
-const getHomeRoute = (role?: string): ScreenName => {
-  return role === "workshop" ? paths.workshopHome : paths.dashboard;
-};
 
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
@@ -77,7 +67,7 @@ export const AppRoutes = () => {
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
         if ((savedLanguage || user?.language) && currentScreen === paths.languageSelection) {
           if (user) {
-            navigate(getHomeRoute(user.role));
+            navigate(paths.dashboard);
           } else {
             navigate(paths.login);
           }
@@ -102,7 +92,7 @@ export const AppRoutes = () => {
       user &&
       guestOnlyRoutes.has(currentScreen)
     ) {
-      navigate(getHomeRoute(user.role));
+      navigate(paths.dashboard);
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
@@ -115,28 +105,6 @@ export const AppRoutes = () => {
       authRequiredRoutes.has(currentScreen)
     ) {
       navigate(paths.login);
-    }
-  }, [user, loading, checkingLanguage, currentScreen, navigate]);
-
-  useEffect(() => {
-    if (
-      !loading &&
-      !checkingLanguage &&
-      user?.role === "workshop" &&
-      adminOnlyRoutes.has(currentScreen)
-    ) {
-      navigate(paths.workshopHome);
-    }
-  }, [user, loading, checkingLanguage, currentScreen, navigate]);
-
-  useEffect(() => {
-    if (
-      !loading &&
-      !checkingLanguage &&
-      user?.role === "admin" &&
-      workshopOnlyRoutes.has(currentScreen)
-    ) {
-      navigate(paths.dashboard);
     }
   }, [user, loading, checkingLanguage, currentScreen, navigate]);
 
