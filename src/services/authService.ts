@@ -6,8 +6,11 @@ import {
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { db, auth } from '../lib/firebaseconfig';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '../lib/firebaseconfig';
 import { User, LoginCredentials, RegisterCredentials } from '../types/auth';
+
+const ADMIN_EMAIL = 'costuraconectada@gmail.com';
 
 // Função auxiliar para converter Timestamp do Firestore para Date
 const convertTimestampToDate = (timestamp: any): Date => {
@@ -42,6 +45,7 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
 
     const userData = userDoc.data();
     
+    const isAdminUser = userData.userType === 'admin' || (userData.email || firebaseUser.email || '').toLowerCase() === ADMIN_EMAIL;
     return {
       id: firebaseUser.uid,
       name: userData.name || '',
@@ -54,6 +58,8 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       language: userData.language || 'pt',
       address: userData.address,
       about: userData.about,
+      userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
+      asaasCustomerId: userData.asaasCustomerId,
       cpf: userData.cpf || '',
       rg: userData.rg || '',
       createdAt: convertTimestampToDate(userData.createdAt),
@@ -84,6 +90,9 @@ export const authService = {
 
       const userData = userDoc.data();
       
+      const isAdminUser =
+        userData.userType === 'admin' ||
+        (userData.email || firebaseUser.email || '').toLowerCase() === ADMIN_EMAIL;
       const user: User = {
         id: firebaseUser.uid,
         name: userData.name || '',
@@ -96,6 +105,8 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
+        asaasCustomerId: userData.asaasCustomerId,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -159,8 +170,9 @@ export const authService = {
         name: credentials.name,
         email: credentials.email,
         username: credentials.email.split('@')[0],
-        cpf: credentials.cpf,
-        rg: credentials.rg,
+        userType: credentials.userType,
+        cpf: credentials.cpf || '',
+        rg: '',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -234,6 +246,11 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        userType:
+          userData.userType === 'admin' || (userData.email || '').toLowerCase() === ADMIN_EMAIL
+            ? 'admin'
+            : (userData.userType || 'owner'),
+        asaasCustomerId: userData.asaasCustomerId,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -258,6 +275,7 @@ export const authService = {
       delete updateData.id;
       delete updateData.email;
       delete updateData.createdAt;
+      delete updateData.asaasCustomerId;
       
       await updateDoc(userRef, updateData);
       console.log('Perfil atualizado com sucesso');
@@ -274,6 +292,20 @@ export const authService = {
     } catch (error) {
       console.error('Erro ao atualizar foto de perfil:', error);
       throw error;
+    }
+  },
+
+  // Upload da foto de perfil para o Firebase Storage e retorno da URL pública
+  async uploadProfilePhoto(userId: string, localUri: string): Promise<string> {
+    try {
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+      const storageRef = ref(storage, `profile-photos/${userId}-${Date.now()}.jpg`);
+      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+      return await getDownloadURL(storageRef);
+    } catch (error) {
+      console.error('Erro ao fazer upload da foto de perfil:', error);
+      throw new Error('Não foi possível enviar a foto de perfil');
     }
   },
 

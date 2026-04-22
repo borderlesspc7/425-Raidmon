@@ -23,6 +23,18 @@ import {
 } from "../../services/cutService";
 import { Cut, CreateCutData } from "../../types/cut";
 
+/** Formatação em tempo real: só dígitos, últimos 2 = centavos (ex.: 1500 → 15,00). */
+function formatPriceDigitsToBrl(digits: string): string {
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  if (!Number.isFinite(cents)) return "";
+  const n = cents / 100;
+  return n.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function Cuts() {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -40,6 +52,7 @@ export default function Cuts() {
   // Form state
   const [type, setType] = useState("");
   const [totalPiecesInput, setTotalPiecesInput] = useState("");
+  const [pricePerPieceInput, setPricePerPieceInput] = useState("");
   const [observations, setObservations] = useState("");
 
   // Validation errors
@@ -77,6 +90,11 @@ export default function Cuts() {
       setEditingCut(cut);
       setType(cut.type);
       setTotalPiecesInput(cut.totalPieces.toString());
+      setPricePerPieceInput(
+        cut.pricePerPiece != null && Number.isFinite(cut.pricePerPiece)
+          ? formatPriceDigitsToBrl(String(Math.round(cut.pricePerPiece * 100)))
+          : "",
+      );
       setObservations(cut.observations || "");
     } else {
       resetForm();
@@ -93,8 +111,26 @@ export default function Cuts() {
     setEditingCut(null);
     setType("");
     setTotalPiecesInput("");
+    setPricePerPieceInput("");
     setObservations("");
     setErrors({});
+  };
+
+  const parsePricePerPiece = (raw: string): number | null => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return null;
+    const cents = parseInt(digits, 10);
+    if (!Number.isFinite(cents) || cents <= 0) return null;
+    return Math.round(cents) / 100;
+  };
+
+  const handlePricePerPieceChange = (text: string) => {
+    const digits = text.replace(/\D/g, "");
+    if (!digits) {
+      setPricePerPieceInput("");
+      return;
+    }
+    setPricePerPieceInput(formatPriceDigitsToBrl(digits));
   };
 
   const validateForm = (): boolean => {
@@ -104,9 +140,14 @@ export default function Cuts() {
       newErrors.type = t("cuts.typeRequired");
     }
 
-    const pieces = parseInt(totalPiecesInput);
+    const pieces = parseInt(totalPiecesInput, 10);
     if (!totalPiecesInput || isNaN(pieces) || pieces <= 0) {
       newErrors.totalPieces = t("cuts.piecesRequired");
+    }
+
+    const price = parsePricePerPiece(pricePerPieceInput);
+    if (price === null || price <= 0) {
+      newErrors.pricePerPiece = t("cuts.pricePerPieceRequired");
     }
 
     setErrors(newErrors);
@@ -118,9 +159,11 @@ export default function Cuts() {
 
     try {
       setSubmitting(true);
+      const price = Math.round(parsePricePerPiece(pricePerPieceInput)! * 100) / 100;
       const cutData: CreateCutData = {
         type: type.trim(),
-        totalPieces: parseInt(totalPiecesInput),
+        totalPieces: parseInt(totalPiecesInput, 10),
+        pricePerPiece: price,
         observations: observations.trim() || undefined,
       };
 
@@ -163,6 +206,14 @@ export default function Cuts() {
       ],
     );
   };
+
+  const formatMoneyBRL = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("pt-BR", {
@@ -284,6 +335,19 @@ export default function Cuts() {
                       {cut.totalPieces} {t("cuts.pieces")}
                     </Text>
                   </View>
+                  {cut.pricePerPiece != null && Number.isFinite(cut.pricePerPiece) ? (
+                    <View style={styles.infoItem}>
+                      <MaterialIcons
+                        name="attach-money"
+                        size={18}
+                        color="#6366F1"
+                      />
+                      <Text style={styles.infoLabel}>{t("cuts.pricePerPiece")}:</Text>
+                      <Text style={styles.infoValue}>
+                        {formatMoneyBRL(cut.pricePerPiece)}
+                      </Text>
+                    </View>
+                  ) : null}
                   {cut.observations && (
                     <View style={styles.observationsContainer}>
                       <MaterialIcons name="notes" size={18} color="#6B7280" />
@@ -361,6 +425,25 @@ export default function Cuts() {
                   </View>
                   {errors.totalPieces && (
                     <Text style={styles.errorText}>{errors.totalPieces}</Text>
+                  )}
+                </View>
+
+                {/* Preço por peça */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>{t("cuts.pricePerPiece")}</Text>
+                  <View style={styles.inputContainer}>
+                    <MaterialIcons name="attach-money" size={20} color="#6B7280" />
+                    <TextInput
+                      style={styles.input}
+                      value={pricePerPieceInput}
+                      onChangeText={handlePricePerPieceChange}
+                      placeholder={t("cuts.pricePerPiecePlaceholder")}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  {errors.pricePerPiece && (
+                    <Text style={styles.errorText}>{errors.pricePerPiece}</Text>
                   )}
                 </View>
 

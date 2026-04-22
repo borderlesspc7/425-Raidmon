@@ -10,6 +10,7 @@ import Layout from '../../components/Layout/Layout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../routes/NavigationContext';
+import DashboardOwner from './DashboardOwner';
 import { getCutStatistics } from '../../services/cutService';
 import { getBatchStatistics } from '../../services/batchService';
 import { getWorkshopsByUser } from '../../services/workshopService';
@@ -17,6 +18,7 @@ import { getPaymentStatistics } from '../../services/paymentService';
 import { getReceivePiecesStatistics } from '../../services/receivePiecesService';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { ScreenName } from '../../routes/paths';
+import { useCountUp } from '../../hooks/useCountUp';
 
 type Stats = {
   totalCuts: number;
@@ -75,9 +77,24 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const { navigate } = useNavigation();
+  const isWorkshopUser = user?.userType === 'workshop';
 
   const [stats, setStats] = useState<Stats>(INITIAL_STATS);
   const [loading, setLoading] = useState(true);
+  const animatedTotalCuts = useCountUp(stats.totalCuts);
+  const animatedTotalCutPieces = useCountUp(stats.totalCutPieces);
+  const animatedCompletedBatches = useCountUp(stats.completedBatches);
+  const animatedInProgressBatches = useCountUp(stats.inProgressBatches);
+  const animatedTotalWorkshops = useCountUp(stats.totalWorkshops);
+  const animatedWorkshopsBusy = useCountUp(stats.workshopsBusy);
+  const animatedWorkshopsCritical = useCountUp(stats.workshopsCritical);
+  const animatedPendingPayments = useCountUp(stats.pendingPayments);
+  const animatedOverduePayments = useCountUp(stats.overduePayments);
+  const animatedPendingAmount = useCountUp(stats.pendingAmount, { durationMs: 1700 });
+  const animatedOverdueAmount = useCountUp(stats.overdueAmount, { durationMs: 1700 });
+  const animatedTotalBatches = useCountUp(stats.totalBatches);
+  const animatedPiecesReceived = useCountUp(stats.piecesReceived);
+  const animatedReceivesThisMonth = useCountUp(stats.receivesThisMonth);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', {
@@ -94,6 +111,13 @@ export default function Dashboard() {
         if (!user?.id) {
           if (mounted) {
             setStats(INITIAL_STATS);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (user.userType !== 'workshop') {
+          if (mounted) {
             setLoading(false);
           }
           return;
@@ -148,15 +172,15 @@ export default function Dashboard() {
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, user?.userType]);
 
   const highlights = useMemo<HighlightCard[]>(
     () => [
       {
         id: 'cuts',
         title: t('dashboard.totalCuts'),
-        value: String(stats.totalCuts),
-        subtitle: `${stats.totalCutPieces} ${t('dashboard.pieces')}`,
+        value: String(Math.round(animatedTotalCuts)),
+        subtitle: `${Math.round(animatedTotalCutPieces)} ${t('dashboard.pieces')}`,
         icon: 'content-cut',
         color: '#6366F1',
         route: 'Cuts',
@@ -164,8 +188,8 @@ export default function Dashboard() {
       {
         id: 'batches',
         title: t('dashboard.inProgressBatches'),
-        value: String(stats.inProgressBatches),
-        subtitle: `${stats.completedBatches} ${t('dashboard.completedBatches')}`,
+        value: String(Math.round(animatedInProgressBatches)),
+        subtitle: `${Math.round(animatedCompletedBatches)} ${t('dashboard.completedBatches')}`,
         icon: 'inventory',
         color: '#3B82F6',
         route: 'Batches',
@@ -173,8 +197,8 @@ export default function Dashboard() {
       {
         id: 'workshops',
         title: t('dashboard.busyWorkshops'),
-        value: String(stats.workshopsBusy),
-        subtitle: `${stats.workshopsCritical} ${t('dashboard.critical')}`,
+        value: String(Math.round(animatedWorkshopsBusy)),
+        subtitle: `${Math.round(animatedWorkshopsCritical)} ${t('dashboard.critical')}`,
         icon: 'business',
         color: '#F97316',
         route: 'WorkshopStatus',
@@ -182,22 +206,22 @@ export default function Dashboard() {
       {
         id: 'finance',
         title: t('dashboard.pendingAmount'),
-        value: formatCurrency(stats.pendingAmount),
-        subtitle: `${stats.overduePayments} ${t('dashboard.overduePayments')}`,
+        value: formatCurrency(Math.round(animatedPendingAmount)),
+        subtitle: `${Math.round(animatedOverduePayments)} ${t('dashboard.overduePayments')}`,
         icon: 'payments',
         color: '#EF4444',
         route: 'FinancialHistory',
       },
     ],
     [
-      stats.totalCuts,
-      stats.totalCutPieces,
-      stats.inProgressBatches,
-      stats.completedBatches,
-      stats.workshopsBusy,
-      stats.workshopsCritical,
-      stats.pendingAmount,
-      stats.overduePayments,
+      animatedTotalCuts,
+      animatedTotalCutPieces,
+      animatedInProgressBatches,
+      animatedCompletedBatches,
+      animatedWorkshopsBusy,
+      animatedWorkshopsCritical,
+      animatedPendingAmount,
+      animatedOverduePayments,
       t,
     ]
   );
@@ -214,6 +238,14 @@ export default function Dashboard() {
     [t]
   );
 
+  if (user?.id && !isWorkshopUser) {
+    return (
+      <Layout>
+        <DashboardOwner userId={user.id} userName={user.name} userPlan={user.plan} />
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <View style={styles.container}>
@@ -221,7 +253,7 @@ export default function Dashboard() {
           <View style={styles.headerTextBlock}>
             <Text style={styles.title}>{t('navigation.dashboard')}</Text>
             <Text style={styles.subtitle}>{t('dashboard.subtitle')}</Text>
-            <Text style={styles.welcome}>{`${t('dashboard.hello')}, ${user?.name ?? '...'}`}</Text>
+            <Text style={styles.welcome}>{`${t('dashboard.hello')}, ${user?.name ?? '...'} ✨`}</Text>
           </View>
           <View style={styles.headerIconWrap}>
             <MaterialIcons name="dashboard" size={28} color="#6366F1" />
@@ -261,12 +293,12 @@ export default function Dashboard() {
               <View style={styles.infoRow}>
                 <View style={styles.infoCard}>
                   <Text style={styles.infoLabel}>{t('navigation.batches')}</Text>
-                  <Text style={styles.infoValue}>{stats.totalBatches}</Text>
+                  <Text style={styles.infoValue}>{Math.round(animatedTotalBatches)}</Text>
                   <Text style={styles.infoCaption}>{t('dashboard.totalBatches')}</Text>
                 </View>
                 <View style={styles.infoCard}>
                   <Text style={styles.infoLabel}>{t('navigation.receivePieces')}</Text>
-                  <Text style={styles.infoValue}>{stats.receivesThisMonth}</Text>
+                  <Text style={styles.infoValue}>{Math.round(animatedReceivesThisMonth)}</Text>
                   <Text style={styles.infoCaption}>{t('dashboard.receivesThisMonth')}</Text>
                 </View>
               </View>
@@ -274,12 +306,12 @@ export default function Dashboard() {
               <View style={styles.infoRow}>
                 <View style={styles.infoCard}>
                   <Text style={styles.infoLabel}>{t('dashboard.piecesReceived')}</Text>
-                  <Text style={styles.infoValue}>{stats.piecesReceived}</Text>
+                  <Text style={styles.infoValue}>{Math.round(animatedPiecesReceived)}</Text>
                   <Text style={styles.infoCaption}>{t('dashboard.pieces')}</Text>
                 </View>
                 <View style={styles.infoCard}>
                   <Text style={styles.infoLabel}>{t('navigation.workshops')}</Text>
-                  <Text style={styles.infoValue}>{stats.totalWorkshops}</Text>
+                  <Text style={styles.infoValue}>{Math.round(animatedTotalWorkshops)}</Text>
                   <Text style={styles.infoCaption}>{t('dashboard.activeWorkshops')}</Text>
                 </View>
               </View>
@@ -299,15 +331,17 @@ export default function Dashboard() {
                 </View>
                 <View style={styles.financeNumbers}>
                   <View>
-                    <Text style={styles.financeNumber}>{stats.pendingPayments}</Text>
+                    <Text style={styles.financeNumber}>{Math.round(animatedPendingPayments)}</Text>
                     <Text style={styles.financeLabel}>{t('payments.pending')}</Text>
                   </View>
                   <View>
-                    <Text style={[styles.financeNumber, { color: '#EF4444' }]}>{stats.overduePayments}</Text>
+                    <Text style={[styles.financeNumber, { color: '#EF4444' }]}>
+                      {Math.round(animatedOverduePayments)}
+                    </Text>
                     <Text style={styles.financeLabel}>{t('payments.overdue')}</Text>
                   </View>
                   <View>
-                    <Text style={styles.financeAmount}>{formatCurrency(stats.overdueAmount)}</Text>
+                    <Text style={styles.financeAmount}>{formatCurrency(Math.round(animatedOverdueAmount))}</Text>
                     <Text style={styles.financeLabel}>{t('dashboard.overdueAmount')}</Text>
                   </View>
                 </View>
@@ -340,11 +374,12 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    paddingTop: 6,
+    paddingTop: 0,
     paddingBottom: 20,
     gap: 12,
   },
   headerCard: {
+    marginTop: 10,
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     padding: 16,
@@ -402,7 +437,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
   },

@@ -25,8 +25,6 @@ export default function Register() {
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [rg, setRg] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,80 +51,6 @@ export default function Register() {
     } else {
       return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
     }
-  };
-
-  const formatCPF = (text: string) => {
-    const numbers = text.replace(/\D/g, '');
-    if (numbers.length <= 3) {
-      return numbers;
-    } else if (numbers.length <= 6) {
-      return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
-    } else if (numbers.length <= 9) {
-      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
-    } else {
-      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
-    }
-  };
-
-  const formatRG = (text: string) => {
-    const numbers = text.replace(/\D/g, '');
-    if (numbers.length <= 2) {
-      return numbers;
-    } else if (numbers.length <= 5) {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2)}`;
-    } else if (numbers.length <= 8) {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`;
-    } else {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}-${numbers.slice(8, 9)}`;
-    }
-  };
-
-  const validateCPF = (cpf: string): boolean => {
-    const numbers = cpf.replace(/\D/g, '');
-    
-    // Verifica se tem 11 dígitos
-    if (numbers.length !== 11) {
-      return false;
-    }
-
-    // Verifica se todos os dígitos são iguais (CPF inválido)
-    if (/^(\d)\1{10}$/.test(numbers)) {
-      return false;
-    }
-
-    // Validação dos dígitos verificadores
-    let sum = 0;
-    let remainder;
-
-    // Valida primeiro dígito
-    for (let i = 1; i <= 9; i++) {
-      sum += parseInt(numbers.substring(i - 1, i)) * (11 - i);
-    }
-    remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(numbers.substring(9, 10))) {
-      return false;
-    }
-
-    // Valida segundo dígito
-    sum = 0;
-    for (let i = 1; i <= 10; i++) {
-      sum += parseInt(numbers.substring(i - 1, i)) * (12 - i);
-    }
-    remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(numbers.substring(10, 11))) {
-      return false;
-    }
-
-    return true;
-  };
-
-  const validateRG = (rg: string): boolean => {
-    const numbers = rg.replace(/\D/g, '');
-    // RG brasileiro geralmente tem 8 ou 9 dígitos
-    // Vamos aceitar de 7 a 9 dígitos para flexibilidade
-    return numbers.length >= 7 && numbers.length <= 9;
   };
 
   const validateField = (field: string, value: string) => {
@@ -175,34 +99,6 @@ export default function Register() {
         }
         break;
 
-      case 'cpf':
-        if (!value || !value.trim()) {
-          newErrors.cpf = t('register.cpfRequired');
-        } else {
-          const cpfNumbers = value.replace(/\D/g, '');
-          if (cpfNumbers.length !== 11) {
-            newErrors.cpf = t('register.cpfInvalid');
-          } else if (!validateCPF(cpfNumbers)) {
-            newErrors.cpf = t('register.cpfInvalid');
-          } else {
-            delete newErrors.cpf;
-          }
-        }
-        break;
-
-      case 'rg':
-        if (!value || !value.trim()) {
-          newErrors.rg = t('register.rgRequired');
-        } else {
-          const rgNumbers = value.replace(/\D/g, '');
-          if (rgNumbers.length < 7 || rgNumbers.length > 9) {
-            newErrors.rg = t('register.rgInvalid');
-          } else {
-            delete newErrors.rg;
-          }
-        }
-        break;
-
       case 'password':
         if (!value) {
           newErrors.password = t('register.passwordRequired');
@@ -240,9 +136,7 @@ export default function Register() {
     const isPhoneValid = validateField('phone', phone);
     const isPasswordValid = validateField('password', password);
     const isConfirmPasswordValid = validateField('confirmPassword', confirmPassword);
-    const isCpfValid = validateField('cpf', cpf);
-    const isRgValid = validateField('rg', rg);
-    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid || !isCpfValid || !isRgValid) {
+    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
       return;
     }
 
@@ -253,10 +147,9 @@ export default function Register() {
         companyName: companyName.trim(),
         email: email.trim().toLowerCase(),
         phone: phoneNumbers,
+        userType: 'owner',
         password,
         confirmPassword,
-        cpf,
-        rg,
       });
     } catch (err) {
       // Erro já é tratado pelo AuthContext
@@ -390,52 +283,6 @@ export default function Register() {
                 />
               </View>
               {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
-            </View>
-
-            {/* CPF Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>{t('register.cpf')}</Text>
-              <View style={[styles.inputWrapper, errors.cpf ? styles.inputError : null]}>
-                <MaterialIcons name="badge" size={20} color="#6B7280" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('register.cpfPlaceholder')}
-                  placeholderTextColor="#999"
-                  value={cpf}
-                  onChangeText={(text) => {
-                    const formatted = formatCPF(text);
-                    setCpf(formatted);
-                    if (errors.cpf) validateField('cpf', formatted);
-                  }}
-                  onBlur={() => validateField('cpf', cpf)}
-                  keyboardType="numeric"
-                  maxLength={14}
-                />
-              </View>
-              {errors.cpf ? <Text style={styles.errorText}>{errors.cpf}</Text> : null}
-            </View>
-
-            {/* RG Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>{t('register.rg')}</Text>
-              <View style={[styles.inputWrapper, errors.rg ? styles.inputError : null]}>
-                <MaterialIcons name="credit-card" size={20} color="#6B7280" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder={t('register.rgPlaceholder')}
-                  placeholderTextColor="#999"
-                  value={rg}
-                  onChangeText={(text) => {
-                    const formatted = formatRG(text);
-                    setRg(formatted);
-                    if (errors.rg) validateField('rg', formatted);
-                  }}
-                  onBlur={() => validateField('rg', rg)}
-                  keyboardType="numeric"
-                  maxLength={12}
-                />
-              </View>
-              {errors.rg ? <Text style={styles.errorText}>{errors.rg}</Text> : null}
             </View>
 
             {/* Password Input */}

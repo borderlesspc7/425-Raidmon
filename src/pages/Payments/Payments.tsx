@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Linking,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
@@ -25,12 +28,20 @@ import {
 import { getWorkshopsByUser } from "../../services/workshopService";
 import { getBatchesByUser } from "../../services/batchService";
 import { Payment, CreatePaymentData, PaymentStatus } from "../../types/payment";
+import { createAsaasChargeForPayment } from "../../services/asaasPayments";
 import { Workshop } from "../../types/workshop";
 import { Batch } from "../../types/batch";
+import {
+  getEffectiveUserPlan,
+  isPaymentHistoryWindowLimited,
+  isPaymentInPlanHistoryWindow,
+} from "../../utils/planEntitlements";
 
 export default function Payments() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const entPlan = getEffectiveUserPlan(user?.plan);
+  const historyLimited = isPaymentHistoryWindowLimited(entPlan);
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
@@ -57,6 +68,16 @@ export default function Payments() {
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const [pixModalVisible, setPixModalVisible] = useState(false);
+  const [pixLoadingId, setPixLoadingId] = useState<string | null>(null);
+  const [pixView, setPixView] = useState<{
+    description: string;
+    pixCopyPaste: string | null;
+    pixEncodedImage: string | null;
+    invoiceUrl: string | null;
+    platformFeeAmount?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -276,6 +297,10 @@ export default function Payments() {
   };
 
   const handleMarkAsPaid = async (payment: Payment) => {
+    if (payment.asaasPaymentId) {
+      Alert.alert(t("common.info"), t("payments.asaasOnlyMarkPaid"));
+      return;
+    }
     try {
       await updatePayment(payment.id, {
         status: "paid",
@@ -286,6 +311,47 @@ export default function Payments() {
     } catch (error: any) {
       Alert.alert(t("common.error"), error.message);
     }
+  };
+
+  const handleGeneratePix = async (payment: Payment) => {
+    if (payment.asaasPaymentId) {
+      setPixView({
+        description: payment.description,
+        pixCopyPaste: payment.pixCopyPaste ?? null,
+        pixEncodedImage: payment.pixEncodedImage ?? null,
+        invoiceUrl: payment.asaasInvoiceUrl ?? null,
+        platformFeeAmount: payment.platformFeeAmount,
+      });
+      setPixModalVisible(true);
+      return;
+    }
+    try {
+      setPixLoadingId(payment.id);
+      const data = await createAsaasChargeForPayment(payment.id);
+      setPixView({
+        description: payment.description,
+        pixCopyPaste: data.pixCopyPaste,
+        pixEncodedImage: data.pixEncodedImage,
+        invoiceUrl: data.invoiceUrl,
+        platformFeeAmount: data.platformFeeAmount,
+      });
+      setPixModalVisible(true);
+      await loadData();
+    } catch (error: any) {
+      const msg =
+        error?.message ||
+        error?.details ||
+        (typeof error?.code === "string" ? error.code : "") ||
+        t("payments.asaasError");
+      Alert.alert(t("common.error"), String(msg));
+    } finally {
+      setPixLoadingId(null);
+    }
+  };
+
+  const copyPixCode = async (payload: string) => {
+    await Clipboard.setStringAsync(payload);
+    Alert.alert(t("common.success"), t("payments.pixCopied"));
   };
 
   const getStatusColor = (s: PaymentStatus) => {
@@ -343,10 +409,32 @@ export default function Payments() {
     }
   };
 
+  const paymentsInScope = useMemo(() => {
+    if (!historyLimited) return payments;
+    return payments.filter((p) => {
+      const ref = p.paidDate || p.dueDate;
+      return isPaymentInPlanHistoryWindow(entPlan, ref);
+    });
+  }, [payments, historyLimited, entPlan]);
+
+  const scopeStats = useMemo(() => {
+    let pending = 0,
+      paid = 0,
+      overdue = 0,
+      amount = 0;
+    paymentsInScope.forEach((p) => {
+      amount += p.amount;
+      if (p.status === "pending") pending++;
+      else if (p.status === "paid") paid++;
+      else if (p.status === "overdue") overdue++;
+    });
+    return { pending, paid, overdue, amount };
+  }, [paymentsInScope]);
+
   const filteredPayments =
     filterStatus === "all"
-      ? payments
-      : payments.filter((p) => p.status === filterStatus);
+      ? paymentsInScope
+      : paymentsInScope.filter((p) => p.status === filterStatus);
 
   if (loading) {
     return (
@@ -363,12 +451,20 @@ export default function Payments() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerTextCol}>
             <Text style={styles.title}>{t("payments.title")}</Text>
             <Text style={styles.subtitle}>
-              {payments.length} {t("payments.registered")} •{" "}
-              {formatCurrency(totalAmount)}
+              {paymentsInScope.length} {t("payments.registered")} •{" "}
+              {formatCurrency(scopeStats.amount)}
             </Text>
+            {historyLimited ? (
+              <View style={styles.planNoticeRow}>
+                <MaterialIcons name="info-outline" size={16} color="#4F46E5" />
+                <Text style={styles.planNoticeText} numberOfLines={3}>
+                  {t("payments.basicHistoryHint")}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <TouchableOpacity style={styles.addButton} onPress={() => openModal()}>
             <MaterialIcons name="add" size={24} color="#FFFFFF" />
@@ -381,21 +477,21 @@ export default function Payments() {
             <View style={[styles.statIcon, { backgroundColor: "#FEF3C7" }]}>
               <MaterialIcons name="schedule" size={22} color="#F59E0B" />
             </View>
-            <Text style={styles.statValue}>{totalPending}</Text>
+            <Text style={styles.statValue}>{scopeStats.pending}</Text>
             <Text style={styles.statLabel}>{t("payments.pending")}</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: "#D1FAE5" }]}>
               <MaterialIcons name="check-circle" size={22} color="#10B981" />
             </View>
-            <Text style={styles.statValue}>{totalPaid}</Text>
+            <Text style={styles.statValue}>{scopeStats.paid}</Text>
             <Text style={styles.statLabel}>{t("payments.paid")}</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: "#FEE2E2" }]}>
               <MaterialIcons name="warning" size={22} color="#EF4444" />
             </View>
-            <Text style={styles.statValue}>{totalOverdue}</Text>
+            <Text style={styles.statValue}>{scopeStats.overdue}</Text>
             <Text style={styles.statLabel}>{t("payments.overdue")}</Text>
           </View>
           <View style={styles.statCard}>
@@ -403,7 +499,7 @@ export default function Payments() {
               <MaterialIcons name="account-balance-wallet" size={22} color="#6366F1" />
             </View>
             <Text style={[styles.statValue, { fontSize: 14 }]}>
-              {formatCurrency(totalAmount)}
+              {formatCurrency(scopeStats.amount)}
             </Text>
             <Text style={styles.statLabel}>{t("payments.total")}</Text>
           </View>
@@ -543,11 +639,39 @@ export default function Payments() {
                       <Text style={styles.infoText}>{payment.batchName}</Text>
                     </View>
                   )}
+                  {payment.platformFeeAmount != null && payment.platformFeeAmount > 0 && (
+                    <View style={styles.infoRow}>
+                      <MaterialIcons name="percent" size={16} color="#6366F1" />
+                      <Text style={[styles.infoText, { color: "#4F46E5" }]}>
+                        {t("payments.platformFeeLabel")}: {formatCurrency(payment.platformFeeAmount)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Card Actions */}
                 <View style={styles.cardActions}>
                   {payment.status === "pending" && (
+                    <TouchableOpacity
+                      style={styles.pixButton}
+                      onPress={() => handleGeneratePix(payment)}
+                      disabled={pixLoadingId === payment.id}
+                    >
+                      {pixLoadingId === payment.id ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <MaterialIcons name="qr-code-2" size={16} color="#FFFFFF" />
+                      )}
+                      <Text style={styles.pixButtonText}>
+                        {pixLoadingId === payment.id
+                          ? t("payments.generatingPix")
+                          : payment.asaasPaymentId
+                            ? t("payments.pixModalTitle")
+                            : t("payments.generatePix")}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {payment.status === "pending" && !payment.asaasPaymentId && (
                     <TouchableOpacity
                       style={styles.markPaidButton}
                       onPress={() => handleMarkAsPaid(payment)}
@@ -878,6 +1002,74 @@ export default function Payments() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        <Modal
+          visible={pixModalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => {
+            setPixModalVisible(false);
+            setPixView(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, styles.pixModalBox]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t("payments.pixModalTitle")}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setPixModalVisible(false);
+                    setPixView(null);
+                  }}
+                >
+                  <MaterialIcons name="close" size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                {pixView ? (
+                  <>
+                    <Text style={styles.pixDesc}>{pixView.description}</Text>
+                    {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0 ? (
+                      <Text style={styles.pixFee}>
+                        {t("payments.platformFeeLabel")}:{" "}
+                        {formatCurrency(pixView.platformFeeAmount)}
+                      </Text>
+                    ) : null}
+                    {pixView.pixEncodedImage ? (
+                      <Image
+                        source={{
+                          uri: `data:image/png;base64,${pixView.pixEncodedImage}`,
+                        }}
+                        style={styles.pixQr}
+                        resizeMode="contain"
+                      />
+                    ) : null}
+                    {pixView.invoiceUrl ? (
+                      <TouchableOpacity
+                        style={styles.pixLinkBtn}
+                        onPress={() => Linking.openURL(pixView.invoiceUrl!)}
+                      >
+                        <MaterialIcons name="open-in-new" size={18} color="#6366F1" />
+                        <Text style={styles.pixLinkText}>{t("payments.pixOpenInvoice")}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {pixView.pixCopyPaste ? (
+                      <TouchableOpacity
+                        style={styles.pixCopyBtn}
+                        onPress={() => copyPixCode(pixView.pixCopyPaste!)}
+                      >
+                        <MaterialIcons name="content-copy" size={18} color="#FFFFFF" />
+                        <Text style={styles.pixCopyBtnText}>{t("payments.pixCopy")}</Text>
+                      </TouchableOpacity>
+                    ) : pixView.invoiceUrl ? (
+                      <Text style={styles.pixHint}>{t("payments.pixUseInvoiceLink")}</Text>
+                    ) : null}
+                  </>
+                ) : null}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Layout>
   );
@@ -896,12 +1088,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingVertical: 20,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
+  },
+  headerTextCol: {
+    flex: 1,
+    paddingRight: 12,
   },
   title: {
     fontSize: 24,
@@ -912,6 +1108,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     marginTop: 4,
+  },
+  planNoticeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 8,
+    maxWidth: "88%",
+  },
+  planNoticeText: {
+    fontSize: 12,
+    color: "#4B5563",
+    flex: 1,
+    lineHeight: 16,
   },
   addButton: {
     width: 48,
@@ -1098,11 +1307,27 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
+  },
+  pixButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#6366F1",
+  },
+  pixButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   markPaidButton: {
     flexDirection: "row",
@@ -1140,6 +1365,58 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
     justifyContent: "center",
     alignItems: "center",
+  },
+  pixModalBox: {
+    maxHeight: "88%",
+    width: "92%",
+    maxWidth: 420,
+  },
+  pixDesc: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  pixFee: {
+    fontSize: 13,
+    color: "#4F46E5",
+    marginBottom: 12,
+  },
+  pixQr: {
+    width: 220,
+    height: 220,
+    alignSelf: "center",
+    marginVertical: 12,
+  },
+  pixLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  pixLinkText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#6366F1",
+  },
+  pixCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#059669",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  pixCopyBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  pixHint: {
+    fontSize: 13,
+    color: "#6B7280",
   },
   // Modal
   modalOverlay: {

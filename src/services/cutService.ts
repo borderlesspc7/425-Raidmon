@@ -1,13 +1,12 @@
 import {
   collection,
-  addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   doc,
   getDocs,
   query,
   where,
-  orderBy,
   Timestamp,
   getDoc,
 } from "firebase/firestore";
@@ -20,10 +19,23 @@ const CUTS_COLLECTION = "cuts";
  * Converter Firestore document para Cut
  */
 function convertFirestoreToCut(docId: string, data: any): Cut {
+  const rawPrice = data.pricePerPiece;
+  const pricePerPiece =
+    typeof rawPrice === "number" && Number.isFinite(rawPrice)
+      ? rawPrice
+      : undefined;
+
+  const uniqueRef =
+    typeof data.uniqueRef === "string" && data.uniqueRef.length > 0
+      ? data.uniqueRef
+      : docId;
+
   return {
     id: docId,
+    uniqueRef,
     type: data.type,
     totalPieces: data.totalPieces,
+    pricePerPiece,
     observations: data.observations || "",
     userId: data.userId,
     createdAt:
@@ -57,19 +69,32 @@ export async function createCut(
       throw new Error("Quantidade de peças deve ser maior que zero");
     }
 
+    if (
+      typeof cutData.pricePerPiece !== "number" ||
+      !Number.isFinite(cutData.pricePerPiece) ||
+      cutData.pricePerPiece <= 0
+    ) {
+      throw new Error("Preço por peça deve ser maior que zero");
+    }
+
     const now = Timestamp.now();
+    const newCutRef = doc(collection(db, CUTS_COLLECTION));
+    const newId = newCutRef.id;
+
     const newCut = {
       type: cutData.type.trim(),
       totalPieces: cutData.totalPieces,
+      pricePerPiece: cutData.pricePerPiece,
       observations: cutData.observations?.trim() || "",
       userId,
+      uniqueRef: newId,
       createdAt: now,
       updatedAt: now,
     };
 
-    const docRef = await addDoc(collection(db, CUTS_COLLECTION), newCut);
+    await setDoc(newCutRef, newCut);
 
-    return convertFirestoreToCut(docRef.id, {
+    return convertFirestoreToCut(newId, {
       ...newCut,
       createdAt: now,
       updatedAt: now,
@@ -92,7 +117,6 @@ export async function getCutsByUser(userId: string): Promise<Cut[]> {
     const q = query(
       collection(db, CUTS_COLLECTION),
       where("userId", "==", userId),
-      orderBy("createdAt", "desc"),
     );
 
     const querySnapshot = await getDocs(q);
@@ -102,7 +126,9 @@ export async function getCutsByUser(userId: string): Promise<Cut[]> {
       cuts.push(convertFirestoreToCut(doc.id, doc.data()));
     });
 
-    return cuts;
+    return cuts.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
   } catch (error: any) {
     console.error("Error fetching cuts:", error);
     throw new Error(error.message || "Erro ao buscar cortes");
@@ -148,13 +174,29 @@ export async function updateCut(
       throw new Error("Quantidade de peças deve ser maior que zero");
     }
 
+    if (updateData.pricePerPiece !== undefined) {
+      if (
+        typeof updateData.pricePerPiece !== "number" ||
+        !Number.isFinite(updateData.pricePerPiece) ||
+        updateData.pricePerPiece <= 0
+      ) {
+        throw new Error("Preço por peça deve ser maior que zero");
+      }
+    }
+
     const docRef = doc(db, CUTS_COLLECTION, cutId);
-    const updatePayload: any = {
-      ...updateData,
+    const updatePayload: Record<string, unknown> = {
       updatedAt: Timestamp.now(),
     };
+    if (updateData.type !== undefined) updatePayload.type = updateData.type;
+    if (updateData.totalPieces !== undefined)
+      updatePayload.totalPieces = updateData.totalPieces;
+    if (updateData.pricePerPiece !== undefined)
+      updatePayload.pricePerPiece = updateData.pricePerPiece;
+    if (updateData.observations !== undefined)
+      updatePayload.observations = updateData.observations;
 
-    await updateDoc(docRef, updatePayload);
+    await updateDoc(docRef, updatePayload as any);
   } catch (error: any) {
     console.error("Error updating cut:", error);
     throw new Error(error.message || "Erro ao atualizar corte");

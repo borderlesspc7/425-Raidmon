@@ -14,6 +14,11 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getPaymentsByUser } from "../../services/paymentService";
 import { Payment, PaymentStatus } from "../../types/payment";
+import {
+  getEffectiveUserPlan,
+  isPaymentHistoryWindowLimited,
+  isPaymentInPlanHistoryWindow,
+} from "../../utils/planEntitlements";
 
 type PeriodFilter = "all" | "last3months" | "last6months" | "thisYear" | "lastYear";
 
@@ -30,6 +35,8 @@ interface MonthGroup {
 export default function FinancialHistory() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const entPlan = getEffectiveUserPlan(user?.plan);
+  const historyLimited = isPaymentHistoryWindowLimited(entPlan);
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,9 +76,15 @@ export default function FinancialHistory() {
   };
 
   const getFilteredPayments = (): Payment[] => {
-    if (period === "all") return payments;
+    const base = historyLimited
+      ? payments.filter((p) => {
+          const ref = p.paidDate || p.dueDate;
+          return isPaymentInPlanHistoryWindow(entPlan, ref);
+        })
+      : payments;
+    if (period === "all") return base;
     const now = new Date();
-    return payments.filter((p) => {
+    return base.filter((p) => {
       const ref = p.paidDate || p.dueDate;
       if (period === "last3months") {
         const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
@@ -170,13 +183,15 @@ export default function FinancialHistory() {
   const filteredTotalOverdue = filtered.filter((p) => p.status === "overdue").reduce((s, p) => s + p.amount, 0);
   const balance = filteredTotalPaid - filteredTotalPending - filteredTotalOverdue;
 
-  const PERIODS: { key: PeriodFilter; label: string }[] = [
-    { key: "all", label: t("financialHistory.allPeriods") },
-    { key: "last3months", label: t("financialHistory.last3months") },
-    { key: "last6months", label: t("financialHistory.last6months") },
-    { key: "thisYear", label: t("financialHistory.thisYear") },
-    { key: "lastYear", label: t("financialHistory.lastYear") },
-  ];
+  const PERIODS: { key: PeriodFilter; label: string }[] = historyLimited
+    ? [{ key: "all", label: t("financialHistory.last30daysLabel") }]
+    : [
+        { key: "all", label: t("financialHistory.allPeriods") },
+        { key: "last3months", label: t("financialHistory.last3months") },
+        { key: "last6months", label: t("financialHistory.last6months") },
+        { key: "thisYear", label: t("financialHistory.thisYear") },
+        { key: "lastYear", label: t("financialHistory.lastYear") },
+      ];
 
   if (loading) {
     return (
@@ -250,6 +265,13 @@ export default function FinancialHistory() {
             <Text style={styles.summaryLabel}>{t("financialHistory.balance")}</Text>
           </View>
         </View>
+
+        {historyLimited ? (
+          <View style={styles.planBanner}>
+            <MaterialIcons name="lock-outline" size={18} color="#4F46E5" />
+            <Text style={styles.planBannerText}>{t("financialHistory.basicHistoryBanner")}</Text>
+          </View>
+        ) : null}
 
         {/* Period Filter */}
         <View style={styles.filterBar}>
@@ -546,6 +568,24 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 11,
     color: "#6B7280",
+  },
+  planBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+  planBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#3730A3",
+    lineHeight: 18,
   },
   // Filter
   filterBar: {

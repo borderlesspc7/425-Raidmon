@@ -1,0 +1,16 @@
+{
+  "name": "raidmon-functions",
+  "description": "Cloud Functions — integração Asaas (cobrança PIX + webhook)",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "lint": "echo \"no lint\""
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.1"
+  },
+  "private": true
+}

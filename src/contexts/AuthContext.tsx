@@ -12,7 +12,7 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     error: string | null;
-    login: (credentials: LoginCredentials) => Promise<void>;
+    login: (credentials: LoginCredentials) => Promise<User>;
     register: (credentials: RegisterCredentials) => Promise<void>;
     logout: () => Promise<void>;
     clearError: () => void;
@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const user = await authService.login(credentials);
             setUser(user);
             setLoading(false);
+            return user;
         } catch (error) {
             setError(error instanceof Error ? error.message : "Erro ao fazer login");
             setLoading(false);

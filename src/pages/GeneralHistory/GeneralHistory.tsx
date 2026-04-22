@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "../../lib/firebaseconfig";
 import {
   View,
   Text,
@@ -12,7 +14,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getPaymentsByUser } from "../../services/paymentService";
-import { getBatchesByUser } from "../../services/batchService";
+import { getBatchesByUser, getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { getReceivePiecesByUser } from "../../services/receivePiecesService";
 import { Payment } from "../../types/payment";
 import { Batch } from "../../types/batch";
@@ -42,38 +44,75 @@ export default function GeneralHistory() {
   const [typeFilter, setTypeFilter] = useState<HistoryFilter>("all");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
 
+  const loadHistory = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!user?.id) return;
+      try {
+        if (!opts?.silent) setLoading(true);
+
+        const [payments, batchesOwn, receives] = await Promise.all([
+          getPaymentsByUser(user.id),
+          getBatchesByUser(user.id),
+          getReceivePiecesByUser(user.id),
+        ]);
+
+        let batchesMerged = [...batchesOwn];
+        if (user.userType === "workshop") {
+          const linked = await getBatchesLinkedToWorkshop(user.id);
+          const seen = new Set(batchesMerged.map((b) => b.id));
+          for (const b of linked) {
+            if (!seen.has(b.id)) {
+              batchesMerged.push(b);
+              seen.add(b.id);
+            }
+          }
+        }
+
+        const paymentEvents = mapPaymentsToEvents(payments, t);
+        const batchEvents = mapBatchesToEvents(
+          batchesMerged,
+          t,
+          user.userType === "workshop" ? user.id : undefined,
+        );
+        const receiveEvents = mapReceivesToEvents(receives, t);
+
+        const allEvents = [...paymentEvents, ...batchEvents, ...receiveEvents].sort(
+          (a, b) => b.date.getTime() - a.date.getTime(),
+        );
+
+        setEvents(allEvents);
+      } catch (error: any) {
+        console.error("Erro ao carregar histórico geral:", error);
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [user, t],
+  );
+
   useEffect(() => {
-    if (user?.id) {
-      loadHistory();
-    }
-  }, [user]);
-
-  const loadHistory = async () => {
     if (!user?.id) return;
-    try {
-      setLoading(true);
-
-      const [payments, batches, receives] = await Promise.all([
-        getPaymentsByUser(user.id),
-        getBatchesByUser(user.id),
-        getReceivePiecesByUser(user.id),
-      ]);
-
-      const paymentEvents = mapPaymentsToEvents(payments, t);
-      const batchEvents = mapBatchesToEvents(batches, t);
-      const receiveEvents = mapReceivesToEvents(receives, t);
-
-      const allEvents = [...paymentEvents, ...batchEvents, ...receiveEvents].sort(
-        (a, b) => b.date.getTime() - a.date.getTime()
+    void loadHistory();
+    const unsubs: (() => void)[] = [];
+    const qOwn = query(collection(db, "batches"), where("userId", "==", user.id));
+    unsubs.push(
+      onSnapshot(qOwn, () => {
+        void loadHistory({ silent: true });
+      }),
+    );
+    if (user.userType === "workshop") {
+      const qLinked = query(
+        collection(db, "batches"),
+        where("linkedWorkshopUserId", "==", user.id),
       );
-
-      setEvents(allEvents);
-    } catch (error: any) {
-      console.error("Erro ao carregar histórico geral:", error);
-    } finally {
-      setLoading(false);
+      unsubs.push(
+        onSnapshot(qLinked, () => {
+          void loadHistory({ silent: true });
+        }),
+      );
     }
-  };
+    return () => unsubs.forEach((u) => u());
+  }, [user?.id, user?.userType, loadHistory]);
 
   const formatDateTime = (date: Date) =>
     new Intl.DateTimeFormat("pt-BR", {
@@ -351,15 +390,25 @@ function mapPaymentsToEvents(payments: Payment[], t: (key: string) => string): H
   });
 }
 
-function mapBatchesToEvents(batches: Batch[], t: (key: string) => string): HistoryEvent[] {
+function mapBatchesToEvents(
+  batches: Batch[],
+  t: (key: string) => string,
+  workshopViewerId?: string,
+): HistoryEvent[] {
   return batches.map((b) => {
     const date = b.updatedAt || b.createdAt;
+    const fromOwnerInvite =
+      workshopViewerId &&
+      b.linkedWorkshopUserId === workshopViewerId &&
+      b.userId !== workshopViewerId;
     return {
       id: b.id,
       type: "batch",
       date,
       title: b.name,
-      description: b.workshopName || "",
+      description: fromOwnerInvite
+        ? t("generalHistory.batchFromOwnerInvite")
+        : b.workshopName || "",
       meta: `${b.totalPieces} ${t("batches.pieces")}`,
     };
   });

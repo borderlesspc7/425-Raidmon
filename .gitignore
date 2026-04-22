@@ -1,2 +1,6 @@
 node_modules
 .env
+functions/.env
+
+# Pasta de API Node removida; se ainda existir localmente (ex.: node_modules), não versionar
+server/

@@ -1,87 +1,75 @@
 rules_version = '2';
+
+// Publique no Firebase Console → Firestore → Regras (ou firebase deploy --only firestore:rules).
+//
+// Admin pode ser reconhecido por:
+// - userType == "admin" em users/{uid}, ou
+// - e-mail igual ao admin do app (mesmo critério do authService em código).
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /** Helper: usuário autenticado */
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    /** Helper: ownership por userId */
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    // Mesmo e-mail reservado que o cliente trata como admin (src/services/authService.ts)
+    function isAdminEmail() {
+      return request.auth != null
+        && request.auth.token.email == 'costuraconectada@gmail.com';
     }
 
-    /** Helper: plano do usuário salvo em users/{uid} */
-    function getUserPlan() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.plan;
+    function isAdmin() {
+      return isSignedIn() && (
+        isAdminEmail() ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin'
+        )
+      );
     }
 
-    /** Helper: planos sem limite */
-    function isPremiumOrEnterprise() {
-      let plan = getUserPlan();
-      return plan == "premium" || plan == "enterprise";
-    }
-
-    // =========================
-    // users/{userId}
-    // =========================
-    // Leitura e escrita apenas para o próprio usuário autenticado.
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId);
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
     }
 
-    // =========================
-    // workshops/{workshopId}
-    // =========================
-    match /workshops/{workshopId} {
-      // Leitura: apenas dono do documento.
-      allow read: if isOwner(resource.data.userId);
-
-      // Criação:
-      // - usuário autenticado
-      // - userId do documento precisa ser o uid autenticado
-      //
-      // Observação importante:
-      // Firestore Rules não oferecem agregação confiável de contagem para impor
-      // "máximo 3 workshops" diretamente aqui sem infraestrutura adicional.
-      // Portanto, o limite de quantidade para plano basic/ausente é enforçado
-      // primariamente no frontend; no backend garantimos autenticação e ownership.
-      allow create: if isAuthenticated()
-                    && isOwner(request.resource.data.userId)
-                    && (isPremiumOrEnterprise() || true);
-
-      // Atualização e exclusão: apenas dono do documento.
-      allow update, delete: if isOwner(resource.data.userId);
+    match /workshops/{docId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // =========================
-    // batches/{batchId}
-    // =========================
-    match /batches/{batchId} {
-      // Leitura: apenas dono do documento.
-      allow read: if isOwner(resource.data.userId);
-
-      // Criação:
-      // - usuário autenticado
-      // - userId do documento precisa ser o uid autenticado
-      //
-      // Observação importante:
-      // O limite mensal (máx. 10 lotes/mês no basic) não pode ser enforçado
-      // diretamente em Firestore Rules sem funções externas/infra adicional.
-      // O controle primário é feito no frontend via getBatchCountThisMonth.
-      allow create: if isAuthenticated()
-                    && isOwner(request.resource.data.userId)
-                    && (isPremiumOrEnterprise() || true);
-
-      // Atualização e exclusão: apenas dono do documento.
-      allow update, delete: if isOwner(resource.data.userId);
+    // Lotes: dono (userId) edita; oficina vinculada (linkedWorkshopUserId) só leitura —
+    // aceitar convite é feito pela Cloud Function respondBatchInvite (admin SDK).
+    match /batches/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.linkedWorkshopUserId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Regra padrão: qualquer outra coleção não listada é negada.
-    match /{document=**} {
-      allow read, write: if false;
+    match /cuts/{docId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /receivePieces/{docId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /payments/{docId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

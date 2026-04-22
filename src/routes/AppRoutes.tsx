@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, ActivityIndicator, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
 import Login from "../pages/Login/Login";
+import RegisterSelection from "../pages/RegisterSelection/RegisterSelection";
 import Register from "../pages/Register/Register";
+import RegisterWorkshop from "../pages/RegisterWorkshop/RegisterWorkshop";
+import AdminDashboard from "../pages/AdminDashboard/AdminDashboard";
 import Dashboard from "../pages/Dashboard/Dashboard";
 import LanguageSelection from "../pages/LanguageSelection/LanguageSelection";
 import Workshops from "../pages/Workshops/Workshops";
@@ -20,6 +24,8 @@ import Plans from "../pages/Plans/Plans";
 import BasicPlan from "../pages/Plans/BasicPlan";
 import PremiumPlan from "../pages/Plans/PremiumPlan";
 import EnterprisePlan from "../pages/Plans/EnterprisePlan";
+import PlanCheckout from "../pages/Plans/PlanCheckout";
+import BatchOffer from "../pages/BatchOffer/BatchOffer";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -27,13 +33,22 @@ import {
   protectedRoutes,
   type ScreenName,
 } from "./paths";
+import {
+  storePendingBatchOffer,
+  readPendingBatchOffer,
+  clearPendingBatchOffer,
+} from "../utils/pendingBatchOffer";
 
 const LANGUAGE_STORAGE_KEY = "@costura_conectada:language";
+const ADMIN_EMAIL = "costuraconectada@gmail.com";
 
 const screenComponents: Record<ScreenName, React.ComponentType> = {
   LanguageSelection,
   Login,
+  RegisterSelection,
   Register,
+  RegisterWorkshop,
+  AdminDashboard,
   Dashboard,
   Profile,
   Workshops,
@@ -50,15 +65,63 @@ const screenComponents: Record<ScreenName, React.ComponentType> = {
   BasicPlan,
   PremiumPlan,
   EnterprisePlan,
+  PlanCheckout,
+  BatchOffer,
 };
 
-const guestOnlyRoutes = new Set<ScreenName>([paths.login, paths.register]);
+const guestOnlyRoutes = new Set<ScreenName>([
+  paths.login,
+  paths.registerSelection,
+  paths.register,
+  paths.registerWorkshop,
+]);
 const authRequiredRoutes = new Set<ScreenName>(protectedRoutes);
 
 export const AppRoutes = () => {
   const { currentScreen, navigate } = useNavigation();
   const { user, loading } = useAuth();
+  const userRef = useRef(user);
+  userRef.current = user;
   const [checkingLanguage, setCheckingLanguage] = useState(true);
+  const isAdmin = !!user && (user.userType === "admin" || user.email?.toLowerCase() === ADMIN_EMAIL);
+
+  const navigateFromBatchOfferUrl = useCallback((url: string | null) => {
+    if (!url) return false;
+    const parsed = Linking.parse(url);
+    const batchId = parsed.queryParams?.batchId;
+    const token = parsed.queryParams?.token;
+    if (!batchId || !token || typeof batchId !== "string" || typeof token !== "string") {
+      return false;
+    }
+    const u = userRef.current;
+    if (u?.userType === "workshop") {
+      void clearPendingBatchOffer();
+      navigate(paths.batchOffer, { batchOffer: { batchId, token } });
+      return true;
+    }
+    if (!u) {
+      void storePendingBatchOffer({ batchId, token });
+      navigate(paths.login);
+      return true;
+    }
+    void clearPendingBatchOffer();
+    Alert.alert(
+      "Costura Conectada",
+      "Este convite é apenas para contas de oficina.",
+    );
+    return true;
+  }, [navigate]);
+
+  useEffect(() => {
+    if (loading) return;
+    void Linking.getInitialURL().then((initial) => {
+      if (initial) void navigateFromBatchOfferUrl(initial);
+    });
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      void navigateFromBatchOfferUrl(url);
+    });
+    return () => sub.remove();
+  }, [loading, navigateFromBatchOfferUrl]);
 
   // Verificar se já tem idioma salvo para pular seleção
   useEffect(() => {
@@ -67,7 +130,7 @@ export const AppRoutes = () => {
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
         if ((savedLanguage || user?.language) && currentScreen === paths.languageSelection) {
           if (user) {
-            navigate(paths.dashboard);
+            navigate(isAdmin ? paths.adminDashboard : paths.dashboard);
           } else {
             navigate(paths.login);
           }
@@ -82,19 +145,29 @@ export const AppRoutes = () => {
     if (!loading) {
       checkLanguage();
     }
-  }, [loading, user, currentScreen, navigate]);
+  }, [loading, user, currentScreen, navigate, isAdmin]);
 
-  // Usuário autenticado não deve ficar em tela de autenticação
+  // Usuário autenticado não deve ficar em tela de autenticação (convite de lote tem prioridade)
   useEffect(() => {
-    if (
-      !loading &&
-      !checkingLanguage &&
-      user &&
-      guestOnlyRoutes.has(currentScreen)
-    ) {
+    if (!loading && !checkingLanguage && user && guestOnlyRoutes.has(currentScreen)) {
+      void (async () => {
+        const pending = await readPendingBatchOffer();
+        if (pending && user.userType === "workshop") {
+          await clearPendingBatchOffer();
+          navigate(paths.batchOffer, { batchOffer: pending });
+          return;
+        }
+        navigate(isAdmin ? paths.adminDashboard : paths.dashboard);
+      })();
+    }
+  }, [user, loading, checkingLanguage, currentScreen, navigate, isAdmin]);
+
+  // Usuário comum não pode acessar dashboard de admin
+  useEffect(() => {
+    if (!loading && !checkingLanguage && user && currentScreen === paths.adminDashboard && !isAdmin) {
       navigate(paths.dashboard);
     }
-  }, [user, loading, checkingLanguage, currentScreen, navigate]);
+  }, [user, loading, checkingLanguage, currentScreen, navigate, isAdmin]);
 
   // Usuário não autenticado não acessa rotas protegidas
   useEffect(() => {

@@ -9,17 +9,17 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { authService } from "../../services/authService";
 import { User } from "../../types/auth";
-import { MaterialIcons as Icon } from "@expo/vector-icons";
+import AddressFields, { composeAddressString, type AddressValue } from "../../components/AddressFields/AddressFields";
 
 export default function Profile() {
-  const { user, login } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { t } = useLanguage();
 
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,14 @@ export default function Profile() {
   const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [username, setUsername] = useState("");
-  const [address, setAddress] = useState("");
+  const [addressValue, setAddressValue] = useState<AddressValue>({
+    cep: "",
+    street: "",
+    number: "",
+    neighborhood: "",
+    city: "",
+    uf: "",
+  });
   const [about, setAbout] = useState("");
   const [phone, setPhone] = useState("");
   const [cpf, setCpf] = useState("");
@@ -44,7 +51,14 @@ export default function Profile() {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
       setUsername(user.username || "");
-      setAddress(user.address || "");
+      setAddressValue({
+        cep: "",
+        street: user.address || "",
+        number: "",
+        neighborhood: "",
+        city: "",
+        uf: "",
+      });
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
@@ -57,7 +71,14 @@ export default function Profile() {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
       setUsername(user.username || "");
-      setAddress(user.address || "");
+      setAddressValue({
+        cep: "",
+        street: user.address || "",
+        number: "",
+        neighborhood: "",
+        city: "",
+        uf: "",
+      });
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
@@ -73,7 +94,14 @@ export default function Profile() {
       setName(user.name || "");
       setCompanyName(user.companyName || "");
       setUsername(user.username || "");
-      setAddress(user.address || "");
+      setAddressValue({
+        cep: "",
+        street: user.address || "",
+        number: "",
+        neighborhood: "",
+        city: "",
+        uf: "",
+      });
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
@@ -158,22 +186,23 @@ export default function Profile() {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm() || !user?.id) return;
+    if (!validateForm()) return;
 
     try {
       setSubmitting(true);
+      const composedAddress = composeAddressString(addressValue);
       const updateData: Partial<User> = {
         name: name.trim(),
         companyName: companyName.trim() || undefined,
         username: username.trim() || undefined,
-        address: address.trim() || undefined,
+        address: composedAddress.trim() || undefined,
         about: about.trim() || undefined,
         phone: phone.trim(),
         cpf: cpf.replace(/\D/g, ""),
         rg: rg.replace(/\D/g, ""),
       };
 
-      await authService.updateProfile(user.id, updateData);
+      await updateProfile(updateData);
       
       // O observeAuthState do AuthContext atualizará automaticamente os dados do usuário
       Alert.alert(t("common.success"), t("profile.updateSuccess"));
@@ -192,6 +221,29 @@ export default function Profile() {
       year: "numeric",
     }).format(date);
   };
+
+  const userTypeMap: Record<"owner" | "workshop" | "admin", { label: string; icon: keyof typeof MaterialIcons.glyphMap; backgroundColor: string }> = {
+    owner: {
+      label: t("profile.userTypeOwner"),
+      icon: "verified-user",
+      backgroundColor: "#4F46E5",
+    },
+    workshop: {
+      label: t("profile.userTypeWorkshop"),
+      icon: "build",
+      backgroundColor: "#0EA5E9",
+    },
+    admin: {
+      label: t("profile.userTypeAdmin"),
+      icon: "admin-panel-settings",
+      backgroundColor: "#DC2626",
+    },
+  };
+
+  const userTypeInfo =
+    user?.userType === "owner" || user?.userType === "workshop" || user?.userType === "admin"
+      ? userTypeMap[user.userType]
+      : null;
 
   if (!user) {
     return (
@@ -232,9 +284,7 @@ export default function Profile() {
             <View style={styles.avatarSection}>
               <View style={styles.avatarContainer}>
                 {user.photoURL ? (
-                  <View style={styles.avatar}>
-                    <MaterialIcons name="person" size={48} color="#6366F1" />
-                  </View>
+                  <Image source={{ uri: user.photoURL }} style={styles.avatar} />
                 ) : (
                   <View style={styles.avatar}>
                     <MaterialIcons name="person" size={48} color="#6366F1" />
@@ -243,6 +293,24 @@ export default function Profile() {
               </View>
               <Text style={styles.userName}>{user.name}</Text>
               <Text style={styles.userEmail}>{user.email}</Text>
+              {userTypeInfo && (
+                <View
+                  style={[
+                    styles.userTypeBadgePill,
+                    { backgroundColor: userTypeInfo.backgroundColor },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={userTypeInfo.icon}
+                    size={14}
+                    color="#FFFFFF"
+                    style={styles.userTypeBadgeIcon}
+                  />
+                  <Text style={styles.userTypeBadgeText}>
+                    {userTypeInfo.label}
+                  </Text>
+                </View>
+              )}
 
               {/* Current Plan Badge */}
               {user.plan && (() => {
@@ -459,21 +527,11 @@ export default function Profile() {
 
                 {/* Endereço */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("profile.address")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons
-                      name="location-on"
-                      size={20}
-                      color="#6B7280"
-                    />
-                    <TextInput
-                      style={styles.input}
-                      value={address}
-                      onChangeText={setAddress}
-                      placeholder={t("profile.addressPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                    />
-                  </View>
+                  <AddressFields
+                    title={t("profile.address")}
+                    value={addressValue}
+                    onChange={setAddressValue}
+                  />
                 </View>
 
                 {/* Telefone */}
@@ -656,7 +714,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
   },
   avatarContainer: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   avatar: {
     width: 100,
@@ -675,6 +733,22 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  userTypeBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 10,
+    borderRadius: 999,
+  },
+  userTypeBadgeIcon: {
+    marginRight: 8,
+  },
+  userTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   planBadge: {
     marginTop: 8,

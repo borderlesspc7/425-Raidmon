@@ -13,6 +13,9 @@
     language?: Language;
     address?: string;
     about?: string;
+    userType?: 'owner' | 'workshop' | 'admin';
+    /** Preenchido pelo backend após integração Asaas */
+    asaasCustomerId?: string;
     cpf: string;
     rg: string;
     createdAt: Date;
@@ -36,6 +39,6 @@
     phone?: string;
     password: string;
     confirmPassword?: string;
-    cpf: string;
-    rg: string;
+    cpf?: string;
+    userType: 'owner' | 'workshop' | 'admin';
   }

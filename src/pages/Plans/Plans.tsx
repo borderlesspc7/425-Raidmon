@@ -38,7 +38,7 @@ export default function Plans() {
     {
       id: "basic",
       name: t("plans.basic.name"),
-      price: 29.90,
+      price: 0,
       period: t("plans.monthly"),
       features: [
         t("plans.basic.feature1"),
@@ -54,7 +54,7 @@ export default function Plans() {
     {
       id: "premium",
       name: t("plans.premium.name"),
-      price: 79.90,
+      price: 59,
       period: t("plans.monthly"),
       features: [
         t("plans.premium.feature1"),
@@ -72,7 +72,7 @@ export default function Plans() {
     {
       id: "enterprise",
       name: t("plans.enterprise.name"),
-      price: 199.90,
+      price: 149,
       period: t("plans.monthly"),
       features: [
         t("plans.enterprise.feature1"),
@@ -193,10 +193,22 @@ export default function Plans() {
 
                 {/* Price */}
                 <View style={styles.priceContainer}>
-                  <Text style={styles.priceValue}>
-                    {formatCurrency(plan.price)}
-                  </Text>
-                  <Text style={styles.pricePeriod}>/{plan.period}</Text>
+                  {plan.price === 0 ? (
+                    <>
+                      <Text style={styles.priceValue}>{t("plans.freePrice")}</Text>
+                      <Text style={styles.pricePeriod}>
+                        {" · "}
+                        {t("plans.freePriceHint")}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.priceValue}>
+                        {formatCurrency(plan.price)}
+                      </Text>
+                      <Text style={styles.pricePeriod}>/{plan.period}</Text>
+                    </>
+                  )}
                 </View>
 
                 {/* Features */}

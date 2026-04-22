@@ -14,6 +14,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Layout from '../../components/Layout/Layout';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import AddressFields, { composeAddressString, type AddressValue } from '../../components/AddressFields/AddressFields';
 import {
   createWorkshop,
   getWorkshopsByUser,
@@ -22,6 +23,7 @@ import {
   updateWorkshopStatus,
 } from '../../services/workshopService';
 import { Workshop, WorkshopStatus, CreateWorkshopData } from '../../types/workshop';
+import { canCreateAnotherWorkshop, getEffectiveUserPlan } from '../../utils/planEntitlements';
 
 export default function Workshops() {
   const { user } = useAuth();
@@ -35,10 +37,17 @@ export default function Workshops() {
 
   // Form state
   const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
   const [contact1, setContact1] = useState('');
   const [contact2, setContact2] = useState('');
   const [status, setStatus] = useState<WorkshopStatus>('yellow');
+  const [addressValue, setAddressValue] = useState<AddressValue>({
+    cep: '',
+    street: '',
+    number: '',
+    neighborhood: '',
+    city: '',
+    uf: '',
+  });
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -65,7 +74,15 @@ export default function Workshops() {
     if (workshop) {
       setEditingWorkshop(workshop);
       setName(workshop.name);
-      setAddress(workshop.address);
+      // Best-effort: keep existing string in "Rua" if we don't have structured data yet
+      setAddressValue({
+        cep: '',
+        street: workshop.address || '',
+        number: '',
+        neighborhood: '',
+        city: '',
+        uf: '',
+      });
       setContact1(workshop.contact1);
       setContact2(workshop.contact2 || '');
       setStatus(workshop.status);
@@ -83,10 +100,17 @@ export default function Workshops() {
   const resetForm = () => {
     setEditingWorkshop(null);
     setName('');
-    setAddress('');
     setContact1('');
     setContact2('');
     setStatus('yellow');
+    setAddressValue({
+      cep: '',
+      street: '',
+      number: '',
+      neighborhood: '',
+      city: '',
+      uf: '',
+    });
     setErrors({});
   };
 
@@ -97,7 +121,8 @@ export default function Workshops() {
       newErrors.name = t('workshops.nameRequired');
     }
 
-    if (!address.trim() || address.trim().length < 5) {
+    const composedAddress = composeAddressString(addressValue);
+    if (!composedAddress.trim() || composedAddress.trim().length < 5) {
       newErrors.address = t('workshops.addressRequired');
     }
 
@@ -114,9 +139,18 @@ export default function Workshops() {
 
     try {
       setSubmitting(true);
+      const composedAddress = composeAddressString(addressValue);
       const workshopData: CreateWorkshopData = {
         name: name.trim(),
-        address: address.trim(),
+        address: composedAddress.trim(),
+        addressFields: {
+          cep: addressValue.cep ? addressValue.cep.replace(/\D/g, '') : undefined,
+          street: addressValue.street.trim(),
+          number: addressValue.number.trim() || undefined,
+          neighborhood: addressValue.neighborhood.trim() || undefined,
+          city: addressValue.city.trim() || undefined,
+          uf: addressValue.uf.trim() || undefined,
+        },
         contact1: contact1.trim(),
         contact2: contact2.trim() || undefined,
         status,
@@ -126,6 +160,11 @@ export default function Workshops() {
         await updateWorkshop(editingWorkshop.id, workshopData);
         Alert.alert(t('common.success'), t('workshops.updateSuccess'));
       } else {
+        const ent = getEffectiveUserPlan(user?.plan);
+        if (!canCreateAnotherWorkshop(ent, workshops.length)) {
+          Alert.alert(t('workshops.limitTitle'), t('workshops.limitMessage'));
+          return;
+        }
         await createWorkshop(user.id, workshopData);
         Alert.alert(t('common.success'), t('workshops.createSuccess'));
       }
@@ -188,6 +227,15 @@ export default function Workshops() {
 
   const getStatusLabel = (status: WorkshopStatus) => {
     return t(`workshops.status.${status}`);
+  };
+
+  const formatPhoneInput = (text: string) => {
+    const numbers = text.replace(/\D/g, '').slice(0, 11);
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 10)
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
   };
 
   const formatPhone = (phone: string) => {
@@ -375,18 +423,11 @@ export default function Workshops() {
 
                 {/* Endereço */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t('workshops.address')}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.input}
-                      value={address}
-                      onChangeText={setAddress}
-                      placeholder={t('workshops.addressPlaceholder')}
-                      placeholderTextColor="#9CA3AF"
-                      multiline
-                    />
-                  </View>
+                  <AddressFields
+                    title={t('workshops.address')}
+                    value={addressValue}
+                    onChange={setAddressValue}
+                  />
                   {errors.address && (
                     <Text style={styles.errorText}>{errors.address}</Text>
                   )}
@@ -400,7 +441,7 @@ export default function Workshops() {
                     <TextInput
                       style={styles.input}
                       value={contact1}
-                      onChangeText={setContact1}
+                      onChangeText={(text) => setContact1(formatPhoneInput(text))}
                       placeholder={t('workshops.contact1Placeholder')}
                       placeholderTextColor="#9CA3AF"
                       keyboardType="phone-pad"
@@ -419,7 +460,7 @@ export default function Workshops() {
                     <TextInput
                       style={styles.input}
                       value={contact2}
-                      onChangeText={setContact2}
+                      onChangeText={(text) => setContact2(formatPhoneInput(text))}
                       placeholder={t('workshops.contact2Placeholder')}
                       placeholderTextColor="#9CA3AF"
                       keyboardType="phone-pad"

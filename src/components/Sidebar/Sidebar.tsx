@@ -10,6 +10,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
+import { useAuth } from '../../hooks/useAuth';
 import type { ScreenName } from '../../routes/paths';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
+  { id: 'adminDashboard', icon: 'admin-panel-settings', labelKey: 'navigation.adminDashboard', route: 'AdminDashboard' },
   { id: 'dashboard', icon: 'dashboard', labelKey: 'navigation.dashboard', route: 'Dashboard' },
   { id: 'profile', icon: 'person', labelKey: 'navigation.profile', route: 'Profile' },
   { id: 'workshops', icon: 'business', labelKey: 'navigation.workshops', route: 'Workshops' },
@@ -44,6 +46,9 @@ const menuItems: MenuItem[] = [
 export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps) {
   const { t } = useLanguage();
   const { navigate } = useNavigation();
+  const { user } = useAuth();
+  const isAdmin = user?.userType === 'admin' || user?.email?.toLowerCase() === 'costuraconectada@gmail.com';
+  const visibleMenuItems = isAdmin ? menuItems : menuItems.filter((item) => item.route !== 'AdminDashboard');
 
   const handleNavigate = (route: ScreenName) => {
     navigate(route);
@@ -81,7 +86,7 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {menuItems.map((item) => {
+            {visibleMenuItems.map((item) => {
               const isActive = currentRoute === item.route;
               return (
                 <TouchableOpacity

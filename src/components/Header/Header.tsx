@@ -4,8 +4,8 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -35,7 +35,7 @@ export default function Header({ onMenuPress }: HeaderProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
         {/* Left Section - Menu and Logo */}
         <View style={styles.leftSection}>
@@ -63,16 +63,6 @@ export default function Header({ onMenuPress }: HeaderProps) {
             <MaterialIcons name="language" size={22} color="#6366F1" />
           </TouchableOpacity>
 
-          {/* User Avatar */}
-          {user && (
-            <TouchableOpacity
-              style={styles.userAvatar}
-              onPress={() => navigate('Profile')}
-            >
-              <MaterialIcons name="person" size={18} color="#6366F1" />
-            </TouchableOpacity>
-          )}
-
           {/* Logout Button */}
           <TouchableOpacity
             onPress={handleLogout}
@@ -95,7 +85,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -104,7 +94,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    minHeight: 60,
+    minHeight: 52,
   },
   leftSection: {
     flexDirection: 'row',
@@ -137,14 +127,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F4FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,

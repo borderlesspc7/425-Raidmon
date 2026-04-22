@@ -1,5 +1,7 @@
 export type PaymentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 
+export type PaymentProvider = 'manual' | 'asaas';
+
 export interface Payment {
   id: string;
   workshopId?: string;
@@ -14,6 +16,23 @@ export interface Payment {
   userId: string;
   createdAt: Date;
   updatedAt: Date;
+
+  /** manual (padrão) ou Asaas */
+  provider?: PaymentProvider;
+  asaasPaymentId?: string;
+  asaasBillingType?: string;
+  asaasInvoiceUrl?: string;
+  platformFeePercent?: number;
+  platformFeeAmount?: number;
+  netAmountAfterFee?: number;
+  /** PIX copia e cola */
+  pixCopyPaste?: string | null;
+  /** QR em base64 (PNG) */
+  pixEncodedImage?: string | null;
+  pixExpiration?: string | null;
+
+  /** Cobrança de assinatura: ao confirmar pagamento, o webhook aplica em `users.plan`. */
+  subscriptionPlan?: "basic" | "premium" | "enterprise";
 }
 
 export interface CreatePaymentData {
@@ -26,6 +45,7 @@ export interface CreatePaymentData {
   paidDate?: Date;
   description: string;
   status?: PaymentStatus;
+  subscriptionPlan?: "basic" | "premium" | "enterprise";
 }
 
 export interface UpdatePaymentData extends Partial<CreatePaymentData> {}

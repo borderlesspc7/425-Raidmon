@@ -1,33 +1,64 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
   Modal,
   Alert,
+  Keyboard,
+  Share,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useNavigation } from "../../routes/NavigationContext";
+import * as Linking from "expo-linking";
+import * as Clipboard from "expo-clipboard";
 import {
   createBatch,
   getBatchesByUser,
   updateBatch,
   deleteBatch,
   getBatchStatistics,
+  generateBatchInviteToken,
 } from "../../services/batchService";
 import { Batch, CreateBatchData, BatchStatus } from "../../types/batch";
 import { getWorkshopsByUser } from "../../services/workshopService";
 import { Workshop } from "../../types/workshop";
+import { getCutsByUser } from "../../services/cutService";
+import type { Cut } from "../../types/cut";
+import {
+  canExportRomaneioPdf,
+  getEffectiveUserPlan,
+} from "../../utils/planEntitlements";
+import { shareRomaneioForBatch } from "../../utils/romaneioPdf";
+
+function formatMoneyBRL(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+/** Mesma regra da lista em Cortes: #N com N = quantidade − índice (mais novo = maior #). */
+function getCutListNumber(cuts: Cut[], cutId: string): number | null {
+  const idx = cuts.findIndex((c) => c.id === cutId);
+  if (idx < 0) return null;
+  return cuts.length - idx;
+}
 
 export default function Batches() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { navigate } = useNavigation();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,12 +85,86 @@ export default function Batches() {
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const [cuts, setCuts] = useState<Cut[]>([]);
+  const [cutsLoading, setCutsLoading] = useState(false);
+  const [cutsDropdownOpen, setCutsDropdownOpen] = useState(false);
+  const blurCloseDropdownTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedCutId, setSelectedCutId] = useState<string | null>(null);
+  /** Valor total (qtd × preço/peça), exibido em tempo real no Novo Lote */
+  const [guaranteedTotalDisplay, setGuaranteedTotalDisplay] = useState("");
+
+  const [offerSummary, setOfferSummary] = useState<{
+    visible: boolean;
+    inviteUrl: string;
+    batchRef: string;
+    pieceName: string;
+    quantity: number;
+    pricePerPiece: number;
+    guaranteedTotal: number;
+  }>({
+    visible: false,
+    inviteUrl: "",
+    batchRef: "",
+    pieceName: "",
+    quantity: 0,
+    pricePerPiece: 0,
+    guaranteedTotal: 0,
+  });
+
+  const [romaneioLoadingId, setRomaneioLoadingId] = useState<string | null>(null);
+
+  const isOwner = user?.userType === "owner";
+
   useEffect(() => {
     if (user?.id) {
       loadBatches();
       loadWorkshops();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!modalVisible || !user?.id) return;
+    let cancelled = false;
+    setCutsLoading(true);
+    getCutsByUser(user.id)
+      .then((data) => {
+        if (!cancelled) setCuts(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCuts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCutsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modalVisible, user?.id]);
+
+  useEffect(() => {
+    if (!isOwner) return;
+    if (!selectedCutId) {
+      setGuaranteedTotalDisplay("");
+      return;
+    }
+    const cut = cuts.find((c) => c.id === selectedCutId);
+    if (
+      !cut ||
+      cut.pricePerPiece == null ||
+      !Number.isFinite(cut.pricePerPiece) ||
+      cut.pricePerPiece <= 0
+    ) {
+      setGuaranteedTotalDisplay("");
+      return;
+    }
+    const qty = parseInt(totalPiecesInput, 10);
+    if (!totalPiecesInput.trim() || isNaN(qty) || qty <= 0) {
+      setGuaranteedTotalDisplay("");
+      return;
+    }
+    const total = Math.round(qty * cut.pricePerPiece * 100) / 100;
+    setGuaranteedTotalDisplay(formatMoneyBRL(total));
+  }, [totalPiecesInput, selectedCutId, cuts, isOwner]);
 
   const loadWorkshops = async () => {
     if (!user?.id) return;
@@ -99,10 +204,12 @@ export default function Batches() {
   };
 
   const openModal = (batch?: Batch) => {
+    setCutsDropdownOpen(false);
     if (batch) {
       setEditingBatch(batch);
       setName(batch.name);
       setTotalPiecesInput(batch.totalPieces.toString());
+      setSelectedCutId(batch.cutId || null);
       setStatus(batch.status);
       setSelectedWorkshopId(batch.workshopId || "");
       setDeliveryDate(
@@ -115,6 +222,14 @@ export default function Batches() {
           : "",
       );
       setObservations(batch.observations || "");
+      if (
+        batch.guaranteedTotal != null &&
+        Number.isFinite(batch.guaranteedTotal)
+      ) {
+        setGuaranteedTotalDisplay(formatMoneyBRL(batch.guaranteedTotal));
+      } else {
+        setGuaranteedTotalDisplay("");
+      }
     } else {
       resetForm();
     }
@@ -123,6 +238,7 @@ export default function Batches() {
 
   const closeModal = () => {
     setModalVisible(false);
+    setCutsDropdownOpen(false);
     resetForm();
   };
 
@@ -135,6 +251,34 @@ export default function Batches() {
     setDeliveryDate("");
     setObservations("");
     setErrors({});
+    setCutsDropdownOpen(false);
+    setSelectedCutId(null);
+    setGuaranteedTotalDisplay("");
+  };
+
+  const clearBlurCloseTimer = () => {
+    if (blurCloseDropdownTimer.current) {
+      clearTimeout(blurCloseDropdownTimer.current);
+      blurCloseDropdownTimer.current = null;
+    }
+  };
+
+  const selectCutForBatchName = (cut: Cut) => {
+    clearBlurCloseTimer();
+    setSelectedCutId(cut.id);
+    setName(cut.type);
+    const qtyStr = totalPiecesInput.trim();
+    const parsed = parseInt(qtyStr, 10);
+    if (!qtyStr || isNaN(parsed) || parsed <= 0) {
+      setTotalPiecesInput(String(cut.totalPieces));
+    }
+    setCutsDropdownOpen(false);
+    Keyboard.dismiss();
+  };
+
+  const toggleCutsDropdown = () => {
+    clearBlurCloseTimer();
+    setCutsDropdownOpen((open) => !open);
   };
 
   const validateForm = (): boolean => {
@@ -144,9 +288,25 @@ export default function Batches() {
       newErrors.name = t("batches.nameRequired");
     }
 
-    const pieces = parseInt(totalPiecesInput);
+    const pieces = parseInt(totalPiecesInput, 10);
     if (!totalPiecesInput || isNaN(pieces) || pieces <= 0) {
       newErrors.totalPieces = t("batches.piecesRequired");
+    }
+
+    if (isOwner && !editingBatch) {
+      if (!selectedCutId) {
+        newErrors.cutId = t("batches.ownerCutRequired");
+      } else {
+        const chosen = cuts.find((c) => c.id === selectedCutId);
+        if (
+          !chosen ||
+          chosen.pricePerPiece == null ||
+          !Number.isFinite(chosen.pricePerPiece) ||
+          chosen.pricePerPiece <= 0
+        ) {
+          newErrors.cutId = t("batches.ownerCutPriceMissing");
+        }
+      }
     }
 
     setErrors(newErrors);
@@ -162,10 +322,32 @@ export default function Batches() {
         (w) => w.id === selectedWorkshopId,
       );
 
+      const pieces = parseInt(totalPiecesInput, 10);
+      let cutIdField: string | undefined;
+      let pricePerPieceField: number | undefined;
+      let guaranteedTotalField: number | undefined;
+      let inviteTokenField: string | undefined;
+      let cutListNumberField: number | undefined;
+
+      if (isOwner && !editingBatch) {
+        const chosen = cuts.find((c) => c.id === selectedCutId);
+        const p = chosen?.pricePerPiece;
+        if (!chosen || p == null || !Number.isFinite(p) || p <= 0) {
+          throw new Error(t("batches.ownerCutPriceMissing"));
+        }
+        const unit = Math.round(p * 100) / 100;
+        cutIdField = chosen.id;
+        pricePerPieceField = unit;
+        guaranteedTotalField = Math.round(pieces * unit * 100) / 100;
+        inviteTokenField = generateBatchInviteToken();
+        const n = getCutListNumber(cuts, chosen.id);
+        if (n != null) cutListNumberField = n;
+      }
+
       const batchData: CreateBatchData = {
         name: name.trim(),
-        totalPieces: parseInt(totalPiecesInput),
-        status,
+        totalPieces: pieces,
+        status: isOwner && !editingBatch ? "pending" : status,
         workshopId: selectedWorkshopId || undefined,
         workshopName: selectedWorkshop?.name || undefined,
         deliveryDate: deliveryDate
@@ -175,23 +357,99 @@ export default function Batches() {
             })()
           : undefined,
         observations: observations.trim() || undefined,
+        cutId: cutIdField,
+        pricePerPiece: pricePerPieceField,
+        guaranteedTotal: guaranteedTotalField,
+        inviteToken: inviteTokenField,
+        cutListNumber: cutListNumberField,
       };
 
       if (editingBatch) {
-        await updateBatch(editingBatch.id, batchData);
+        const updatePayload: Parameters<typeof updateBatch>[1] = {
+          name: batchData.name,
+          totalPieces: batchData.totalPieces,
+          status: isOwner ? editingBatch.status : status,
+          workshopId: batchData.workshopId,
+          workshopName: batchData.workshopName,
+          deliveryDate: batchData.deliveryDate,
+          observations: batchData.observations,
+        };
+        if (cutIdField || editingBatch.cutId) {
+          updatePayload.cutId = cutIdField ?? editingBatch.cutId;
+        }
+        if (pricePerPieceField !== undefined && guaranteedTotalField !== undefined) {
+          updatePayload.pricePerPiece = pricePerPieceField;
+          updatePayload.guaranteedTotal = guaranteedTotalField;
+        }
+        await updateBatch(editingBatch.id, updatePayload);
         Alert.alert(t("common.success"), t("batches.updateSuccess"));
+        await loadBatches();
+        closeModal();
       } else {
-        await createBatch(user.id, batchData);
-        Alert.alert(t("common.success"), t("batches.createSuccess"));
+        const created = await createBatch(user.id, batchData);
+        await loadBatches();
+        closeModal();
+        if (isOwner && inviteTokenField && created.inviteToken) {
+          const inviteUrl = Linking.createURL("batch-offer", {
+            queryParams: {
+              batchId: created.id,
+              token: created.inviteToken,
+            },
+          });
+          const refNum =
+            created.cutListNumber ?? cutListNumberField ?? null;
+          setOfferSummary({
+            visible: true,
+            inviteUrl,
+            batchRef:
+              refNum != null
+                ? `#${refNum}`
+                : created.id.slice(0, 8).toUpperCase(),
+            pieceName: created.name,
+            quantity: created.totalPieces,
+            pricePerPiece: created.pricePerPiece ?? pricePerPieceField ?? 0,
+            guaranteedTotal:
+              created.guaranteedTotal ?? guaranteedTotalField ?? 0,
+          });
+        } else {
+          Alert.alert(t("common.success"), t("batches.createSuccess"));
+        }
       }
-
-      await loadBatches();
-      closeModal();
     } catch (error: any) {
       Alert.alert(t("common.error"), error.message || "Erro ao salvar lote");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const formatOfferMoney = (n: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+    }).format(n);
+
+  const shareOfferLink = async () => {
+    const url = offerSummary.inviteUrl;
+    try {
+      await Clipboard.setStringAsync(url);
+    } catch {
+      // Continua com o share mesmo se a área de transferência falhar
+    }
+    try {
+      await Share.share({
+        message: url,
+        title: t("batches.offerShareTitle"),
+      });
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "message" in e ? String((e as Error).message) : "";
+      if (msg.includes("User did not share") || msg.includes("cancel")) return;
+      Alert.alert(t("common.error"), t("batches.offerShareError"));
+    }
+  };
+
+  const closeOfferSummary = () => {
+    setOfferSummary((s) => ({ ...s, visible: false }));
   };
 
   const handleDelete = (batch: Batch) => {
@@ -251,7 +509,46 @@ export default function Batches() {
   };
 
   const getStatusLabel = (status: BatchStatus) => {
-    return t(`batches.status.${status}`);
+    const key = `batches.status.${status}`;
+    const label = t(key);
+    if (label === key) {
+      if (status === "in_progress") {
+        return language === "es" ? "en producción" : "em produção";
+      }
+      return status;
+    }
+    return label;
+  };
+
+  const handleRomaneioPress = async (batch: Batch) => {
+    const plan = getEffectiveUserPlan(user?.plan);
+    if (!canExportRomaneioPdf(plan)) {
+      Alert.alert(
+        t("batches.romaneioLockedTitle"),
+        t("batches.romaneioLockedMessage"),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("batches.seePlans"), onPress: () => navigate("Plans") },
+        ]
+      );
+      return;
+    }
+    try {
+      setRomaneioLoadingId(batch.id);
+      await shareRomaneioForBatch(batch, {
+        title: t("batches.romaneioPdfTitle"),
+        quantity: t("batches.quantity"),
+        workshop: t("batches.workshop"),
+        delivery: t("batches.deliveryDate"),
+        statusColumn: t("batches.statusLabel"),
+        statusValue: getStatusLabel(batch.status),
+        obs: t("batches.observations"),
+      });
+    } catch (e: any) {
+      Alert.alert(t("common.error"), e?.message || String(e));
+    } finally {
+      setRomaneioLoadingId(null);
+    }
   };
 
   if (loading) {
@@ -269,12 +566,20 @@ export default function Batches() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerTextCol}>
             <Text style={styles.title}>{t("batches.title")}</Text>
             <Text style={styles.subtitle}>
               {totalBatches} {t("batches.registered")} • {totalPieces}{" "}
               {t("batches.totalPieces")}
             </Text>
+            {!canExportRomaneioPdf(getEffectiveUserPlan(user?.plan)) ? (
+              <View style={styles.planNoticeRow}>
+                <MaterialIcons name="info-outline" size={16} color="#4F46E5" />
+                <Text style={styles.planNoticeText} numberOfLines={3}>
+                  {t("batches.romaneioScreenOnlyBanner")}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <TouchableOpacity
             style={styles.addButton}
@@ -360,6 +665,21 @@ export default function Batches() {
                       style={styles.iconButton}
                     >
                       <MaterialIcons name="edit" size={20} color="#6366F1" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleRomaneioPress(batch)}
+                      style={styles.iconButton}
+                      disabled={romaneioLoadingId === batch.id}
+                    >
+                      {romaneioLoadingId === batch.id ? (
+                        <ActivityIndicator size="small" color="#059669" />
+                      ) : (
+                        <MaterialIcons
+                          name="picture-as-pdf"
+                          size={20}
+                          color={canExportRomaneioPdf(getEffectiveUserPlan(user?.plan)) ? "#059669" : "#9CA3AF"}
+                        />
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDelete(batch)}
@@ -462,24 +782,90 @@ export default function Batches() {
               <ScrollView
                 style={styles.modalScroll}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
               >
                 {/* Nome */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{t("batches.name")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons
-                      name="inventory"
-                      size={20}
-                      color="#6B7280"
-                    />
-                    <TextInput
-                      style={styles.input}
-                      value={name}
-                      onChangeText={setName}
-                      placeholder={t("batches.namePlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                    />
+                  <View style={styles.nameFieldWrap}>
+                    <View style={styles.inputContainer}>
+                      <MaterialIcons
+                        name="content-cut"
+                        size={20}
+                        color="#6B7280"
+                      />
+                      <TextInput
+                        style={styles.input}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder={t("batches.namePlaceholder")}
+                        placeholderTextColor="#9CA3AF"
+                        onFocus={() => {
+                          clearBlurCloseTimer();
+                          setCutsDropdownOpen(true);
+                        }}
+                      />
+                      <TouchableOpacity
+                        onPress={toggleCutsDropdown}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("batches.cutsDropdownToggle")}
+                      >
+                        <MaterialIcons
+                          name={cutsDropdownOpen ? "expand-less" : "expand-more"}
+                          size={22}
+                          color="#6B7280"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {cutsDropdownOpen ? (
+                      <View style={styles.cutsDropdown}>
+                        {cutsLoading ? (
+                          <View style={styles.cutsDropdownLoading}>
+                            <ActivityIndicator color="#6366F1" />
+                          </View>
+                        ) : cuts.length === 0 ? (
+                          <Text style={styles.cutsDropdownEmpty}>
+                            {t("batches.cutsDropdownEmpty")}
+                          </Text>
+                        ) : (
+                          <ScrollView
+                            style={styles.cutsDropdownList}
+                            keyboardShouldPersistTaps="always"
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator
+                          >
+                            {cuts.map((cut) => (
+                              <Pressable
+                                key={cut.id}
+                                style={({ pressed }) => [
+                                  styles.cutsDropdownItem,
+                                  pressed && { opacity: 0.75 },
+                                ]}
+                                onPress={() => selectCutForBatchName(cut)}
+                              >
+                                <Text style={styles.cutsDropdownItemTitle} numberOfLines={2}>
+                                  {cut.type}
+                                </Text>
+                                <Text style={styles.cutsDropdownItemMeta}>
+                                  {`#${getCutListNumber(cuts, cut.id) ?? "—"} · ${cut.totalPieces} ${t("batches.pieces")}${
+                                    cut.pricePerPiece != null &&
+                                    Number.isFinite(cut.pricePerPiece)
+                                      ? ` · ${formatMoneyBRL(cut.pricePerPiece)} ${t("batches.perPieceAbbr")}`
+                                      : ""
+                                  }`}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        )}
+                      </View>
+                    ) : null}
                   </View>
+                  <Text style={styles.cutsHint}>{t("batches.cutsFromCutsHint")}</Text>
+                  {errors.cutId && (
+                    <Text style={styles.errorText}>{errors.cutId}</Text>
+                  )}
                   {errors.name && (
                     <Text style={styles.errorText}>{errors.name}</Text>
                   )}
@@ -504,56 +890,91 @@ export default function Batches() {
                   )}
                 </View>
 
-                {/* Status */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("batches.statusLabel")}</Text>
-                  <View style={styles.statusButtonsContainer}>
-                    {(
-                      ["pending", "in_progress", "completed", "cancelled"] as BatchStatus[]
-                    ).map((statusOption) => (
-                      <TouchableOpacity
-                        key={statusOption}
-                        style={[
-                          styles.statusButton,
-                          status === statusOption && styles.statusButtonActive,
-                          {
-                            borderColor: getStatusColor(statusOption),
-                            backgroundColor:
-                              status === statusOption
-                                ? `${getStatusColor(statusOption)}20`
-                                : "#FFFFFF",
-                          },
-                        ]}
-                        onPress={() => setStatus(statusOption)}
-                      >
-                        <View
+                {isOwner && selectedCutId ? (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>{t("batches.unitPriceLabel")}</Text>
+                      <View style={styles.inputContainer}>
+                        <MaterialIcons name="attach-money" size={20} color="#6B7280" />
+                        <Text style={[styles.input, { paddingVertical: 12 }]}>
+                          {(() => {
+                            const c = cuts.find((x) => x.id === selectedCutId);
+                            return c?.pricePerPiece != null &&
+                              Number.isFinite(c.pricePerPiece)
+                              ? formatMoneyBRL(c.pricePerPiece)
+                              : "—";
+                          })()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>{t("batches.calculatedTotal")}</Text>
+                      <View style={styles.inputContainer}>
+                        <MaterialIcons name="calculate" size={20} color="#6B7280" />
+                        <TextInput
+                          style={styles.input}
+                          value={guaranteedTotalDisplay}
+                          editable={false}
+                          placeholder="—"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
+                  </>
+                ) : null}
+
+                {/* Status (não exibido para dono — fluxo WhatsApp / oficina) */}
+                {!isOwner ? (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>{t("batches.statusLabel")}</Text>
+                    <View style={styles.statusButtonsContainer}>
+                      {(
+                        ["pending", "in_progress", "completed", "cancelled"] as BatchStatus[]
+                      ).map((statusOption) => (
+                        <TouchableOpacity
+                          key={statusOption}
                           style={[
-                            styles.statusButtonDot,
+                            styles.statusButton,
+                            status === statusOption && styles.statusButtonActive,
                             {
+                              borderColor: getStatusColor(statusOption),
                               backgroundColor:
                                 status === statusOption
-                                  ? getStatusColor(statusOption)
-                                  : "#E5E7EB",
+                                  ? `${getStatusColor(statusOption)}20`
+                                  : "#FFFFFF",
                             },
                           ]}
-                        />
-                        <Text
-                          style={[
-                            styles.statusButtonText,
-                            {
-                              color:
-                                status === statusOption
-                                  ? getStatusColor(statusOption)
-                                  : "#6B7280",
-                            },
-                          ]}
+                          onPress={() => setStatus(statusOption)}
                         >
-                          {t(`batches.status.${statusOption}`)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <View
+                            style={[
+                              styles.statusButtonDot,
+                              {
+                                backgroundColor:
+                                  status === statusOption
+                                    ? getStatusColor(statusOption)
+                                    : "#E5E7EB",
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.statusButtonText,
+                              {
+                                color:
+                                  status === statusOption
+                                    ? getStatusColor(statusOption)
+                                    : "#6B7280",
+                              },
+                            ]}
+                          >
+                            {t(`batches.status.${statusOption}`)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                </View>
+                ) : null}
 
                 {/* Oficina */}
                 {workshops.length > 0 && (
@@ -679,6 +1100,77 @@ export default function Batches() {
             </View>
           </View>
         </Modal>
+
+        {/* Resumo pós-salvar (dono) + link WhatsApp */}
+        <Modal
+          visible={offerSummary.visible}
+          animationType="fade"
+          transparent
+          onRequestClose={closeOfferSummary}
+        >
+          <View style={styles.offerModalOverlay}>
+            <View style={styles.offerModalContent}>
+              <Text style={styles.offerWelcome}>
+                {t("batches.offerWelcome").replace(
+                  "{name}",
+                  user?.name ?? "…",
+                )}
+              </Text>
+              <Text style={styles.offerContext}>{t("batches.offerContext")}</Text>
+              <View style={styles.offerCard}>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>{t("batches.offerBatchRef")}</Text>
+                  <Text style={styles.offerValue}>{offerSummary.batchRef}</Text>
+                </View>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>
+                    {t("batches.offerPieceName")}
+                  </Text>
+                  <Text style={styles.offerValue}>{offerSummary.pieceName}</Text>
+                </View>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>{t("batches.quantity")}</Text>
+                  <Text style={styles.offerValue}>
+                    {offerSummary.quantity} {t("batches.pieces")}
+                  </Text>
+                </View>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>
+                    {t("batches.offerPricePerPiece")}
+                  </Text>
+                  <Text style={styles.offerValue}>
+                    {formatOfferMoney(offerSummary.pricePerPiece)}
+                  </Text>
+                </View>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>
+                    {t("batches.offerGuaranteedTotal")}
+                  </Text>
+                  <Text style={[styles.offerValue, styles.offerTotal]}>
+                    {formatOfferMoney(offerSummary.guaranteedTotal)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.offerCopyBtn}
+                onPress={shareOfferLink}
+              >
+                <MaterialIcons name="share" size={20} color="#FFFFFF" />
+                <Text style={styles.offerCopyBtnText}>
+                  {t("batches.offerCopyLinkAndShare")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.offerConfirmBtn}
+                onPress={closeOfferSummary}
+              >
+                <Text style={styles.offerConfirmBtnText}>
+                  {t("batches.offerConfirm")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Layout>
   );
@@ -697,12 +1189,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingVertical: 20,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
+  },
+  headerTextCol: {
+    flex: 1,
+    paddingRight: 12,
   },
   title: {
     fontSize: 24,
@@ -713,6 +1209,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     marginTop: 4,
+  },
+  planNoticeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 8,
+    maxWidth: "85%",
+  },
+  planNoticeText: {
+    fontSize: 12,
+    color: "#4B5563",
+    flex: 1,
+    lineHeight: 16,
   },
   addButton: {
     width: 48,
@@ -949,6 +1458,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  nameFieldWrap: {
+    position: "relative",
+    zIndex: 20,
+    elevation: 20,
+  },
+  cutsDropdown: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    marginTop: 6,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  cutsDropdownLoading: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cutsDropdownEmpty: {
+    padding: 14,
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  cutsDropdownList: {
+    maxHeight: 200,
+  },
+  cutsDropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  cutsDropdownItemTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  cutsDropdownItemMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  cutsHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
   label: {
     fontSize: 14,
     fontWeight: "600",
@@ -1069,5 +1631,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  offerModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  offerModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    gap: 14,
+  },
+  offerWelcome: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  offerContext: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  offerCard: {
+    gap: 10,
+    paddingVertical: 8,
+  },
+  offerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  offerLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "600",
+    flex: 1,
+  },
+  offerValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    flexShrink: 0,
+    maxWidth: "58%",
+    textAlign: "right",
+  },
+  offerTotal: {
+    color: "#6366F1",
+    fontSize: 16,
+  },
+  offerCopyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#25D366",
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  offerCopyBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  offerConfirmBtn: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+  },
+  offerConfirmBtnText: {
+    color: "#374151",
+    fontWeight: "700",
+    fontSize: 16,
   },
 });

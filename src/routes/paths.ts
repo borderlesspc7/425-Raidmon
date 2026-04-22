@@ -1,12 +1,16 @@
 export const paths = {
     languageSelection: "LanguageSelection",
     login: "Login",
+    registerSelection: "RegisterSelection",
     register: "Register",
+    registerWorkshop: "RegisterWorkshop",
+    adminDashboard: "AdminDashboard",
     dashboard: "Dashboard",
     profile: "Profile",
     workshops: "Workshops",
     cuts: "Cuts",
     batches: "Batches",
+    batchOffer: "BatchOffer",
     workshopStatus: "WorkshopStatus",
     finishedProduction: "FinishedProduction",
     receivePieces: "ReceivePieces",
@@ -18,6 +22,7 @@ export const paths = {
     basicPlan: "BasicPlan",
     premiumPlan: "PremiumPlan",
     enterprisePlan: "EnterprisePlan",
+    planCheckout: "PlanCheckout",
 } as const;
 
 export type ScreenName = (typeof paths)[keyof typeof paths];
@@ -25,15 +30,19 @@ export type ScreenName = (typeof paths)[keyof typeof paths];
 export const publicRoutes: ScreenName[] = [
     paths.languageSelection,
     paths.login,
+    paths.registerSelection,
     paths.register,
+    paths.registerWorkshop,
 ];
 
 export const protectedRoutes: ScreenName[] = [
+    paths.adminDashboard,
     paths.dashboard,
     paths.profile,
     paths.workshops,
     paths.cuts,
     paths.batches,
+    paths.batchOffer,
     paths.workshopStatus,
     paths.finishedProduction,
     paths.receivePieces,
@@ -45,4 +54,5 @@ export const protectedRoutes: ScreenName[] = [
     paths.basicPlan,
     paths.premiumPlan,
     paths.enterprisePlan,
+    paths.planCheckout,
 ];

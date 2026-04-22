@@ -4,8 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
-import { useAuth } from "../../hooks/useAuth";
-import { Alert } from "react-native";
+import { paths } from "../../routes/paths";
 
 export default function BasicPlan() {
   const { t } = useLanguage();
@@ -15,31 +14,8 @@ export default function BasicPlan() {
     navigate("Plans");
   };
 
-  const handleSubscribe = () => {
-    // No momento mantemos apenas a simulação de assinatura
-    // A lógica real de pagamento/assinatura pode ser adicionada depois
-  };
-  const { user, updateProfile } = useAuth();
-  const [loading, setLoading] = React.useState(false);
-
-  const handleSubscribeAction = async () => {
-    if (!user) {
-      Alert.alert(t("common.error"), "Usuário não autenticado");
-      return;
-    }
-    try {
-      setLoading(true);
-      await updateProfile({ plan: "basic" });
-      Alert.alert(
-        t("plans.success"),
-        t("plans.successMessage").replace("{plan}", t("plans.basic.name")),
-        [{ text: "OK", onPress: () => navigate("Plans") }]
-      );
-    } catch (error: any) {
-      Alert.alert(t("common.error"), error?.message || "Erro ao assinar");
-    } finally {
-      setLoading(false);
-    }
+  const handleSubscribeAction = () => {
+    navigate(paths.planCheckout, { planId: "basic" });
   };
 
   return (
@@ -105,11 +81,8 @@ export default function BasicPlan() {
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={handleSubscribeAction}
-              disabled={loading}
             >
-              <Text style={styles.primaryButtonText}>
-                {loading ? t("plans.processing") + "..." : t("plans.basic.cta")}
-              </Text>
+              <Text style={styles.primaryButtonText}>{t("plans.basic.cta")}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

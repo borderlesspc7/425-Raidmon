@@ -35,6 +35,26 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
       : undefined,
     observations: data.observations || undefined,
     userId: data.userId,
+    cutId: data.cutId || undefined,
+    pricePerPiece:
+      typeof data.pricePerPiece === "number" && Number.isFinite(data.pricePerPiece)
+        ? data.pricePerPiece
+        : undefined,
+    guaranteedTotal:
+      typeof data.guaranteedTotal === "number" && Number.isFinite(data.guaranteedTotal)
+        ? data.guaranteedTotal
+        : undefined,
+    inviteToken: typeof data.inviteToken === "string" ? data.inviteToken : undefined,
+    cutListNumber:
+      typeof data.cutListNumber === "number" && Number.isFinite(data.cutListNumber)
+        ? data.cutListNumber
+        : undefined,
+    linkedWorkshopUserId:
+      data.linkedWorkshopUserId === null
+        ? null
+        : typeof data.linkedWorkshopUserId === "string"
+          ? data.linkedWorkshopUserId
+          : undefined,
     createdAt:
       data.createdAt instanceof Timestamp
         ? data.createdAt.toDate()
@@ -72,6 +92,12 @@ export async function createBatch(
     if (batchData.workshopName !== undefined) payload.workshopName = batchData.workshopName;
     if (batchData.observations !== undefined) payload.observations = batchData.observations;
     if (batchData.deliveryDate) payload.deliveryDate = Timestamp.fromDate(batchData.deliveryDate);
+    if (batchData.cutId !== undefined) payload.cutId = batchData.cutId;
+    if (batchData.pricePerPiece !== undefined) payload.pricePerPiece = batchData.pricePerPiece;
+    if (batchData.guaranteedTotal !== undefined)
+      payload.guaranteedTotal = batchData.guaranteedTotal;
+    if (batchData.inviteToken !== undefined) payload.inviteToken = batchData.inviteToken;
+    if (batchData.cutListNumber !== undefined) payload.cutListNumber = batchData.cutListNumber;
 
     const batchRef = await addDoc(collection(db, BATCHES_COLLECTION), payload);
 
@@ -112,6 +138,45 @@ export async function getBatchesByUser(userId: string): Promise<Batch[]> {
     console.error("Erro ao buscar lotes:", error);
     throw new Error(error.message || "Erro ao buscar lotes");
   }
+}
+
+/**
+ * Lotes em que a oficina (conta utilizador) aceitou o convite (linkedWorkshopUserId).
+ */
+export async function getBatchesLinkedToWorkshop(
+  workshopUserId: string,
+): Promise<Batch[]> {
+  try {
+    if (!workshopUserId) {
+      throw new Error("Workshop user ID is required");
+    }
+
+    const q = query(
+      collection(db, BATCHES_COLLECTION),
+      where("linkedWorkshopUserId", "==", workshopUserId),
+    );
+
+    const querySnapshot = await getDocs(q);
+    const batches = querySnapshot.docs.map((d) =>
+      convertFirestoreToBatch(d.id, d.data()),
+    );
+
+    return batches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  } catch (error: any) {
+    console.error("Erro ao buscar lotes da oficina:", error);
+    throw new Error(error.message || "Erro ao buscar lotes da oficina");
+  }
+}
+
+/** Token aleatório para link de convite (ligação WhatsApp). */
+export function generateBatchInviteToken(): string {
+  const parts: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    parts.push(
+      Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+    );
+  }
+  return parts.join("");
 }
 
 /**

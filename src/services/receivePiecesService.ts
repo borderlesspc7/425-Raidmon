@@ -17,6 +17,24 @@ import {
   UpdateReceivePiecesData,
 } from "../types/receivePieces";
 
+/** Soma peças recebidas no mês calendário de `date` (0–11 = mês), excl. um recebimento ao editar. */
+export function sumPiecesReceivedInCalendarMonth(
+  receives: ReceivePieces[],
+  date: Date,
+  excludeReceiveId?: string
+): number {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  return receives.reduce((sum, r) => {
+    if (excludeReceiveId && r.id === excludeReceiveId) return sum;
+    const d = r.receiveDate;
+    if (d.getFullYear() === y && d.getMonth() === m) {
+      return sum + r.piecesReceived;
+    }
+    return sum;
+  }, 0);
+}
+
 const COLLECTION_NAME = "receivePieces";
 
 // Converter Firestore timestamp para Date
@@ -196,3 +214,44 @@ export const getReceivePiecesStatistics = async (userId: string) => {
     throw error;
   }
 };
+
+/** Um mês no gráfico (0–11 = Jan–Dez) com total de peças recebidas naquele mês. */
+export interface MonthlyPiecesPoint {
+  year: number;
+  monthIndex: number;
+  pieces: number;
+}
+
+/**
+ * Soma `piecesReceived` por mês calendário a partir de `receiveDate`,
+ * para os últimos `months` meses (incluindo o mês atual).
+ */
+export async function getMonthlyPiecesReceived(
+  userId: string,
+  months: number = 5,
+): Promise<MonthlyPiecesPoint[]> {
+  const receivePieces = await getReceivePiecesByUser(userId);
+  const now = new Date();
+
+  const points: MonthlyPiecesPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    points.push({
+      year: d.getFullYear(),
+      monthIndex: d.getMonth(),
+      pieces: 0,
+    });
+  }
+
+  for (const r of receivePieces) {
+    const rd = r.receiveDate;
+    const y = rd.getFullYear();
+    const m = rd.getMonth();
+    const match = points.find((p) => p.year === y && p.monthIndex === m);
+    if (match) {
+      match.pieces += r.piecesReceived;
+    }
+  }
+
+  return points;
+}

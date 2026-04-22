@@ -4,6 +4,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
+import { paths } from "../../routes/paths";
 
 export default function EnterprisePlan() {
   const { t } = useLanguage();
@@ -14,7 +15,7 @@ export default function EnterprisePlan() {
   };
 
   const handleSubscribe = () => {
-    // Lógica real de assinatura pode ser adicionada depois
+    navigate(paths.planCheckout, { planId: "enterprise" });
   };
 
   return (

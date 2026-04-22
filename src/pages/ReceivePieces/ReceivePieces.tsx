@@ -20,7 +20,9 @@ import {
   updateReceivePieces,
   deleteReceivePieces,
   getReceivePiecesStatistics,
+  sumPiecesReceivedInCalendarMonth,
 } from "../../services/receivePiecesService";
+import { getEffectiveUserPlan, getMonthlyPiecesLimit } from "../../utils/planEntitlements";
 import { ReceivePieces as ReceivePiecesType, CreateReceivePiecesData } from "../../types/receivePieces";
 import { getBatchesByUser } from "../../services/batchService";
 import { Batch } from "../../types/batch";
@@ -216,12 +218,33 @@ export default function ReceivePieces() {
       const [day, month, year] = receiveDate.split("/").map(Number);
       const receiveDateObj = new Date(year, month - 1, day);
 
+      const piecesCount = parseInt(piecesReceivedInput, 10);
+      const ent = getEffectiveUserPlan(user?.plan);
+      const monthlyLimit = getMonthlyPiecesLimit(ent);
+      if (monthlyLimit != null) {
+        const inMonth = sumPiecesReceivedInCalendarMonth(
+          receives,
+          receiveDateObj,
+          editingReceive?.id
+        );
+        if (inMonth + piecesCount > monthlyLimit) {
+          Alert.alert(
+            t("receivePieces.monthlyLimitTitle"),
+            t("receivePieces.monthlyLimitMessage")
+              .replace("{current}", String(inMonth))
+              .replace("{add}", String(piecesCount))
+              .replace("{limit}", String(monthlyLimit))
+          );
+          return;
+        }
+      }
+
       const receiveData: CreateReceivePiecesData = {
         batchId: selectedBatchId,
         batchName: selectedBatch.name,
         workshopId: selectedBatch.workshopId,
         workshopName: selectedBatch.workshopName,
-        piecesReceived: parseInt(piecesReceivedInput),
+        piecesReceived: piecesCount,
         receiveDate: receiveDateObj,
         quality,
         observations: observations.trim() || undefined,
@@ -250,7 +273,7 @@ export default function ReceivePieces() {
   const handleDelete = (receive: ReceivePiecesType) => {
     Alert.alert(
       t("receivePieces.deleteTitle"),
-      t("receivePieces.deleteConfirm", { batch: receive.batchName }),
+      t("receivePieces.deleteConfirm").replace("{batch}", receive.batchName),
       [
         { text: t("common.cancel"), style: "cancel" },
         {

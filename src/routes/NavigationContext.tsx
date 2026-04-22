@@ -3,6 +3,8 @@ import { paths, type ScreenName } from "./paths";
 
 interface NavigationParams {
   userId?: string;
+  planId?: "basic" | "premium" | "enterprise";
+  batchOffer?: { batchId: string; token: string };
 }
 
 interface NavigationContextType {

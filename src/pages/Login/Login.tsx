@@ -76,7 +76,6 @@ export default function Login() {
 
     try {
       await login({ email, password });
-      navigate('Dashboard');
     } catch (err) {
       // Erro já é tratado pelo AuthContext
     }
@@ -200,7 +199,7 @@ export default function Login() {
             <View style={styles.registerContainer}>
               <Text style={styles.registerText}>{t('login.noAccount')}</Text>
               <TouchableOpacity
-                onPress={() => navigate('Register')}
+                onPress={() => navigate(paths.registerSelection)}
               >
                 <Text style={styles.registerLink}>{t('login.register')}</Text>
               </TouchableOpacity>

@@ -24,6 +24,7 @@ function convertFirestoreToWorkshop(docId: string, data: any): Workshop {
     id: docId,
     name: data.name,
     address: data.address,
+    addressFields: data.addressFields || undefined,
     contact1: data.contact1,
     contact2: data.contact2 || '',
     status: data.status || 'yellow',
@@ -62,6 +63,7 @@ export async function createWorkshop(
     const newWorkshop = {
       name: workshopData.name.trim(),
       address: workshopData.address.trim(),
+      addressFields: workshopData.addressFields || undefined,
       contact1: workshopData.contact1.trim(),
       contact2: workshopData.contact2?.trim() || '',
       status: workshopData.status || 'yellow',

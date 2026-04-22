@@ -48,6 +48,26 @@ function convertFirestoreToPayment(id: string, data: any): Payment {
       data.updatedAt instanceof Timestamp
         ? data.updatedAt.toDate()
         : new Date(data.updatedAt),
+    provider: data.provider || undefined,
+    asaasPaymentId: data.asaasPaymentId || undefined,
+    asaasBillingType: data.asaasBillingType || undefined,
+    asaasInvoiceUrl: data.asaasInvoiceUrl || undefined,
+    platformFeePercent:
+      data.platformFeePercent !== undefined && data.platformFeePercent !== null
+        ? Number(data.platformFeePercent)
+        : undefined,
+    platformFeeAmount:
+      data.platformFeeAmount !== undefined && data.platformFeeAmount !== null
+        ? Number(data.platformFeeAmount)
+        : undefined,
+    netAmountAfterFee:
+      data.netAmountAfterFee !== undefined && data.netAmountAfterFee !== null
+        ? Number(data.netAmountAfterFee)
+        : undefined,
+    pixCopyPaste: data.pixCopyPaste ?? undefined,
+    pixEncodedImage: data.pixEncodedImage ?? undefined,
+    pixExpiration: data.pixExpiration ?? undefined,
+    subscriptionPlan: data.subscriptionPlan || undefined,
   };
 }
 
@@ -71,6 +91,10 @@ export async function createPayment(
       createdAt: now,
       updatedAt: now,
     };
+
+    if (data.subscriptionPlan) {
+      docData.subscriptionPlan = data.subscriptionPlan;
+    }
 
     const docRef = await addDoc(collection(db, PAYMENTS_COLLECTION), docData);
     return convertFirestoreToPayment(docRef.id, {
