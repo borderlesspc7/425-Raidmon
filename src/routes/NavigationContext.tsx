@@ -5,6 +5,7 @@ interface NavigationParams {
   userId?: string;
   planId?: "basic" | "premium" | "enterprise";
   batchOffer?: { batchId: string; token: string };
+  receiveCheckout?: { receiveId: string; token: string };
 }
 
 interface NavigationContextType {

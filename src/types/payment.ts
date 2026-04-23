@@ -33,6 +33,11 @@ export interface Payment {
 
   /** Cobrança de assinatura: ao confirmar pagamento, o webhook aplica em `users.plan`. */
   subscriptionPlan?: "basic" | "premium" | "enterprise";
+
+  /** Split Asaas: oficina + plataforma (preenchido pelo backend) */
+  marketplaceMode?: boolean;
+  marketplaceWorkshopUserId?: string;
+  asaasMarketplaceWorkshopWalletId?: string;
 }
 
 export interface CreatePaymentData {

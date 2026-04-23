@@ -8,9 +8,27 @@ import {
 } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../lib/firebaseconfig';
-import { User, LoginCredentials, RegisterCredentials } from '../types/auth';
+import { User, LoginCredentials, RegisterCredentials, type WorkshopAsaasSubaccountInput } from '../types/auth';
+import { createAsaasSubaccount } from './asaasSubaccount';
 
 const ADMIN_EMAIL = 'costuraconectada@gmail.com';
+
+const onlyDigits = (s: string) => String(s || '').replace(/\D/g, '');
+
+/** Converte data DD/MM/AAAA para AAAA-MM-DD */
+function brDateToIso(s: string): string | null {
+  const t = s.trim();
+  const p = t.split('/').map((x) => x.trim());
+  if (p.length !== 3) return null;
+  const d = p[0].padStart(2, '0');
+  const m = p[1].padStart(2, '0');
+  const y = p[2];
+  if (y.length !== 4) return null;
+  const day = parseInt(d, 10);
+  const month = parseInt(m, 10);
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+  return `${y}-${m}-${d}`;
+}
 
 // Função auxiliar para converter Timestamp do Firestore para Date
 const convertTimestampToDate = (timestamp: any): Date => {
@@ -58,8 +76,11 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       language: userData.language || 'pt',
       address: userData.address,
       about: userData.about,
+      workshopAsaas: userData.workshopAsaas,
       userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
       asaasCustomerId: userData.asaasCustomerId,
+      asaasSubaccountId: userData.asaasSubaccountId,
+      asaasSubaccountError: userData.asaasSubaccountError,
       cpf: userData.cpf || '',
       rg: userData.rg || '',
       createdAt: convertTimestampToDate(userData.createdAt),
@@ -105,8 +126,11 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        workshopAsaas: userData.workshopAsaas,
         userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
         asaasCustomerId: userData.asaasCustomerId,
+        asaasSubaccountId: userData.asaasSubaccountId,
+        asaasSubaccountError: userData.asaasSubaccountError,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -155,6 +179,24 @@ export const authService = {
         throw new Error('As senhas não coincidem');
       }
 
+      if (credentials.userType === 'workshop') {
+        if (!credentials.workshopAsaas) {
+          throw new Error('Preencha o endereço e os dados fiscais da oficina');
+        }
+        const cpfLen = onlyDigits(credentials.cpf || '').length;
+        if (cpfLen !== 11 && cpfLen !== 14) {
+          throw new Error('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido');
+        }
+        const w = credentials.workshopAsaas;
+        const brIso = w.birthDate ? brDateToIso(w.birthDate) : null;
+        if (cpfLen === 11 && !brIso) {
+          throw new Error('Data de nascimento inválida (use DD/MM/AAAA)');
+        }
+        if (cpfLen === 14 && !w.companyType) {
+          throw new Error('Selecione o tipo de empresa (MEI, Ltda, etc.)');
+        }
+      }
+
       // Cria o usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
@@ -164,24 +206,78 @@ export const authService = {
 
       const firebaseUser = userCredential.user;
 
-      // Cria o documento do usuário no Firestore
       const userData: User = {
         id: firebaseUser.uid,
         name: credentials.name,
         email: credentials.email,
         username: credentials.email.split('@')[0],
         userType: credentials.userType,
-        cpf: credentials.cpf || '',
+        cpf: onlyDigits(credentials.cpf || ''),
         rg: '',
         createdAt: new Date(),
         updatedAt: new Date(),
+        ...(credentials.companyName ? { companyName: credentials.companyName } : {}),
+        ...(credentials.phone ? { phone: credentials.phone } : {}),
       };
+
+      if (credentials.userType === 'workshop' && credentials.workshopAsaas) {
+        const w = credentials.workshopAsaas;
+        const wa = { ...w, postalCode: onlyDigits(w.postalCode) };
+        const brIso = w.birthDate ? brDateToIso(w.birthDate) : undefined;
+        const cpfLen = onlyDigits(credentials.cpf || '').length;
+        userData.workshopAsaas = {
+          address: w.address.trim(),
+          addressNumber: w.addressNumber.trim(),
+          province: w.province.trim(),
+          postalCode: wa.postalCode,
+          incomeValue: w.incomeValue,
+          complement: w.complement?.trim(),
+          ...(brIso ? { birthDate: brIso } : {}),
+          ...(cpfLen === 14 && w.companyType ? { companyType: w.companyType } : {}),
+        };
+        userData.address = `${w.address}, ${w.addressNumber} — ${w.province} — CEP ${wa.postalCode}`;
+      }
 
       await setDoc(doc(db, 'users', firebaseUser.uid), {
         ...userData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      if (credentials.userType === 'workshop' && credentials.workshopAsaas) {
+        const w = credentials.workshopAsaas;
+        const cpfCnpj = onlyDigits(credentials.cpf || '');
+        const brIso = w.birthDate ? brDateToIso(w.birthDate) : null;
+        const payload: WorkshopAsaasSubaccountInput = {
+          email: credentials.email.toLowerCase().trim(),
+          cpfCnpj,
+          mobilePhone: onlyDigits(credentials.phone || ''),
+          incomeValue: w.incomeValue,
+          address: w.address.trim(),
+          addressNumber: w.addressNumber.trim(),
+          province: w.province.trim(),
+          postalCode: onlyDigits(w.postalCode),
+          ...(w.complement?.trim() ? { complement: w.complement.trim() } : {}),
+        };
+        if (cpfCnpj.length === 11 && brIso) {
+          payload.birthDate = brIso;
+        } else if (cpfCnpj.length === 14 && w.companyType) {
+          payload.companyType = w.companyType;
+        }
+        try {
+          await createAsaasSubaccount(payload);
+        } catch (e: any) {
+          const msg = typeof e?.message === 'string' ? e.message : 'Falha na integração Asaas (subconta).';
+          try {
+            await updateDoc(doc(db, 'users', firebaseUser.uid), {
+              asaasSubaccountError: msg,
+              updatedAt: serverTimestamp(),
+            });
+          } catch (writeErr) {
+            console.error('Erro ao gravar asaasSubaccountError', writeErr);
+          }
+        }
+      }
 
       return userData;
     } catch (error: any) {
@@ -246,11 +342,14 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        workshopAsaas: userData.workshopAsaas,
         userType:
           userData.userType === 'admin' || (userData.email || '').toLowerCase() === ADMIN_EMAIL
             ? 'admin'
             : (userData.userType || 'owner'),
         asaasCustomerId: userData.asaasCustomerId,
+        asaasSubaccountId: userData.asaasSubaccountId,
+        asaasSubaccountError: userData.asaasSubaccountError,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -276,6 +375,8 @@ export const authService = {
       delete updateData.email;
       delete updateData.createdAt;
       delete updateData.asaasCustomerId;
+      delete updateData.asaasSubaccountId;
+      delete (updateData as { asaasSubaccountApiKey?: unknown }).asaasSubaccountApiKey;
       
       await updateDoc(userRef, updateData);
       console.log('Perfil atualizado com sucesso');

@@ -55,6 +55,24 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
         : typeof data.linkedWorkshopUserId === "string"
           ? data.linkedWorkshopUserId
           : undefined,
+    productionFlowStatus:
+      data.productionFlowStatus === "in_production" ||
+      data.productionFlowStatus === "ready_for_pickup" ||
+      data.productionFlowStatus === "partial" ||
+      data.productionFlowStatus === "paused"
+        ? data.productionFlowStatus
+        : undefined,
+    readyForPickupAt: data.readyForPickupAt
+      ? data.readyForPickupAt instanceof Timestamp
+        ? data.readyForPickupAt.toDate()
+        : new Date(data.readyForPickupAt)
+      : undefined,
+    productionNote:
+      typeof data.productionNote === "string" ? data.productionNote : undefined,
+    partialPiecesDone:
+      typeof data.partialPiecesDone === "number" && Number.isFinite(data.partialPiecesDone)
+        ? data.partialPiecesDone
+        : undefined,
     createdAt:
       data.createdAt instanceof Timestamp
         ? data.createdAt.toDate()
@@ -213,6 +231,9 @@ export async function updateBatch(
 
     if (updateData.deliveryDate) {
       updatePayload.deliveryDate = Timestamp.fromDate(updateData.deliveryDate);
+    }
+    if (updateData.readyForPickupAt) {
+      updatePayload.readyForPickupAt = Timestamp.fromDate(updateData.readyForPickupAt);
     }
 
     // Remove keys with undefined values to avoid Firestore errors

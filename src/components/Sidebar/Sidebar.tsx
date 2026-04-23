@@ -33,6 +33,7 @@ const menuItems: MenuItem[] = [
   { id: 'workshops', icon: 'business', labelKey: 'navigation.workshops', route: 'Workshops' },
   { id: 'cuts', icon: 'content-cut', labelKey: 'navigation.cuts', route: 'Cuts' },
   { id: 'batches', icon: 'inventory', labelKey: 'navigation.batches', route: 'Batches' },
+  { id: 'workshopProduction', icon: 'precision-manufacturing', labelKey: 'navigation.workshopProduction', route: 'WorkshopProduction' },
   { id: 'workshopStatus', icon: 'assessment', labelKey: 'navigation.workshopStatus', route: 'WorkshopStatus' },
   { id: 'finishedProduction', icon: 'check-circle', labelKey: 'navigation.finishedProduction', route: 'FinishedProduction' },
   { id: 'receivePieces', icon: 'inbox', labelKey: 'navigation.receivePieces', route: 'ReceivePieces' },
@@ -48,7 +49,21 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
   const { navigate } = useNavigation();
   const { user } = useAuth();
   const isAdmin = user?.userType === 'admin' || user?.email?.toLowerCase() === 'costuraconectada@gmail.com';
-  const visibleMenuItems = isAdmin ? menuItems : menuItems.filter((item) => item.route !== 'AdminDashboard');
+  const isWorkshop = user?.userType === 'workshop';
+  const workshopMenuRoutes = new Set<ScreenName>([
+    'Dashboard',
+    'WorkshopProduction',
+    'GeneralHistory',
+    'Profile',
+    'Plans',
+  ]);
+  const visibleMenuItems = (() => {
+    if (isAdmin) return menuItems;
+    if (isWorkshop) {
+      return menuItems.filter((item) => workshopMenuRoutes.has(item.route));
+    }
+    return menuItems.filter((item) => item.route !== 'AdminDashboard');
+  })();
 
   const handleNavigate = (route: ScreenName) => {
     navigate(route);

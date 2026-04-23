@@ -16,11 +16,13 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { getPaymentsByUser } from "../../services/paymentService";
 import { getBatchesByUser, getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { getReceivePiecesByUser } from "../../services/receivePiecesService";
+import { getInAppNotificationsForUser } from "../../services/notificationService";
 import { Payment } from "../../types/payment";
 import { Batch } from "../../types/batch";
 import { ReceivePieces } from "../../types/receivePieces";
+import type { InAppNotification } from "../../types/inAppNotification";
 
-type HistoryEventType = "payment" | "batch" | "receive";
+type HistoryEventType = "payment" | "batch" | "receive" | "notification";
 
 type HistoryFilter = "all" | HistoryEventType;
 
@@ -50,10 +52,11 @@ export default function GeneralHistory() {
       try {
         if (!opts?.silent) setLoading(true);
 
-        const [payments, batchesOwn, receives] = await Promise.all([
+        const [payments, batchesOwn, receives, notifications] = await Promise.all([
           getPaymentsByUser(user.id),
           getBatchesByUser(user.id),
           getReceivePiecesByUser(user.id),
+          getInAppNotificationsForUser(user.id),
         ]);
 
         let batchesMerged = [...batchesOwn];
@@ -75,10 +78,14 @@ export default function GeneralHistory() {
           user.userType === "workshop" ? user.id : undefined,
         );
         const receiveEvents = mapReceivesToEvents(receives, t);
+        const notifEvents = mapNotificationsToEvents(notifications, t);
 
-        const allEvents = [...paymentEvents, ...batchEvents, ...receiveEvents].sort(
-          (a, b) => b.date.getTime() - a.date.getTime(),
-        );
+        const allEvents = [
+          ...paymentEvents,
+          ...batchEvents,
+          ...receiveEvents,
+          ...notifEvents,
+        ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
         setEvents(allEvents);
       } catch (error: any) {
@@ -111,6 +118,15 @@ export default function GeneralHistory() {
         }),
       );
     }
+    const qNot = query(
+      collection(db, "inAppNotifications"),
+      where("userId", "==", user.id),
+    );
+    unsubs.push(
+      onSnapshot(qNot, () => {
+        void loadHistory({ silent: true });
+      }),
+    );
     return () => unsubs.forEach((u) => u());
   }, [user?.id, user?.userType, loadHistory]);
 
@@ -152,6 +168,7 @@ export default function GeneralHistory() {
   const totalPayments = events.filter((e) => e.type === "payment").length;
   const totalBatches = events.filter((e) => e.type === "batch").length;
   const totalReceives = events.filter((e) => e.type === "receive").length;
+  const totalNotifications = events.filter((e) => e.type === "notification").length;
 
   if (loading) {
     return (
@@ -205,6 +222,15 @@ export default function GeneralHistory() {
             <Text style={styles.summaryValue}>{totalReceives}</Text>
             <Text style={styles.summaryLabel}>{t("generalHistory.receives")}</Text>
           </View>
+          <View style={[styles.summaryCard, { borderLeftColor: "#8B5CF6" }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: "#EDE9FE" }]}>
+              <MaterialIcons name="notifications" size={20} color="#8B5CF6" />
+            </View>
+            <Text style={styles.summaryValue}>{totalNotifications}</Text>
+            <Text style={styles.summaryLabel}>{t("generalHistory.notifications")}</Text>
+          </View>
+        </View>
+        <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { borderLeftColor: "#4B5563" }]}>
             <View style={[styles.summaryIconWrap, { backgroundColor: "#E5E7EB" }]}>
               <MaterialIcons name="history" size={20} color="#4B5563" />
@@ -240,6 +266,11 @@ export default function GeneralHistory() {
               label={t("generalHistory.filterReceives")}
               active={typeFilter === "receive"}
               onPress={() => setTypeFilter("receive")}
+            />
+            <FilterChip
+              label={t("generalHistory.filterNotifications")}
+              active={typeFilter === "notification"}
+              onPress={() => setTypeFilter("notification")}
             />
           </ScrollView>
         </View>
@@ -431,6 +462,20 @@ function mapReceivesToEvents(
   });
 }
 
+function mapNotificationsToEvents(
+  items: InAppNotification[],
+  t: (key: string) => string,
+): HistoryEvent[] {
+  return items.map((n) => ({
+    id: n.id,
+    type: "notification" as const,
+    date: n.createdAt,
+    title: n.title,
+    description: n.body,
+    meta: n.read ? "" : t("generalHistory.unreadHint"),
+  }));
+}
+
 function getEventColor(type: HistoryEventType) {
   switch (type) {
     case "payment":
@@ -439,6 +484,8 @@ function getEventColor(type: HistoryEventType) {
       return "#10B981";
     case "receive":
       return "#F59E0B";
+    case "notification":
+      return "#8B5CF6";
   }
 }
 
@@ -450,6 +497,8 @@ function getEventBgColor(type: HistoryEventType) {
       return "#D1FAE5";
     case "receive":
       return "#FEF3C7";
+    case "notification":
+      return "#EDE9FE";
   }
 }
 
@@ -461,6 +510,8 @@ function getEventIcon(type: HistoryEventType): any {
       return "inventory";
     case "receive":
       return "inbox";
+    case "notification":
+      return "notifications";
   }
 }
 
@@ -472,6 +523,8 @@ function getEventTypeLabel(type: HistoryEventType, t: (key: string) => string) {
       return t("generalHistory.typeBatch");
     case "receive":
       return t("generalHistory.typeReceive");
+    case "notification":
+      return t("generalHistory.typeNotification");
   }
 }
 

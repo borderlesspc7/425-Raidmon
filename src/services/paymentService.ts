@@ -68,6 +68,9 @@ function convertFirestoreToPayment(id: string, data: any): Payment {
     pixEncodedImage: data.pixEncodedImage ?? undefined,
     pixExpiration: data.pixExpiration ?? undefined,
     subscriptionPlan: data.subscriptionPlan || undefined,
+    marketplaceMode: data.marketplaceMode === true ? true : undefined,
+    marketplaceWorkshopUserId: data.marketplaceWorkshopUserId || undefined,
+    asaasMarketplaceWorkshopWalletId: data.asaasMarketplaceWorkshopWalletId || undefined,
   };
 }
 

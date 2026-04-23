@@ -52,10 +52,19 @@ export function deriveWorkshopCardState(
 
   const delayed = rel.some((b) => isBatchDelayed(b));
 
+  const anyReadyForPickup = rel.some(
+    (b) => b.productionFlowStatus === 'ready_for_pickup',
+  );
+  const anyPartialOrPause = rel.some(
+    (b) => b.productionFlowStatus === 'partial' || b.productionFlowStatus === 'paused',
+  );
+
   let status: OperationalDisplay;
   if (delayed) {
     status = 'delayed';
-  } else if (workshop.status === 'orange') {
+  } else if (anyReadyForPickup) {
+    status = 'ready_pickup';
+  } else if (workshop.status === 'orange' || anyPartialOrPause) {
     status = 'pendencies';
   } else if (rel.some((b) => b.status === 'in_progress')) {
     status = 'sewing';

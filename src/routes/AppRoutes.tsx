@@ -26,6 +26,8 @@ import PremiumPlan from "../pages/Plans/PremiumPlan";
 import EnterprisePlan from "../pages/Plans/EnterprisePlan";
 import PlanCheckout from "../pages/Plans/PlanCheckout";
 import BatchOffer from "../pages/BatchOffer/BatchOffer";
+import WorkshopProduction from "../pages/WorkshopProduction/WorkshopProduction";
+import ReceiveCheckout from "../pages/ReceiveCheckout/ReceiveCheckout";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -38,6 +40,11 @@ import {
   readPendingBatchOffer,
   clearPendingBatchOffer,
 } from "../utils/pendingBatchOffer";
+import {
+  storePendingReceiveCheckout,
+  readPendingReceiveCheckout,
+  clearPendingReceiveCheckout,
+} from "../utils/pendingReceiveCheckout";
 
 const LANGUAGE_STORAGE_KEY = "@costura_conectada:language";
 const ADMIN_EMAIL = "costuraconectada@gmail.com";
@@ -67,6 +74,8 @@ const screenComponents: Record<ScreenName, React.ComponentType> = {
   EnterprisePlan,
   PlanCheckout,
   BatchOffer,
+  WorkshopProduction,
+  ReceiveCheckout,
 };
 
 const guestOnlyRoutes = new Set<ScreenName>([
@@ -85,43 +94,68 @@ export const AppRoutes = () => {
   const [checkingLanguage, setCheckingLanguage] = useState(true);
   const isAdmin = !!user && (user.userType === "admin" || user.email?.toLowerCase() === ADMIN_EMAIL);
 
-  const navigateFromBatchOfferUrl = useCallback((url: string | null) => {
+  const handleIncomingAppUrl = useCallback((url: string | null) => {
     if (!url) return false;
     const parsed = Linking.parse(url);
-    const batchId = parsed.queryParams?.batchId;
-    const token = parsed.queryParams?.token;
-    if (!batchId || !token || typeof batchId !== "string" || typeof token !== "string") {
-      return false;
+    const qp = parsed.queryParams || {};
+    const receiveId = qp.receiveId;
+    const token = qp.token;
+    const batchId = qp.batchId;
+    if (
+      typeof receiveId === "string" &&
+      typeof token === "string" &&
+      (!batchId || typeof batchId !== "string")
+    ) {
+      const u = userRef.current;
+      if (u?.userType === "workshop") {
+        void clearPendingReceiveCheckout();
+        navigate(paths.receiveCheckout, { receiveCheckout: { receiveId, token } });
+        return true;
+      }
+      if (!u) {
+        void storePendingReceiveCheckout({ receiveId, token });
+        navigate(paths.login);
+        return true;
+      }
+      void clearPendingReceiveCheckout();
+      Alert.alert(
+        "Costura Conectada",
+        "Este link de aprovação é apenas para contas de oficina.",
+      );
+      return true;
     }
-    const u = userRef.current;
-    if (u?.userType === "workshop") {
+    if (typeof batchId === "string" && typeof token === "string") {
+      const u = userRef.current;
+      if (u?.userType === "workshop") {
+        void clearPendingBatchOffer();
+        navigate(paths.batchOffer, { batchOffer: { batchId, token } });
+        return true;
+      }
+      if (!u) {
+        void storePendingBatchOffer({ batchId, token });
+        navigate(paths.login);
+        return true;
+      }
       void clearPendingBatchOffer();
-      navigate(paths.batchOffer, { batchOffer: { batchId, token } });
+      Alert.alert(
+        "Costura Conectada",
+        "Este convite é apenas para contas de oficina.",
+      );
       return true;
     }
-    if (!u) {
-      void storePendingBatchOffer({ batchId, token });
-      navigate(paths.login);
-      return true;
-    }
-    void clearPendingBatchOffer();
-    Alert.alert(
-      "Costura Conectada",
-      "Este convite é apenas para contas de oficina.",
-    );
-    return true;
+    return false;
   }, [navigate]);
 
   useEffect(() => {
     if (loading) return;
     void Linking.getInitialURL().then((initial) => {
-      if (initial) void navigateFromBatchOfferUrl(initial);
+      if (initial) void handleIncomingAppUrl(initial);
     });
     const sub = Linking.addEventListener("url", ({ url }) => {
-      void navigateFromBatchOfferUrl(url);
+      void handleIncomingAppUrl(url);
     });
     return () => sub.remove();
-  }, [loading, navigateFromBatchOfferUrl]);
+  }, [loading, handleIncomingAppUrl]);
 
   // Verificar se já tem idioma salvo para pular seleção
   useEffect(() => {
@@ -151,10 +185,16 @@ export const AppRoutes = () => {
   useEffect(() => {
     if (!loading && !checkingLanguage && user && guestOnlyRoutes.has(currentScreen)) {
       void (async () => {
-        const pending = await readPendingBatchOffer();
-        if (pending && user.userType === "workshop") {
+        const batchPend = await readPendingBatchOffer();
+        if (batchPend && user.userType === "workshop") {
           await clearPendingBatchOffer();
-          navigate(paths.batchOffer, { batchOffer: pending });
+          navigate(paths.batchOffer, { batchOffer: batchPend });
+          return;
+        }
+        const receivePend = await readPendingReceiveCheckout();
+        if (receivePend && user.userType === "workshop") {
+          await clearPendingReceiveCheckout();
+          navigate(paths.receiveCheckout, { receiveCheckout: receivePend });
           return;
         }
         navigate(isAdmin ? paths.adminDashboard : paths.dashboard);

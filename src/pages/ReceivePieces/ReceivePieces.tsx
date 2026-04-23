@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -26,8 +26,22 @@ import { getEffectiveUserPlan, getMonthlyPiecesLimit } from "../../utils/planEnt
 import { ReceivePieces as ReceivePiecesType, CreateReceivePiecesData } from "../../types/receivePieces";
 import { getBatchesByUser } from "../../services/batchService";
 import { Batch } from "../../types/batch";
+import { getBatchById } from "../../services/batchService";
+import { getWorkshopById } from "../../services/workshopService";
+import { prepareReceiveForWorkshopApproval } from "../../services/receiveCheckoutFunctions";
+import * as Linking from "expo-linking";
 
 type QualityType = 'excellent' | 'good' | 'regular' | 'poor';
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+function moneyBRL(n: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    n,
+  );
+}
 
 export default function ReceivePieces() {
   const { user } = useAuth();
@@ -54,9 +68,21 @@ export default function ReceivePieces() {
   const [receiveDate, setReceiveDate] = useState("");
   const [quality, setQuality] = useState<QualityType>("good");
   const [observations, setObservations] = useState("");
+  const [defectiveInput, setDefectiveInput] = useState("0");
+  const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const selectedBatchForForm = batches.find((b) => b.id === selectedBatchId);
+  const computedChecklistTotal = useMemo(() => {
+    const pieces = parseInt(piecesReceivedInput, 10) || 0;
+    const def = parseInt(defectiveInput, 10) || 0;
+    const good = Math.max(0, pieces - def);
+    const p = selectedBatchForForm?.pricePerPiece;
+    if (p == null || !Number.isFinite(p)) return null;
+    return round2(good * p);
+  }, [piecesReceivedInput, defectiveInput, selectedBatchForForm?.pricePerPiece]);
 
   useEffect(() => {
     if (user?.id) {
@@ -133,16 +159,25 @@ export default function ReceivePieces() {
     return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
   };
 
+  const formatTodayInput = () => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
   const handleOpenModal = (receive?: ReceivePiecesType) => {
     if (receive) {
       setEditingReceive(receive);
       setSelectedBatchId(receive.batchId);
       setPiecesReceivedInput(receive.piecesReceived.toString());
+      setDefectiveInput(
+        receive.defectivePieces != null ? String(receive.defectivePieces) : "0",
+      );
       setReceiveDate(formatDateOnly(receive.receiveDate));
       setQuality(receive.quality);
       setObservations(receive.observations || "");
     } else {
       resetForm();
+      setReceiveDate(formatTodayInput());
     }
     setErrors({});
     setModalVisible(true);
@@ -157,6 +192,7 @@ export default function ReceivePieces() {
   const resetForm = () => {
     setSelectedBatchId("");
     setPiecesReceivedInput("");
+    setDefectiveInput("0");
     setReceiveDate("");
     setQuality("good");
     setObservations("");
@@ -170,9 +206,17 @@ export default function ReceivePieces() {
       newErrors.batchId = t("receivePieces.batchRequired");
     }
 
-    const pieces = parseInt(piecesReceivedInput);
+    const pieces = parseInt(piecesReceivedInput, 10);
     if (!piecesReceivedInput || isNaN(pieces) || pieces <= 0) {
       newErrors.piecesReceived = t("receivePieces.piecesRequired");
+    }
+    if (defectiveInput) {
+      const d = parseInt(defectiveInput, 10);
+      if (isNaN(d) || d < 0) {
+        newErrors.defective = t("receivePieces.defectiveInvalid");
+      } else if (!isNaN(pieces) && d > pieces) {
+        newErrors.defective = t("receivePieces.defectiveTooMany");
+      }
     }
 
     if (!receiveDate) {
@@ -239,15 +283,26 @@ export default function ReceivePieces() {
         }
       }
 
+      const defN = Math.max(0, parseInt(defectiveInput || "0", 10) || 0);
+      const goodPieces = Math.max(0, piecesCount - defN);
+      const up = selectedBatch.pricePerPiece;
+      const amountDue =
+        up != null && Number.isFinite(up) ? round2(goodPieces * up) : undefined;
+      const unit = up != null && Number.isFinite(up) ? up : undefined;
+
       const receiveData: CreateReceivePiecesData = {
         batchId: selectedBatchId,
         batchName: selectedBatch.name,
         workshopId: selectedBatch.workshopId,
         workshopName: selectedBatch.workshopName,
         piecesReceived: piecesCount,
+        defectivePieces: defN,
         receiveDate: receiveDateObj,
         quality,
         observations: observations.trim() || undefined,
+        unitPriceAtReceive: unit,
+        amountDue,
+        workshopApprovalStatus: "none",
       };
 
       if (editingReceive) {
@@ -294,6 +349,71 @@ export default function ReceivePieces() {
         },
       ]
     );
+  };
+
+  const isOwnerUser = user?.userType !== "workshop";
+
+  const handleRequestWorkshopApproval = async (receive: ReceivePiecesType) => {
+    setApprovalBusyId(receive.id);
+    try {
+      await prepareReceiveForWorkshopApproval(receive.id);
+      await loadReceives();
+      Alert.alert(t("common.success"), t("receivePieces.approvalSent"));
+    } catch (e: unknown) {
+      Alert.alert(t("common.error"), String((e as Error)?.message));
+    } finally {
+      setApprovalBusyId(null);
+    }
+  };
+
+  const handleShareWhatsapp = async (receive: ReceivePiecesType) => {
+    setApprovalBusyId(receive.id);
+    try {
+      let token = receive.checkoutToken;
+      const needPrepare =
+        !token ||
+        !receive.workshopApprovalStatus ||
+        receive.workshopApprovalStatus === "none";
+      if (needPrepare) {
+        const res = await prepareReceiveForWorkshopApproval(receive.id);
+        token = res.token;
+        await loadReceives();
+      }
+      if (!token) {
+        Alert.alert(t("common.error"), t("receivePieces.prepareApprovalFirst"));
+        return;
+      }
+      const b = await getBatchById(receive.batchId);
+      if (!b?.workshopId) {
+        Alert.alert(t("common.error"), t("receivePieces.shareWhatsappNeedPhone"));
+        return;
+      }
+      const w = await getWorkshopById(b.workshopId);
+      const raw = w?.contact1 || "";
+      const digits = raw.replace(/\D/g, "");
+      if (digits.length < 10) {
+        Alert.alert(t("common.info"), t("receivePieces.shareWhatsappNeedPhone"));
+        return;
+      }
+      const appUrl = `costuraconectada://receiveCheckout?receiveId=${encodeURIComponent(
+        receive.id,
+      )}&token=${encodeURIComponent(token)}`;
+      const text = `${t("receivePieces.whatsappMessage")}\n${appUrl}`;
+      const waUrl = `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+      await Linking.openURL(waUrl);
+    } catch (e: unknown) {
+      Alert.alert(t("common.error"), String((e as Error)?.message));
+    } finally {
+      setApprovalBusyId(null);
+    }
+  };
+
+  const approvalLabel = (receive: ReceivePiecesType) => {
+    const s = receive.workshopApprovalStatus;
+    if (s === "pending") return t("receivePieces.approvalPending");
+    if (s === "approved") return t("receivePieces.approvalApproved");
+    if (s === "rejected") return t("receivePieces.approvalRejected");
+    return t("receivePieces.approvalNone");
   };
 
   const getQualityColor = (qualityValue: QualityType) => {
@@ -488,6 +608,30 @@ export default function ReceivePieces() {
                       <Text style={styles.infoValue}>{receive.workshopName}</Text>
                     </View>
                   )}
+                  {receive.defectivePieces != null && receive.defectivePieces > 0 ? (
+                    <View style={styles.infoItem}>
+                      <MaterialIcons name="report-problem" size={18} color="#F59E0B" />
+                      <Text style={styles.infoLabel}>
+                        {t("receivePieces.defectivePieces")}:
+                      </Text>
+                      <Text style={styles.infoValue}>{receive.defectivePieces}</Text>
+                    </View>
+                  ) : null}
+                  {receive.amountDue != null ? (
+                    <View style={styles.infoItem}>
+                      <MaterialIcons name="payments" size={18} color="#10B981" />
+                      <Text style={styles.infoLabel}>
+                        {t("receivePieces.amountAuto")}:
+                      </Text>
+                      <Text style={[styles.infoValue, { color: "#10B981" }]}>
+                        {moneyBRL(receive.amountDue)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.infoItem}>
+                    <MaterialIcons name="verified" size={18} color="#6366F1" />
+                    <Text style={styles.infoLabel}>{approvalLabel(receive)}</Text>
+                  </View>
                   {receive.observations && (
                     <View style={styles.observationsContainer}>
                       <MaterialIcons name="notes" size={18} color="#6B7280" />
@@ -499,6 +643,33 @@ export default function ReceivePieces() {
                       </Text>
                     </View>
                   )}
+                  {isOwnerUser ? (
+                    <View style={styles.ownerActions}>
+                      <TouchableOpacity
+                        style={styles.ownerActionBtn}
+                        onPress={() => void handleRequestWorkshopApproval(receive)}
+                        disabled={approvalBusyId === receive.id}
+                      >
+                        {approvalBusyId === receive.id ? (
+                          <ActivityIndicator color="#FFF" size="small" />
+                        ) : (
+                          <Text style={styles.ownerActionText}>
+                            {t("receivePieces.requestApproval")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.ownerActionBtn, styles.ownerActionWhatsapp]}
+                        onPress={() => void handleShareWhatsapp(receive)}
+                        disabled={approvalBusyId === receive.id}
+                      >
+                        <MaterialIcons name="chat" size={18} color="#FFF" />
+                        <Text style={styles.ownerActionText}>
+                          {t("receivePieces.shareWhatsapp")}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ))
@@ -586,6 +757,37 @@ export default function ReceivePieces() {
                     <Text style={styles.errorText}>{errors.piecesReceived}</Text>
                   )}
                 </View>
+
+                {/* Defeitos */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>
+                    {t("receivePieces.defectivePieces")}{" "}
+                    <Text style={styles.optional}>({t("receivePieces.optional")})</Text>
+                  </Text>
+                  <Text style={styles.fieldHint}>{t("receivePieces.defectiveHint")}</Text>
+                  <TextInput
+                    style={[styles.input, errors.defective && styles.inputError]}
+                    value={defectiveInput}
+                    onChangeText={setDefectiveInput}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                  {errors.defective && (
+                    <Text style={styles.errorText}>{errors.defective}</Text>
+                  )}
+                </View>
+
+                {computedChecklistTotal != null ? (
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>{t("receivePieces.amountAuto")}</Text>
+                    <Text style={styles.amountPreview}>
+                      {moneyBRL(computedChecklistTotal)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.fieldHint}>{t("receivePieces.requestApprovalHelp")}</Text>
 
                 {/* Receive Date */}
                 <View style={styles.formGroup}>
@@ -937,6 +1139,16 @@ const styles = StyleSheet.create({
     fontWeight: "normal",
     color: "#9CA3AF",
   },
+  fieldHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 6,
+  },
+  amountPreview: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#10B981",
+  },
   input: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -1042,5 +1254,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFF",
+  },
+  ownerActions: {
+    marginTop: 12,
+    gap: 8,
+  },
+  ownerActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#6366F1",
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  ownerActionWhatsapp: {
+    backgroundColor: "#25D366",
+  },
+  ownerActionText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

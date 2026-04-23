@@ -17,7 +17,7 @@ import { getWorkshopsByUser } from '../../services/workshopService';
 import { getPaymentStatistics } from '../../services/paymentService';
 import { getReceivePiecesStatistics } from '../../services/receivePiecesService';
 import { MaterialIcons } from '@expo/vector-icons';
-import type { ScreenName } from '../../routes/paths';
+import { paths, type ScreenName } from '../../routes/paths';
 import { useCountUp } from '../../hooks/useCountUp';
 
 type Stats = {
@@ -227,15 +227,25 @@ export default function Dashboard() {
   );
 
   const shortcuts = useMemo<Shortcut[]>(
-    () => [
-      { id: 'cuts', label: t('navigation.cuts'), icon: 'content-cut', route: 'Cuts' },
-      { id: 'batches', label: t('navigation.batches'), icon: 'inventory', route: 'Batches' },
-      { id: 'workshops', label: t('navigation.workshops'), icon: 'business', route: 'Workshops' },
-      { id: 'payments', label: t('navigation.payments'), icon: 'payment', route: 'Payments' },
-      { id: 'receives', label: t('navigation.receivePieces'), icon: 'inbox', route: 'ReceivePieces' },
-      { id: 'metrics', label: t('navigation.metrics'), icon: 'bar-chart', route: 'Metrics' },
-    ],
-    [t]
+    () => {
+      if (isWorkshopUser) {
+        return [
+          { id: 'wprod', label: t('navigation.workshopProduction'), icon: 'precision-manufacturing', route: paths.workshopProduction },
+          { id: 'gh', label: t('navigation.generalHistory'), icon: 'timeline', route: paths.generalHistory },
+          { id: 'prof', label: t('navigation.profile'), icon: 'person', route: paths.profile },
+          { id: 'plans', label: t('navigation.plans'), icon: 'card-membership', route: paths.plans },
+        ];
+      }
+      return [
+        { id: 'cuts', label: t('navigation.cuts'), icon: 'content-cut', route: 'Cuts' },
+        { id: 'batches', label: t('navigation.batches'), icon: 'inventory', route: 'Batches' },
+        { id: 'workshops', label: t('navigation.workshops'), icon: 'business', route: 'Workshops' },
+        { id: 'payments', label: t('navigation.payments'), icon: 'payment', route: 'Payments' },
+        { id: 'receives', label: t('navigation.receivePieces'), icon: 'inbox', route: 'ReceivePieces' },
+        { id: 'metrics', label: t('navigation.metrics'), icon: 'bar-chart', route: 'Metrics' },
+      ];
+    },
+    [t, isWorkshopUser]
   );
 
   if (user?.id && !isWorkshopUser) {

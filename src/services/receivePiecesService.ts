@@ -39,11 +39,33 @@ const COLLECTION_NAME = "receivePieces";
 
 // Converter Firestore timestamp para Date
 const convertTimestamps = (data: any): ReceivePieces => {
+  const st = data.workshopApprovalStatus;
+  const validStatus =
+    st === "none" || st === "pending" || st === "approved" || st === "rejected" ? st : undefined;
   return {
     ...data,
     receiveDate: data.receiveDate?.toDate ? data.receiveDate.toDate() : data.receiveDate,
     createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
     updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+    defectivePieces:
+      typeof data.defectivePieces === "number" && Number.isFinite(data.defectivePieces)
+        ? data.defectivePieces
+        : undefined,
+    unitPriceAtReceive:
+      typeof data.unitPriceAtReceive === "number" && Number.isFinite(data.unitPriceAtReceive)
+        ? data.unitPriceAtReceive
+        : undefined,
+    amountDue:
+      typeof data.amountDue === "number" && Number.isFinite(data.amountDue)
+        ? data.amountDue
+        : undefined,
+    linkedWorkshopUserIdForCheckout:
+      typeof data.linkedWorkshopUserIdForCheckout === "string"
+        ? data.linkedWorkshopUserIdForCheckout
+        : undefined,
+    checkoutToken:
+      typeof data.checkoutToken === "string" ? data.checkoutToken : undefined,
+    workshopApprovalStatus: validStatus,
   };
 };
 
@@ -54,13 +76,16 @@ export const createReceivePieces = async (
 ): Promise<ReceivePieces> => {
   try {
     const now = new Date();
-    const receivePiecesData = {
+    const receivePiecesData: any = {
       ...data,
       userId,
       receiveDate: Timestamp.fromDate(data.receiveDate),
       createdAt: Timestamp.fromDate(now),
       updatedAt: Timestamp.fromDate(now),
     };
+    if (data.workshopApprovalStatus === undefined) {
+      receivePiecesData.workshopApprovalStatus = "none";
+    }
 
     const docRef = await addDoc(
       collection(db, COLLECTION_NAME),
