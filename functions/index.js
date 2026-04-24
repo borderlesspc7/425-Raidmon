@@ -760,11 +760,26 @@ exports.respondBatchInvite = onCall(async (request) => {
 
   const workshopLabel =
     (userSnap.data()?.companyName || userSnap.data()?.name || "").trim() || null;
+  let ownerName = null;
+  if (d.userId && typeof d.userId === "string") {
+    try {
+      const ownerSnap = await db.collection("users").doc(d.userId).get();
+      ownerName = (ownerSnap.data()?.name || ownerSnap.data()?.companyName || "").trim() || null;
+    } catch (e) {
+      logger.warn("[respondBatchInvite] owner lookup failed", e);
+    }
+  }
 
   await batchRef.update({
     status: "in_progress",
     linkedWorkshopUserId: uid,
     productionFlowStatus: "in_production",
+    acceptedFromOwnerInvite: true,
+    inviteAcceptedAt: FieldValue.serverTimestamp(),
+    inviteAcceptedByUserId: uid,
+    inviteAcceptedByName: workshopLabel || null,
+    inviteAcceptedVia: "whatsapp_link",
+    ...(ownerName ? { ownerName } : {}),
     ...(workshopLabel ? { workshopName: workshopLabel } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -772,6 +787,17 @@ exports.respondBatchInvite = onCall(async (request) => {
   const afterSnap = await batchRef.get();
   const after = afterSnap.data() || d;
   await updateWorkshopDocStatusForBatch({ ...d, ...after, id: batchId });
+
+  if (d.userId && typeof d.userId === "string") {
+    await createInAppNotification({
+      userId: d.userId,
+      fromUserId: uid,
+      type: "workshop_started_from_invite",
+      title: "Oficina iniciou a produção",
+      body: `${workshopLabel || "Oficina"} aceitou e iniciou a produção do lote "${d.name || "lote"}".`,
+      batchId,
+    });
+  }
 
   return { ok: true };
 });
