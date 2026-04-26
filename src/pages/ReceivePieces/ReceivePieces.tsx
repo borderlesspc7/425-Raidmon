@@ -30,6 +30,7 @@ import { getBatchById } from "../../services/batchService";
 import { getWorkshopById } from "../../services/workshopService";
 import { prepareReceiveForWorkshopApproval } from "../../services/receiveCheckoutFunctions";
 import * as Linking from "expo-linking";
+import { buildReceiveCheckoutShareUrl } from "../../utils/appDeepLink";
 
 type QualityType = 'excellent' | 'good' | 'regular' | 'poor';
 
@@ -395,9 +396,7 @@ export default function ReceivePieces() {
         Alert.alert(t("common.info"), t("receivePieces.shareWhatsappNeedPhone"));
         return;
       }
-      const appUrl = `costuraconectada://receiveCheckout?receiveId=${encodeURIComponent(
-        receive.id,
-      )}&token=${encodeURIComponent(token)}`;
+      const appUrl = buildReceiveCheckoutShareUrl(receive.id, token);
       const text = `${t("receivePieces.whatsappMessage")}\n${appUrl}`;
       const waUrl = `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
       await Linking.openURL(waUrl);

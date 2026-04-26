@@ -16,6 +16,8 @@ import {
   getWorkshopsByUser,
   updateWorkshopStatus,
 } from "../../services/workshopService";
+import { getBatchesByUser } from "../../services/batchService";
+import type { Batch } from "../../types/batch";
 import { Workshop, WorkshopStatus as WorkshopStatusType } from "../../types/workshop";
 
 export default function WorkshopStatus() {
@@ -33,6 +35,7 @@ export default function WorkshopStatus() {
   const [orangeWorkshops, setOrangeWorkshops] = useState(0);
   const [redWorkshops, setRedWorkshops] = useState(0);
   const [totalPieces, setTotalPieces] = useState(0);
+  const [startedInviteBatches, setStartedInviteBatches] = useState<Batch[]>([]);
 
   useEffect(() => {
     if (user?.id) {
@@ -45,7 +48,10 @@ export default function WorkshopStatus() {
 
     try {
       setLoading(true);
-      const data = await getWorkshopsByUser(user.id);
+      const [data, ownerBatches] = await Promise.all([
+        getWorkshopsByUser(user.id),
+        getBatchesByUser(user.id),
+      ]);
       
       setWorkshops(data);
       
@@ -56,6 +62,14 @@ export default function WorkshopStatus() {
       setOrangeWorkshops(data.filter((w) => w.status === "orange").length);
       setRedWorkshops(data.filter((w) => w.status === "red").length);
       setTotalPieces(data.reduce((sum, w) => sum + w.totalPieces, 0));
+      setStartedInviteBatches(
+        ownerBatches.filter(
+          (b) =>
+            b.acceptedFromOwnerInvite &&
+            b.status === "in_progress" &&
+            !!b.linkedWorkshopUserId,
+        ),
+      );
     } catch (error: any) {
       Alert.alert(
         t("common.error"),
@@ -247,6 +261,30 @@ export default function WorkshopStatus() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {startedInviteBatches.length > 0 ? (
+            <View style={styles.startedSection}>
+              <Text style={styles.startedSectionTitle}>
+                {t("workshopStatus.startedByInviteTitle")}
+              </Text>
+              {startedInviteBatches.map((batch) => (
+                <View key={`started-${batch.id}`} style={styles.startedCard}>
+                  <View style={styles.startedCardHeader}>
+                    <View style={styles.startedGreenDot} />
+                    <Text style={styles.startedCardTitle}>
+                      {batch.workshopName || t("workshopStatus.unknownWorkshop")}
+                    </Text>
+                  </View>
+                  <Text style={styles.startedCardText}>
+                    {t("workshopStatus.startedBatchLabel")} {batch.name}
+                  </Text>
+                  <Text style={styles.startedCardText}>
+                    {t("workshopStatus.startedStatusLabel")} {t("workshopStatus.startedGreenStatus")}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {filteredWorkshops.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="business" size={64} color="#D1D5DB" />
@@ -634,5 +672,42 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
     borderColor: "#FFFFFF",
+  },
+  startedSection: {
+    marginBottom: 16,
+    gap: 10,
+  },
+  startedSectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  startedCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  startedCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  startedGreenDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#10B981",
+  },
+  startedCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#065F46",
+  },
+  startedCardText: {
+    fontSize: 13,
+    color: "#064E3B",
   },
 });

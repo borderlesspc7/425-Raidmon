@@ -83,6 +83,7 @@ export async function createPayment(
     const docData: any = {
       workshopId: data.workshopId || null,
       workshopName: data.workshopName || null,
+      marketplaceWorkshopUserId: data.marketplaceWorkshopUserId || null,
       batchId: data.batchId || null,
       batchName: data.batchName || null,
       amount: data.amount,
@@ -165,6 +166,9 @@ export async function updatePayment(
     if (data.workshopId !== undefined) updateData.workshopId = data.workshopId;
     if (data.workshopName !== undefined)
       updateData.workshopName = data.workshopName;
+    if (data.marketplaceWorkshopUserId !== undefined) {
+      updateData.marketplaceWorkshopUserId = data.marketplaceWorkshopUserId;
+    }
     if (data.batchId !== undefined) updateData.batchId = data.batchId;
     if (data.batchName !== undefined) updateData.batchName = data.batchName;
     if (data.amount !== undefined) updateData.amount = data.amount;

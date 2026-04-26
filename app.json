@@ -2,7 +2,7 @@
   "expo": {
     "name": "Costura Conectada",
     "slug": "costura-conectada",
-    "owner": "borderlesspc12",
+    "owner": "costuraconectada",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.costuraconectada.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +23,22 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.costuraconectada.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "costuraconectada"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "scheme": "costuraconectada",
     "web": {
@@ -30,8 +46,11 @@
     },
     "extra": {
       "eas": {
-        "projectId": "21ff81ff-9096-4e3b-ae48-c5ba21aa3ee0"
+        "projectId": "6204285f-27ca-4a53-911a-c32f6eab34ac"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

@@ -1,10 +1,12 @@
 import type { Batch } from '../types/batch';
 import type { Workshop } from '../types/workshop';
+import { isBatchDeliveryLate } from './batchProductionStatusStyle';
 
 export type OperationalDisplay =
   | 'ready_pickup'
   | 'pendencies'
   | 'sewing'
+  | 'producing_ok'
   | 'delayed';
 
 export interface WorkshopCardModel {
@@ -17,22 +19,14 @@ export interface WorkshopCardModel {
   moreActiveCount: number;
 }
 
+/** Acento do card: alinhado a `getBatchProductionPillColors` (dono + oficina). */
 const COLORS: Record<OperationalDisplay, string> = {
-  ready_pickup: '#22c55e',
-  pendencies: '#f97316',
-  sewing: '#eab308',
-  delayed: '#ef4444',
+  ready_pickup: '#166534',
+  pendencies: '#C2410C',
+  sewing: '#854D0E',
+  producing_ok: '#166534',
+  delayed: '#B91C1C',
 };
-
-function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function isBatchDelayed(batch: Batch): boolean {
-  if (batch.status === 'completed' || batch.status === 'cancelled') return false;
-  if (!batch.deliveryDate) return false;
-  return startOfDay(batch.deliveryDate).getTime() < startOfDay(new Date()).getTime();
-}
 
 /**
  * Agrega o estado operacional exibido no card da oficina a partir dos lotes do dono.
@@ -50,13 +44,20 @@ export function deriveWorkshopCardState(
     (b) => b.status === 'pending' || b.status === 'in_progress',
   );
 
-  const delayed = rel.some((b) => isBatchDelayed(b));
+  const delayed = rel.some((b) => isBatchDeliveryLate(b));
 
   const anyReadyForPickup = rel.some(
     (b) => b.productionFlowStatus === 'ready_for_pickup',
   );
   const anyPartialOrPause = rel.some(
     (b) => b.productionFlowStatus === 'partial' || b.productionFlowStatus === 'paused',
+  );
+
+  const anyProducingOk = activeBatches.some(
+    (b) =>
+      b.status === 'in_progress' &&
+      b.productionFlowStatus === 'in_production' &&
+      !isBatchDeliveryLate(b),
   );
 
   let status: OperationalDisplay;
@@ -66,6 +67,8 @@ export function deriveWorkshopCardState(
     status = 'ready_pickup';
   } else if (workshop.status === 'orange' || anyPartialOrPause) {
     status = 'pendencies';
+  } else if (anyProducingOk) {
+    status = 'producing_ok';
   } else if (rel.some((b) => b.status === 'in_progress')) {
     status = 'sewing';
   } else if (rel.some((b) => b.status === 'pending')) {

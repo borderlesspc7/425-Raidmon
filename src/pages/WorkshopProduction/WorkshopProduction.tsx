@@ -19,6 +19,10 @@ import { paths } from "../../routes/paths";
 import { getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { callWorkshopBatchAction } from "../../services/workshopBatchFunctions";
 import type { Batch, ProductionFlowStatus } from "../../types/batch";
+import {
+  getBatchProductionPillColors,
+  isBatchDeliveryLate,
+} from "../../utils/batchProductionStatusStyle";
 
 function formatDateOnly(d: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -35,19 +39,10 @@ function statusLabel(
 ) {
   if (isLate) return t("workshopProduction.statusRed");
   if (flow === "ready_for_pickup") return t("workshopProduction.statusGreen");
+  if (flow === "in_production") return t("workshopProduction.statusGreenProducing");
   if (flow === "partial" || flow === "paused")
     return t("workshopProduction.statusOrange");
   return t("workshopProduction.statusYellow");
-}
-
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function isLate(batch: Batch): boolean {
-  if (batch.status === "completed" || batch.status === "cancelled") return false;
-  if (!batch.deliveryDate) return false;
-  return startOfDay(batch.deliveryDate).getTime() < startOfDay(new Date()).getTime();
 }
 
 export default function WorkshopProduction() {
@@ -65,6 +60,13 @@ export default function WorkshopProduction() {
 
   const [deliveryModal, setDeliveryModal] = useState<string | null>(null);
   const [deliveryInput, setDeliveryInput] = useState("");
+  const acceptedInviteBatches = batches.filter(
+    (b) => b.acceptedFromOwnerInvite && b.linkedWorkshopUserId === user?.id,
+  );
+  /** Evita card duplicado: o mesmo lote já aparece na lista principal com ações. */
+  const acceptedInviteInfoOnly = acceptedInviteBatches.filter(
+    (ab) => !batches.some((b) => b.id === ab.id),
+  );
 
   const load = useCallback(async () => {
     if (!user?.id || user.userType !== "workshop") {
@@ -211,6 +213,32 @@ export default function WorkshopProduction() {
         <Text style={styles.title}>{t("workshopProduction.title")}</Text>
         <Text style={styles.sub}>{t("workshopProduction.subtitle")}</Text>
 
+        {acceptedInviteInfoOnly.length > 0 ? (
+          <View style={styles.acceptedSection}>
+            <Text style={styles.acceptedSectionTitle}>
+              {t("workshopProduction.acceptedInvitesTitle")}
+            </Text>
+            {acceptedInviteInfoOnly.map((batch) => (
+              <View key={`accepted-${batch.id}`} style={styles.acceptedCard}>
+                <View style={styles.acceptedHeader}>
+                  <MaterialIcons name="chat" size={16} color="#4F46E5" />
+                  <Text style={styles.acceptedHeaderText}>
+                    {t("workshopProduction.acceptedFromWhatsapp")}
+                  </Text>
+                </View>
+                <Text style={styles.acceptedBatchName}>{batch.name}</Text>
+                <Text style={styles.acceptedMeta}>
+                  {t("workshopProduction.acceptedOwnerLabel")}{" "}
+                  {batch.ownerName || "—"}
+                </Text>
+                <Text style={styles.acceptedMeta}>
+                  {t("workshopProduction.acceptedPiecesLabel")} {batch.totalPieces}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {batches.length === 0 ? (
           <View style={styles.empty}>
             <MaterialIcons name="inventory" size={48} color="#D1D5DB" />
@@ -218,27 +246,22 @@ export default function WorkshopProduction() {
           </View>
         ) : (
           batches.map((batch) => {
-            const late = isLate(batch);
+            const late = isBatchDeliveryLate(batch);
             const flow = batch.productionFlowStatus;
             const busy = acting === batch.id;
+            const pill = getBatchProductionPillColors(batch);
+            const cardBorder =
+              !late && (flow === "in_production" || flow === "ready_for_pickup")
+                ? { borderLeftWidth: 4, borderLeftColor: "#166534" }
+                : {};
             return (
-              <View key={batch.id} style={styles.card}>
+              <View key={batch.id} style={[styles.card, cardBorder]}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle} numberOfLines={1}>
                     {batch.name}
                   </Text>
-                  <View
-                    style={[
-                      styles.pill,
-                      { backgroundColor: late ? "#FEE2E2" : "#F0F4FF" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.pillText,
-                        { color: late ? "#B91C1C" : "#6366F1" },
-                      ]}
-                    >
+                  <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                    <Text style={[styles.pillText, { color: pill.fg }]}>
                       {statusLabel(t, flow, late)}
                     </Text>
                   </View>
@@ -404,6 +427,42 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     marginBottom: 4,
+  },
+  acceptedSection: {
+    marginBottom: 10,
+    gap: 10,
+  },
+  acceptedSectionTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  acceptedCard: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  acceptedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  acceptedHeaderText: {
+    fontSize: 12,
+    color: "#4338CA",
+    fontWeight: "700",
+  },
+  acceptedBatchName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  acceptedMeta: {
+    fontSize: 13,
+    color: "#4B5563",
   },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   cardTitle: { flex: 1, fontSize: 17, fontWeight: "700", color: "#111827" },

@@ -29,6 +29,14 @@ export interface Batch {
   cutListNumber?: number;
   /** User ID da oficina que aceitou o convite */
   linkedWorkshopUserId?: string | null;
+  /** Nome do dono (criador do lote), útil para a oficina após aceitar convite */
+  ownerName?: string;
+  /** Convite aceito pela oficina via link (ex.: WhatsApp) */
+  acceptedFromOwnerInvite?: boolean;
+  inviteAcceptedAt?: Date;
+  inviteAcceptedByUserId?: string;
+  inviteAcceptedByName?: string;
+  inviteAcceptedVia?: "whatsapp_link";
   /** Fluxo oficina: pronta p/ coletar, parcial, pausa (verde/laranja no painel) */
   productionFlowStatus?: ProductionFlowStatus;
   readyForPickupAt?: Date;

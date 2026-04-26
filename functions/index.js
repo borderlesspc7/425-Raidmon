@@ -9,16 +9,11 @@
  * Parâmetros Firebase (recomendado) ou, no emulador, variáveis de ambiente com os mesmos nomes.
  */
 const admin = require("firebase-admin");
+const fetch = require("node-fetch");
 const { logger } = require("firebase-functions/logger");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
-const {
-  extractWebhookToken,
-  parseJsonBody,
-  tokensMatch,
-  dispatchAsaasEvent,
-} = require("./asaasWebhook.logic");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,13 +29,13 @@ const asaasApiUrl = defineString("ASAAS_API_URL", {
   default: "https://api.asaas.com/v3",
 });
 const platformFeePercentParam = defineString("PLATFORM_FEE_PERCENT", {
-  default: "5",
+  default: "2.5",
 });
 /** UUID da carteira Asaas que recebe a taxa da plataforma (nunca expor no app; só Functions) */
 const adminWalletIdParam = defineString("ASAAS_ADMIN_WALLET_ID", { default: "" });
 
 /** Percentual padrão da plataforma; sobrescrito por param/env PLATFORM_FEE_PERCENT */
-const DEFAULT_PLATFORM_FEE_PERCENT = 5;
+const DEFAULT_PLATFORM_FEE_PERCENT = 2.5;
 
 setGlobalOptions({
   region: "southamerica-east1",
@@ -429,14 +424,64 @@ exports.createAsaasCharge = onCall(
       externalReference: paymentId,
     };
 
+    const mpWorkshopUserId =
+      p.marketplaceWorkshopUserId != null &&
+      String(p.marketplaceWorkshopUserId).trim().length > 0
+        ? String(p.marketplaceWorkshopUserId).trim()
+        : null;
+
     const rawWorkshopId = p.workshopId;
-    const hasWorkshop =
+    const hasWorkshopRow =
       rawWorkshopId != null && String(rawWorkshopId).trim().length > 0;
 
     let workshopWalletId = null;
     let workshopAccountUserId = null;
+    let useMarketplaceSplit = false;
 
-    if (hasWorkshop) {
+    async function loadWorkshopAsaasUser(wUid) {
+      const wUserSnap = await db.collection("users").doc(wUid).get();
+      if (!wUserSnap.exists) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Conta Asaas da oficina não encontrada (perfil inexistente)."
+        );
+      }
+      const wu = wUserSnap.data();
+      if (wu.userType !== "workshop") {
+        throw new HttpsError(
+          "failed-precondition",
+          "O vinculado a esta oficina não possui perfil de oficina."
+        );
+      }
+      const subId = (wu.asaasSubaccountId || "").trim();
+      const wallet = (wu.asaasSubaccountWalletId || "").trim();
+      if (!subId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "A oficina ainda não possui subconta Asaas. Só após a integração é possível gerar cobrança de marketplace."
+        );
+      }
+      if (!wallet) {
+        throw new HttpsError(
+          "failed-precondition",
+          "A oficina sem carteira (wallet) Asaas. Peça a oficina a revalidar a integração no app."
+        );
+      }
+      if (wUid === uid) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Não é possível gerar marketplace entre a mesma conta (pagador e recebedor)."
+        );
+      }
+      return { workshopWalletId: wallet, workshopAccountUserId: wUid };
+    }
+
+    if (mpWorkshopUserId) {
+      const w = await loadWorkshopAsaasUser(mpWorkshopUserId);
+      workshopWalletId = w.workshopWalletId;
+      workshopAccountUserId = w.workshopAccountUserId;
+      useMarketplaceSplit = true;
+    } else if (hasWorkshopRow) {
       const workshopDocId = String(rawWorkshopId).trim();
       const wsRef = db.collection("workshops").doc(workshopDocId);
       const wsSnap = await wsRef.get();
@@ -454,44 +499,13 @@ exports.createAsaasCharge = onCall(
           "Oficina sem usuário vinculado. Contate o suporte."
         );
       }
-      const wUserSnap = await db.collection("users").doc(wUid).get();
-      if (!wUserSnap.exists) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Conta Asaas da oficina não encontrada (perfil inexistente)."
-        );
-      }
-      const wu = wUserSnap.data();
-      if (wu.userType !== "workshop") {
-        throw new HttpsError(
-          "failed-precondition",
-          "O vinculado a esta oficina não possui perfil de oficina."
-        );
-      }
-      const subId = (wu.asaasSubaccountId || "").trim();
-      workshopWalletId = (wu.asaasSubaccountWalletId || "").trim();
-      if (!subId) {
-        throw new HttpsError(
-          "failed-precondition",
-          "A oficina ainda não possui subconta Asaas. Só após a integração é possível gerar cobrança de marketplace."
-        );
-      }
-      if (!workshopWalletId) {
-        throw new HttpsError(
-          "failed-precondition",
-          "A oficina sem carteira (wallet) Asaas. Peça a oficina a revalidar a integração no app."
-        );
-      }
-      workshopAccountUserId = wUid;
-      if (wUid === uid) {
-        throw new HttpsError(
-          "invalid-argument",
-          "Não é possível gerar marketplace entre a mesma conta (pagador e recebedor)."
-        );
-      }
+      const w = await loadWorkshopAsaasUser(wUid);
+      workshopWalletId = w.workshopWalletId;
+      workshopAccountUserId = w.workshopAccountUserId;
+      useMarketplaceSplit = true;
     }
 
-    if (hasWorkshop) {
+    if (useMarketplaceSplit) {
       if (platformPct > 0 && !adminWallet) {
         throw new HttpsError(
           "failed-precondition",
@@ -577,7 +591,7 @@ exports.createAsaasCharge = onCall(
       pixExpiration: pixData?.expirationDate || null,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (hasWorkshop && workshopAccountUserId && workshopWalletId) {
+    if (useMarketplaceSplit && workshopAccountUserId && workshopWalletId) {
       firestorePaymentUpdate.marketplaceMode = true;
       firestorePaymentUpdate.marketplaceWorkshopUserId = workshopAccountUserId;
       firestorePaymentUpdate.asaasMarketplaceWorkshopWalletId = workshopWalletId;
@@ -617,6 +631,13 @@ exports.asaasWebhook = onRequest(
       res.status(405).send("Method Not Allowed");
       return;
     }
+
+    const {
+      extractWebhookToken,
+      parseJsonBody,
+      tokensMatch,
+      dispatchAsaasEvent,
+    } = require("./asaasWebhook.logic");
 
     const body = parseJsonBody(req);
     req.body = body;
@@ -864,6 +885,8 @@ async function updateWorkshopDocStatusForBatch(batch) {
   const flow = batch.productionFlowStatus;
   let status = "yellow";
   if (flow === "ready_for_pickup") {
+    status = "green";
+  } else if (flow === "in_production") {
     status = "green";
   } else if (flow === "partial" || flow === "paused") {
     status = "orange";

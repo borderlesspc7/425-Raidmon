@@ -12,11 +12,13 @@ import {
   Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { User } from "../../types/auth";
 import AddressFields, { composeAddressString, type AddressValue } from "../../components/AddressFields/AddressFields";
+import { authService } from "../../services/authService";
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -25,6 +27,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -214,6 +217,39 @@ export default function Profile() {
     }
   };
 
+  const handlePickProfilePhoto = async () => {
+    if (!user || photoUploading) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t("profile.photoPermissionTitle"),
+          t("profile.photoPermissionMessage"),
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      setPhotoUploading(true);
+      const photoUrl = await authService.uploadProfilePhoto(user.id, result.assets[0].uri);
+      await updateProfile({ photoURL: photoUrl });
+      Alert.alert(t("common.success"), t("profile.photoUpdateSuccess"));
+    } catch (error: any) {
+      Alert.alert(t("common.error"), error?.message || t("profile.photoUpdateError"));
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",
@@ -283,13 +319,28 @@ export default function Profile() {
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarContainer}>
-                {user.photoURL ? (
-                  <Image source={{ uri: user.photoURL }} style={styles.avatar} />
-                ) : (
-                  <View style={styles.avatar}>
-                    <MaterialIcons name="person" size={48} color="#6366F1" />
-                  </View>
-                )}
+                  <TouchableOpacity
+                    style={styles.avatarTouchable}
+                    onPress={handlePickProfilePhoto}
+                    disabled={photoUploading}
+                    activeOpacity={0.85}
+                  >
+                    {user.photoURL ? (
+                      <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+                    ) : (
+                      <View style={styles.avatar}>
+                        <MaterialIcons name="person" size={48} color="#6366F1" />
+                      </View>
+                    )}
+                    {photoUploading && (
+                      <View style={styles.avatarLoadingOverlay}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      </View>
+                    )}
+                    <View style={styles.avatarCameraBadge}>
+                      <MaterialIcons name="photo-camera" size={14} color="#FFFFFF" />
+                    </View>
+                  </TouchableOpacity>
               </View>
               <Text style={styles.userName}>{user.name}</Text>
               <Text style={styles.userEmail}>{user.email}</Text>
@@ -716,6 +767,10 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 16,
   },
+  avatarTouchable: {
+    borderRadius: 50,
+    overflow: "hidden",
+  },
   avatar: {
     width: 100,
     height: 100,
@@ -723,6 +778,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0F4FF",
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(17, 24, 39, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarCameraBadge: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#6366F1",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   userName: {
     fontSize: 22,

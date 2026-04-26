@@ -16,11 +16,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
 import { deriveWorkshopCardState, type OperationalDisplay } from '../../utils/workshopOperationalStatus';
+import { getBatchProductionPillColors, isBatchDeliveryLate } from '../../utils/batchProductionStatusStyle';
 import type { Batch } from '../../types/batch';
 import type { Workshop } from '../../types/workshop';
 import type { MonthlyPiecesPoint } from '../../services/receivePiecesService';
+import {
+  getMonthlyPiecesReceived,
+  getReceivePiecesByUser,
+} from '../../services/receivePiecesService';
 import { getWorkshopsByUser } from '../../services/workshopService';
-import { getReceivePiecesByUser } from '../../services/receivePiecesService';
+import { getBatchesByUser } from '../../services/batchService';
 import {
   canExportOwnerDataSheet,
   canViewEfficiencyRanking,
@@ -50,11 +55,41 @@ function statusLabel(t: (k: string) => string, s: OperationalDisplay): string {
       return t('dashboard.owner.statusPendencies');
     case 'sewing':
       return t('dashboard.owner.statusSewing');
+    case 'producing_ok':
+      return t('dashboard.owner.statusProducingOk');
     case 'delayed':
       return t('dashboard.owner.statusDelayed');
     default:
       return '';
   }
+}
+
+function ownerBatchBadgeStyle(batch: Batch): { backgroundColor: string } {
+  return { backgroundColor: getBatchProductionPillColors(batch).bg };
+}
+
+function ownerBatchStatusLabel(
+  t: (k: string) => string,
+  language: string,
+  batch: Batch,
+): string {
+  const late = isBatchDeliveryLate(batch);
+  const flow = batch.productionFlowStatus;
+  if (late) {
+    return t('dashboard.owner.statusDelayed');
+  }
+  if (batch.status === 'in_progress') {
+    if (flow === 'ready_for_pickup') {
+      return t('dashboard.owner.statusReadyPickup');
+    }
+    if (flow === 'in_production') {
+      return t('dashboard.owner.statusProducingOk');
+    }
+    if (flow === 'partial' || flow === 'paused') {
+      return t('dashboard.owner.statusPendencies');
+    }
+  }
+  return formatBatchStatus(t, language, batch.status);
 }
 
 function formatBatchStatus(
@@ -132,111 +167,6 @@ function PiecesBarColumn({
   );
 }
 
-function buildMockMonthlyPieces(): MonthlyPiecesPoint[] {
-  const now = new Date();
-  const points: MonthlyPiecesPoint[] = [];
-  for (let i = 4; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    points.push({
-      year: d.getFullYear(),
-      monthIndex: d.getMonth(),
-      pieces: (i + 1) * 120,
-    });
-  }
-  return points;
-}
-
-function buildMockWorkshops(userId: string): Workshop[] {
-  const now = new Date();
-  return [
-    {
-      id: 'wrk-1',
-      name: 'Oficina Central',
-      address: 'Rua das Costureiras, 123',
-      addressFields: {
-        street: 'Rua das Costureiras',
-        number: '123',
-        neighborhood: 'Centro',
-        city: 'São Paulo',
-        uf: 'SP',
-      },
-      contact1: '+55 11 99999-0001',
-      status: 'green',
-      totalPieces: 320,
-      userId,
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: 'wrk-2',
-      name: 'Oficina Zona Leste',
-      address: 'Av. Tapeceiros, 456',
-      addressFields: {
-        street: 'Av. Tapeceiros',
-        number: '456',
-        neighborhood: 'Vila Tecelã',
-        city: 'São Paulo',
-        uf: 'SP',
-      },
-      contact1: '+55 11 98888-0002',
-      status: 'orange',
-      totalPieces: 210,
-      userId,
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
-}
-
-function buildMockBatches(userId: string): Batch[] {
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-  return [
-    {
-      id: 'bat-1',
-      name: 'Lote Jeans Inverno',
-      totalPieces: 180,
-      status: 'in_progress',
-      workshopId: 'wrk-1',
-      workshopName: 'Oficina Central',
-      deliveryDate: nextWeek,
-      observations: 'Prioridade alta',
-      userId,
-      createdAt: lastWeek,
-      updatedAt: now,
-    },
-    {
-      id: 'bat-2',
-      name: 'Lote Camisetas Básicas',
-      totalPieces: 240,
-      status: 'pending',
-      workshopId: 'wrk-2',
-      workshopName: 'Oficina Zona Leste',
-      deliveryDate: yesterday,
-      observations: 'Aguardando início da costura',
-      userId,
-      createdAt: lastWeek,
-      updatedAt: yesterday,
-    },
-    {
-      id: 'bat-3',
-      name: 'Lote Vestidos Festa',
-      totalPieces: 90,
-      status: 'completed',
-      workshopId: 'wrk-1',
-      workshopName: 'Oficina Central',
-      deliveryDate: lastWeek,
-      observations: 'Entregue ontem',
-      userId,
-      createdAt: lastWeek,
-      updatedAt: yesterday,
-    },
-  ];
-}
-
 type EntRankRow = {
   name: string;
   piecesThisMonth: number;
@@ -271,16 +201,33 @@ export default function DashboardOwner({
   const [batches, setBatches] = useState<Batch[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-
-    const mockMonthly = buildMockMonthlyPieces();
-    const mockWorkshops = buildMockWorkshops(userId);
-    const mockBatches = buildMockBatches(userId);
-
-    setMonthly(mockMonthly);
-    setWorkshops(mockWorkshops);
-    setBatches(mockBatches);
-    setLoading(false);
+    (async () => {
+      try {
+        const [monthlyData, wList, bList] = await Promise.all([
+          getMonthlyPiecesReceived(userId, 5),
+          getWorkshopsByUser(userId),
+          getBatchesByUser(userId),
+        ]);
+        if (cancelled) return;
+        setMonthly(monthlyData);
+        setWorkshops(wList);
+        setBatches(bList);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setMonthly([]);
+          setWorkshops([]);
+          setBatches([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -447,6 +394,9 @@ export default function DashboardOwner({
                     ? `  ${t('dashboard.owner.moreBatches').replace('{n}', String(card.moreActiveCount))}`
                     : ''}
                 </Text>
+                <Text style={styles.workshopStatusHint}>
+                  {statusLabel(t, card.status)}
+                </Text>
               </View>
             </View>
           ))}
@@ -490,9 +440,9 @@ export default function DashboardOwner({
                 </View>
               </View>
               <View style={styles.batchRow}>
-                <View style={[styles.batchStatusBadge, statusBadgeStyle(batch.status)]}>
+                <View style={[styles.batchStatusBadge, ownerBatchBadgeStyle(batch)]}>
                   <Text style={styles.batchStatusText}>
-                    {formatBatchStatus(t, language, batch.status)}
+                    {ownerBatchStatusLabel(t, language, batch)}
                   </Text>
                 </View>
                 {batch.workshopName ? (
@@ -605,21 +555,6 @@ function rankStatusColor(s: Workshop['status']): string {
       return '#EF4444';
     default:
       return '#9CA3AF';
-  }
-}
-
-function statusBadgeStyle(status: Batch['status']) {
-  switch (status) {
-    case 'completed':
-      return { backgroundColor: '#DCFCE7' };
-    case 'in_progress':
-      return { backgroundColor: '#FEF9C3' };
-    case 'pending':
-      return { backgroundColor: '#E0E7FF' };
-    case 'cancelled':
-      return { backgroundColor: '#F3F4F6' };
-    default:
-      return { backgroundColor: '#F3F4F6' };
   }
 }
 
@@ -814,6 +749,12 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginTop: 8,
     lineHeight: 18,
+  },
+  workshopStatusHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 4,
   },
   batchesHeaderRow: {
     flexDirection: 'row',

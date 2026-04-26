@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
+import { appUrlFromParsedOrNull } from "../utils/appDeepLink";
 import Login from "../pages/Login/Login";
 import RegisterSelection from "../pages/RegisterSelection/RegisterSelection";
 import Register from "../pages/Register/Register";
@@ -148,9 +149,16 @@ export const AppRoutes = () => {
 
   useEffect(() => {
     if (loading) return;
-    void Linking.getInitialURL().then((initial) => {
-      if (initial) void handleIncomingAppUrl(initial);
-    });
+    void (async () => {
+      const initial = await Linking.getInitialURL();
+      if (initial) {
+        void handleIncomingAppUrl(initial);
+        return;
+      }
+      const parsed = await Linking.parseInitialURLAsync();
+      const recovered = appUrlFromParsedOrNull(parsed);
+      if (recovered) void handleIncomingAppUrl(recovered);
+    })();
     const sub = Linking.addEventListener("url", ({ url }) => {
       void handleIncomingAppUrl(url);
     });

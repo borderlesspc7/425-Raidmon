@@ -5,26 +5,47 @@ import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 import { Platform } from "react-native";
 
-function requireExpoPublicEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
+/**
+ * Leitura estática de EXPO_PUBLIC_* para o Metro/EAS embutirem os valores no bundle.
+ */
+function requirePublicEnv(name: string, value: string | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
     throw new Error(
-      `Firebase: variável ${name} ausente. Copie .env.example para .env, preencha e reinicie o Expo (npm start).`
+      `Firebase: ${name} ausente ou vazio. Copie .env.example para .env, preencha as variáveis EXPO_PUBLIC_* e reinicie o Expo. Em EAS, defina-as no perfil de build.`,
     );
   }
-  return value;
+  return trimmed;
 }
 
-const measurementId = process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
+const measurementIdRaw = process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID?.trim();
 
 const firebaseConfig = {
-  apiKey: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_API_KEY"),
-  authDomain: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
-  projectId: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
-  storageBucket: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: requireExpoPublicEnv("EXPO_PUBLIC_FIREBASE_APP_ID"),
-  ...(measurementId ? { measurementId } : {}),
+  apiKey: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_API_KEY",
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  ),
+  authDomain: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  ),
+  projectId: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_PROJECT_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  ),
+  storageBucket: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  ),
+  messagingSenderId: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  ),
+  appId: requirePublicEnv(
+    "EXPO_PUBLIC_FIREBASE_APP_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  ),
+  ...(measurementIdRaw ? { measurementId: measurementIdRaw } : {}),
 } as const;
 
 const app: FirebaseApp = initializeApp(firebaseConfig);
@@ -34,7 +55,8 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 const functionsRegion =
-  process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION || "southamerica-east1";
+  process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION?.trim() ||
+  "southamerica-east1";
 
 export const functions = getFunctions(app, functionsRegion);
 

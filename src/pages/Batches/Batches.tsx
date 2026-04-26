@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
-import * as Linking from "expo-linking";
+import { buildBatchOfferShareUrl } from "../../utils/appDeepLink";
 import * as Clipboard from "expo-clipboard";
 import {
   createBatch,
@@ -38,6 +38,7 @@ import {
   getEffectiveUserPlan,
 } from "../../utils/planEntitlements";
 import { shareRomaneioForBatch } from "../../utils/romaneioPdf";
+import { getBatchProductionPillColors } from "../../utils/batchProductionStatusStyle";
 
 function formatMoneyBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -53,6 +54,60 @@ function getCutListNumber(cuts: Cut[], cutId: string): number | null {
   const idx = cuts.findIndex((c) => c.id === cutId);
   if (idx < 0) return null;
   return cuts.length - idx;
+}
+
+function parseBrDateStrict(value: string): Date | null {
+  const trimmed = value.trim();
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) return null;
+  const [dayStr, monthStr, yearStr] = trimmed.split("/");
+  const day = Number(dayStr);
+  const month = Number(monthStr);
+  const year = Number(yearStr);
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) {
+    return null;
+  }
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function formatDeliveryDateInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Cada corte só pode ter um lote (lotes cancelados liberam o corte). */
+function findBatchUsingCut(
+  batches: Batch[],
+  cutId: string,
+  excludeBatchId?: string | null,
+): Batch | undefined {
+  return batches.find(
+    (b) =>
+      b.cutId === cutId &&
+      b.id !== excludeBatchId &&
+      b.status !== "cancelled",
+  );
 }
 
 export default function Batches() {
@@ -276,6 +331,56 @@ export default function Batches() {
     Keyboard.dismiss();
   };
 
+  const handleBatchNameChange = (text: string) => {
+    setName(text);
+    clearBlurCloseTimer();
+    setCutsDropdownOpen(true);
+    if (!selectedCutId) return;
+    const selectedCut = cuts.find((c) => c.id === selectedCutId);
+    if (!selectedCut) {
+      setSelectedCutId(null);
+      return;
+    }
+    if (normalizeSearchText(selectedCut.type) !== normalizeSearchText(text)) {
+      setSelectedCutId(null);
+    }
+  };
+
+  const filteredCuts = useMemo(() => {
+    const query = normalizeSearchText(name);
+    if (!query) return cuts;
+
+    const scored = cuts
+      .map((cut) => {
+        const typeNorm = normalizeSearchText(cut.type);
+        const cutRef = normalizeSearchText(cut.uniqueRef || "");
+        const shortId = normalizeSearchText(cut.id.slice(0, 8));
+        const listNumber = getCutListNumber(cuts, cut.id);
+        const listCode = listNumber != null ? String(listNumber) : "";
+        const listHashCode = listCode ? `#${listCode}` : "";
+
+        let score = 0;
+        if (typeNorm === query) score += 120;
+        else if (typeNorm.startsWith(query)) score += 95;
+        else if (typeNorm.includes(query)) score += 75;
+
+        if (listCode === query || listHashCode === query) score += 90;
+        else if (listCode.includes(query) || listHashCode.includes(query)) score += 55;
+
+        if (cutRef === query) score += 80;
+        else if (cutRef.includes(query)) score += 50;
+
+        if (shortId === query) score += 45;
+        else if (shortId.includes(query)) score += 30;
+
+        return { cut, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scored.map((item) => item.cut);
+  }, [cuts, name]);
+
   const toggleCutsDropdown = () => {
     clearBlurCloseTimer();
     setCutsDropdownOpen((open) => !open);
@@ -305,6 +410,19 @@ export default function Batches() {
           chosen.pricePerPiece <= 0
         ) {
           newErrors.cutId = t("batches.ownerCutPriceMissing");
+        } else if (findBatchUsingCut(batches, selectedCutId, null)) {
+          newErrors.cutId = t("batches.cutAlreadyHasBatch");
+        }
+      }
+    }
+
+    if (!isOwner && deliveryDate.trim()) {
+      if (!parseBrDateStrict(deliveryDate.trim())) {
+        newErrors.deliveryDate = t("batches.deliveryDateInvalid");
+      } else {
+        const parsed = parseBrDateStrict(deliveryDate.trim());
+        if (parsed && startOfLocalDay(parsed).getTime() < startOfLocalDay(new Date()).getTime()) {
+          newErrors.deliveryDate = t("batches.deliveryDateMinToday");
         }
       }
     }
@@ -335,6 +453,9 @@ export default function Batches() {
         if (!chosen || p == null || !Number.isFinite(p) || p <= 0) {
           throw new Error(t("batches.ownerCutPriceMissing"));
         }
+        if (findBatchUsingCut(batches, chosen.id, null)) {
+          throw new Error(t("batches.cutAlreadyHasBatch"));
+        }
         const unit = Math.round(p * 100) / 100;
         cutIdField = chosen.id;
         pricePerPieceField = unit;
@@ -350,12 +471,10 @@ export default function Batches() {
         status: isOwner && !editingBatch ? "pending" : status,
         workshopId: selectedWorkshopId || undefined,
         workshopName: selectedWorkshop?.name || undefined,
-        deliveryDate: deliveryDate
-          ? (() => {
-              const [day, month, year] = deliveryDate.split("/");
-              return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-            })()
-          : undefined,
+        deliveryDate:
+          !isOwner && deliveryDate.trim()
+            ? parseBrDateStrict(deliveryDate.trim()) || undefined
+            : undefined,
         observations: observations.trim() || undefined,
         cutId: cutIdField,
         pricePerPiece: pricePerPieceField,
@@ -390,12 +509,7 @@ export default function Batches() {
         await loadBatches();
         closeModal();
         if (isOwner && inviteTokenField && created.inviteToken) {
-          const inviteUrl = Linking.createURL("batch-offer", {
-            queryParams: {
-              batchId: created.id,
-              token: created.inviteToken,
-            },
-          });
+          const inviteUrl = buildBatchOfferShareUrl(created.id, created.inviteToken);
           const refNum =
             created.cutListNumber ?? cutListNumberField ?? null;
           setOfferSummary({
@@ -493,7 +607,8 @@ export default function Batches() {
     }).format(date);
   };
 
-  const getStatusColor = (status: BatchStatus) => {
+  /** Cores do formulário (status “genérico” do lote, não o fluxo de produção). */
+  const getFormStatusColor = (status: BatchStatus) => {
     switch (status) {
       case "pending":
         return "#6B7280";
@@ -640,7 +755,9 @@ export default function Batches() {
               </TouchableOpacity>
             </View>
           ) : (
-            batches.map((batch, index) => (
+            batches.map((batch, index) => {
+              const productionPill = getBatchProductionPillColors(batch);
+              return (
               <View key={batch.id} style={styles.batchCard}>
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
@@ -690,24 +807,24 @@ export default function Batches() {
                   </View>
                 </View>
 
-                {/* Status Badge */}
+                {/* Status: mesmas cores de produção dono + oficina (atraso / verde / laranja / amarelo) */}
                 <View style={styles.statusContainer}>
                   <View
                     style={[
                       styles.statusBadge,
-                      { backgroundColor: `${getStatusColor(batch.status)}20` },
+                      { backgroundColor: productionPill.bg },
                     ]}
                   >
                     <View
                       style={[
                         styles.statusDot,
-                        { backgroundColor: getStatusColor(batch.status) },
+                        { backgroundColor: productionPill.fg },
                       ]}
                     />
                     <Text
                       style={[
                         styles.statusText,
-                        { color: getStatusColor(batch.status) },
+                        { color: productionPill.fg },
                       ]}
                     >
                       {getStatusLabel(batch.status)}
@@ -757,7 +874,8 @@ export default function Batches() {
                   )}
                 </View>
               </View>
-            ))
+            );
+            })
           )}
         </ScrollView>
 
@@ -797,7 +915,7 @@ export default function Batches() {
                       <TextInput
                         style={styles.input}
                         value={name}
-                        onChangeText={setName}
+                        onChangeText={handleBatchNameChange}
                         placeholder={t("batches.namePlaceholder")}
                         placeholderTextColor="#9CA3AF"
                         onFocus={() => {
@@ -828,6 +946,10 @@ export default function Batches() {
                           <Text style={styles.cutsDropdownEmpty}>
                             {t("batches.cutsDropdownEmpty")}
                           </Text>
+                        ) : filteredCuts.length === 0 ? (
+                          <Text style={styles.cutsDropdownEmpty}>
+                            {t("batches.cutsDropdownNoResults")}
+                          </Text>
                         ) : (
                           <ScrollView
                             style={styles.cutsDropdownList}
@@ -835,28 +957,50 @@ export default function Batches() {
                             nestedScrollEnabled
                             showsVerticalScrollIndicator
                           >
-                            {cuts.map((cut) => (
-                              <Pressable
-                                key={cut.id}
-                                style={({ pressed }) => [
-                                  styles.cutsDropdownItem,
-                                  pressed && { opacity: 0.75 },
-                                ]}
-                                onPress={() => selectCutForBatchName(cut)}
-                              >
-                                <Text style={styles.cutsDropdownItemTitle} numberOfLines={2}>
-                                  {cut.type}
-                                </Text>
-                                <Text style={styles.cutsDropdownItemMeta}>
-                                  {`#${getCutListNumber(cuts, cut.id) ?? "—"} · ${cut.totalPieces} ${t("batches.pieces")}${
-                                    cut.pricePerPiece != null &&
-                                    Number.isFinite(cut.pricePerPiece)
-                                      ? ` · ${formatMoneyBRL(cut.pricePerPiece)} ${t("batches.perPieceAbbr")}`
-                                      : ""
-                                  }`}
-                                </Text>
-                              </Pressable>
-                            ))}
+                            {filteredCuts.map((cut) => {
+                              const cutTaken =
+                                isOwner &&
+                                !editingBatch &&
+                                !!findBatchUsingCut(batches, cut.id, null);
+                              return (
+                                <Pressable
+                                  key={cut.id}
+                                  style={({ pressed }) => [
+                                    styles.cutsDropdownItem,
+                                    cutTaken && styles.cutsDropdownItemDisabled,
+                                    pressed && !cutTaken && { opacity: 0.75 },
+                                  ]}
+                                  disabled={cutTaken}
+                                  onPress={() => {
+                                    if (cutTaken) return;
+                                    selectCutForBatchName(cut);
+                                  }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.cutsDropdownItemTitle,
+                                      cutTaken && styles.cutsDropdownItemTitleDisabled,
+                                    ]}
+                                    numberOfLines={2}
+                                  >
+                                    {cut.type}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.cutsDropdownItemMeta,
+                                      cutTaken && styles.cutsDropdownItemMetaDisabled,
+                                    ]}
+                                  >
+                                    {`#${getCutListNumber(cuts, cut.id) ?? "—"} · ${cut.totalPieces} ${t("batches.pieces")}${
+                                      cut.pricePerPiece != null &&
+                                      Number.isFinite(cut.pricePerPiece)
+                                        ? ` · ${formatMoneyBRL(cut.pricePerPiece)} ${t("batches.perPieceAbbr")}`
+                                        : ""
+                                    }${cutTaken ? ` · ${t("batches.cutAlreadyHasBatchTag")}` : ""}`}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
                           </ScrollView>
                         )}
                       </View>
@@ -937,10 +1081,10 @@ export default function Batches() {
                             styles.statusButton,
                             status === statusOption && styles.statusButtonActive,
                             {
-                              borderColor: getStatusColor(statusOption),
+                              borderColor: getFormStatusColor(statusOption),
                               backgroundColor:
                                 status === statusOption
-                                  ? `${getStatusColor(statusOption)}20`
+                                  ? `${getFormStatusColor(statusOption)}20`
                                   : "#FFFFFF",
                             },
                           ]}
@@ -952,7 +1096,7 @@ export default function Batches() {
                               {
                                 backgroundColor:
                                   status === statusOption
-                                    ? getStatusColor(statusOption)
+                                    ? getFormStatusColor(statusOption)
                                     : "#E5E7EB",
                               },
                             ]}
@@ -963,7 +1107,7 @@ export default function Batches() {
                               {
                                 color:
                                   status === statusOption
-                                    ? getStatusColor(statusOption)
+                                    ? getFormStatusColor(statusOption)
                                     : "#6B7280",
                               },
                             ]}
@@ -1029,22 +1173,29 @@ export default function Batches() {
                   </View>
                 )}
 
-                {/* Data de Entrega */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>
-                    {t("batches.deliveryDate")} ({t("batches.optional")})
-                  </Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="event" size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.input}
-                      value={deliveryDate}
-                      onChangeText={setDeliveryDate}
-                      placeholder={t("batches.deliveryDatePlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                    />
+                {/* Data de Entrega (somente perfil não-owner) */}
+                {!isOwner ? (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>
+                      {t("batches.deliveryDate")}
+                    </Text>
+                    <View style={styles.inputContainer}>
+                      <MaterialIcons name="event" size={20} color="#6B7280" />
+                      <TextInput
+                        style={styles.input}
+                        value={deliveryDate}
+                        onChangeText={(text) => setDeliveryDate(formatDeliveryDateInput(text))}
+                        placeholder={t("batches.deliveryDatePlaceholder")}
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="number-pad"
+                        maxLength={10}
+                      />
+                    </View>
+                    {errors.deliveryDate && (
+                      <Text style={styles.errorText}>{errors.deliveryDate}</Text>
+                    )}
                   </View>
-                </View>
+                ) : null}
 
                 {/* Observações */}
                 <View style={styles.inputGroup}>
@@ -1119,33 +1270,48 @@ export default function Batches() {
               <Text style={styles.offerContext}>{t("batches.offerContext")}</Text>
               <View style={styles.offerCard}>
                 <View style={styles.offerRow}>
-                  <Text style={styles.offerLabel}>{t("batches.offerBatchRef")}</Text>
+                  <View style={styles.offerLabelWrap}>
+                    <MaterialIcons name="confirmation-number" size={16} color="#6B7280" />
+                    <Text style={styles.offerLabel}>{t("batches.offerBatchRef")}</Text>
+                  </View>
                   <Text style={styles.offerValue}>{offerSummary.batchRef}</Text>
                 </View>
                 <View style={styles.offerRow}>
-                  <Text style={styles.offerLabel}>
-                    {t("batches.offerPieceName")}
-                  </Text>
+                  <View style={styles.offerLabelWrap}>
+                    <MaterialIcons name="checkroom" size={16} color="#6B7280" />
+                    <Text style={styles.offerLabel}>
+                      {t("batches.offerPieceName")}
+                    </Text>
+                  </View>
                   <Text style={styles.offerValue}>{offerSummary.pieceName}</Text>
                 </View>
                 <View style={styles.offerRow}>
-                  <Text style={styles.offerLabel}>{t("batches.quantity")}</Text>
+                  <View style={styles.offerLabelWrap}>
+                    <MaterialIcons name="inventory-2" size={16} color="#6B7280" />
+                    <Text style={styles.offerLabel}>{t("batches.quantity")}</Text>
+                  </View>
                   <Text style={styles.offerValue}>
                     {offerSummary.quantity} {t("batches.pieces")}
                   </Text>
                 </View>
                 <View style={styles.offerRow}>
-                  <Text style={styles.offerLabel}>
-                    {t("batches.offerPricePerPiece")}
-                  </Text>
+                  <View style={styles.offerLabelWrap}>
+                    <MaterialIcons name="sell" size={16} color="#6B7280" />
+                    <Text style={styles.offerLabel}>
+                      {t("batches.offerPricePerPiece")}
+                    </Text>
+                  </View>
                   <Text style={styles.offerValue}>
                     {formatOfferMoney(offerSummary.pricePerPiece)}
                   </Text>
                 </View>
                 <View style={styles.offerRow}>
-                  <Text style={styles.offerLabel}>
-                    {t("batches.offerGuaranteedTotal")}
-                  </Text>
+                  <View style={styles.offerLabelWrap}>
+                    <MaterialIcons name="payments" size={16} color="#6B7280" />
+                    <Text style={styles.offerLabel}>
+                      {t("batches.offerGuaranteedTotal")}
+                    </Text>
+                  </View>
                   <Text style={[styles.offerValue, styles.offerTotal]}>
                     {formatOfferMoney(offerSummary.guaranteedTotal)}
                   </Text>
@@ -1506,6 +1672,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
   },
+  cutsDropdownItemDisabled: {
+    opacity: 0.55,
+    backgroundColor: "#F9FAFB",
+  },
+  cutsDropdownItemTitleDisabled: {
+    color: "#9CA3AF",
+  },
+  cutsDropdownItemMetaDisabled: {
+    color: "#9CA3AF",
+  },
   cutsHint: {
     marginTop: 6,
     fontSize: 11,
@@ -1660,14 +1836,21 @@ const styles = StyleSheet.create({
   offerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
+  },
+  offerLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
   },
   offerLabel: {
     fontSize: 13,
     color: "#6B7280",
     fontWeight: "600",
-    flex: 1,
+    flexShrink: 1,
   },
   offerValue: {
     fontSize: 14,

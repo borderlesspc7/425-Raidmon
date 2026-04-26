@@ -17,6 +17,17 @@ import { Batch, CreateBatchData, UpdateBatchData, BatchStatus } from "../types/b
 
 const BATCHES_COLLECTION = "batches";
 
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function ensureDeliveryDateIsNotPast(deliveryDate: Date | undefined): void {
+  if (!deliveryDate) return;
+  if (startOfLocalDay(deliveryDate).getTime() < startOfLocalDay(new Date()).getTime()) {
+    throw new Error("A data de entrega não pode ser anterior a hoje");
+  }
+}
+
 /**
  * Converter Firestore document para Batch
  */
@@ -28,6 +39,7 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
     status: data.status || "pending",
     workshopId: data.workshopId || undefined,
     workshopName: data.workshopName || undefined,
+    ownerName: typeof data.ownerName === "string" ? data.ownerName : undefined,
     deliveryDate: data.deliveryDate
       ? data.deliveryDate instanceof Timestamp
         ? data.deliveryDate.toDate()
@@ -55,6 +67,24 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
         : typeof data.linkedWorkshopUserId === "string"
           ? data.linkedWorkshopUserId
           : undefined,
+    acceptedFromOwnerInvite: data.acceptedFromOwnerInvite === true,
+    inviteAcceptedAt: data.inviteAcceptedAt
+      ? data.inviteAcceptedAt instanceof Timestamp
+        ? data.inviteAcceptedAt.toDate()
+        : new Date(data.inviteAcceptedAt)
+      : undefined,
+    inviteAcceptedByUserId:
+      typeof data.inviteAcceptedByUserId === "string"
+        ? data.inviteAcceptedByUserId
+        : undefined,
+    inviteAcceptedByName:
+      typeof data.inviteAcceptedByName === "string"
+        ? data.inviteAcceptedByName
+        : undefined,
+    inviteAcceptedVia:
+      data.inviteAcceptedVia === "whatsapp_link"
+        ? "whatsapp_link"
+        : undefined,
     productionFlowStatus:
       data.productionFlowStatus === "in_production" ||
       data.productionFlowStatus === "ready_for_pickup" ||
@@ -95,6 +125,7 @@ export async function createBatch(
     if (!userId) {
       throw new Error("User ID is required");
     }
+    ensureDeliveryDateIsNotPast(batchData.deliveryDate);
 
     // Build payload and avoid including properties with `undefined` values
     const payload: any = {
@@ -223,6 +254,7 @@ export async function updateBatch(
   updateData: UpdateBatchData,
 ): Promise<void> {
   try {
+    ensureDeliveryDateIsNotPast(updateData.deliveryDate);
     const batchRef = doc(db, BATCHES_COLLECTION, batchId);
     const updatePayload: any = {
       ...updateData,

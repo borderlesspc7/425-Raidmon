@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
   Linking,
+  Keyboard,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -36,6 +37,57 @@ import {
   isPaymentHistoryWindowLimited,
   isPaymentInPlanHistoryWindow,
 } from "../../utils/planEntitlements";
+import {
+  applyMarketplaceFeeToBase,
+  MARKETPLACE_FEE_PERCENT,
+} from "../../constants/marketplaceFee";
+import { getPaymentListBucket } from "../../utils/paymentListBucket";
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function startOfLocalToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function batchSuggestedAmount(batch: Batch): number | null {
+  const gt = batch.guaranteedTotal;
+  if (typeof gt === "number" && Number.isFinite(gt) && gt > 0) {
+    return Math.round(gt * 100) / 100;
+  }
+  const p = batch.pricePerPiece;
+  const n = batch.totalPieces;
+  const pOk = typeof p === "number" && Number.isFinite(p) && p > 0;
+  const nOk = typeof n === "number" && Number.isFinite(n) && n > 0;
+  if (pOk && nOk) {
+    return Math.round(p * n * 100) / 100;
+  }
+  /* Firestore às vezes serializa números como string */
+  const pNum = pOk ? p : Number(String(p ?? "").replace(",", "."));
+  const nNum = nOk ? n : Number(String(n ?? "").replace(/\D/g, ""));
+  if (Number.isFinite(pNum) && pNum > 0 && Number.isFinite(nNum) && nNum > 0) {
+    return Math.round(pNum * nNum * 100) / 100;
+  }
+  return null;
+}
+
+/** Oficina vinculada ao lote: aceita pelo convite ou cadastro do dono (dropdown em Lotes). */
+function acceptingWorkshopDisplayName(batch: Batch): string {
+  const a =
+    typeof batch.inviteAcceptedByName === "string"
+      ? batch.inviteAcceptedByName.trim()
+      : "";
+  const w =
+    typeof batch.workshopName === "string" ? batch.workshopName.trim() : "";
+  return (a || w || "").trim();
+}
 
 export default function Payments() {
   const { user } = useAuth();
@@ -52,22 +104,17 @@ export default function Payments() {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | "all">("all");
 
-  // Statistics
-  const [totalPending, setTotalPending] = useState(0);
-  const [totalPaid, setTotalPaid] = useState(0);
-  const [totalOverdue, setTotalOverdue] = useState(0);
-  const [totalAmount, setTotalAmount] = useState(0);
 
   // Form state
   const [description, setDescription] = useState("");
   const [amountInput, setAmountInput] = useState("");
-  const [dueDate, setDueDate] = useState("");
   const [paidDate, setPaidDate] = useState("");
-  const [status, setStatus] = useState<PaymentStatus>("pending");
-  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string>("");
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const [batchDescDropdownOpen, setBatchDescDropdownOpen] = useState(false);
+  const batchDescBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [pixModalVisible, setPixModalVisible] = useState(false);
   const [pixLoadingId, setPixLoadingId] = useState<string | null>(null);
@@ -77,6 +124,8 @@ export default function Payments() {
     pixEncodedImage: string | null;
     invoiceUrl: string | null;
     platformFeeAmount?: number;
+    totalCharged?: number;
+    feePercent?: number;
   } | null>(null);
 
   useEffect(() => {
@@ -84,6 +133,105 @@ export default function Payments() {
       loadData();
     }
   }, [user]);
+
+  const filteredBatchesForDescription = useMemo(() => {
+    const trimmed = description.trim();
+    const q = normalizeSearchText(trimmed);
+    const mHash = trimmed.match(/^#(\d+)$/);
+    const mNum = trimmed.match(/^(\d+)$/);
+    const refNumExact =
+      mHash != null
+        ? parseInt(mHash[1], 10)
+        : mNum != null
+          ? parseInt(mNum[1], 10)
+          : null;
+    const qDigitsOnly = trimmed.replace(/^#/, "").replace(/\s/g, "");
+    const refDigitsPrefix =
+      qDigitsOnly.length > 0 && /^\d+$/.test(qDigitsOnly) ? qDigitsOnly : null;
+
+    const sorted = [...batches].sort(
+      (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+    );
+    /* Só "#" (referência ao # do corte) não deve esvaziar a lista — ainda não há dígito p/ filtrar */
+    const isBareHashOnly =
+      trimmed === "#" ||
+      /^#\s*$/.test(trimmed) ||
+      (q === "#" && refDigitsPrefix == null && refNumExact == null);
+
+    const hasAnyQuery =
+      (q.length > 0 && !isBareHashOnly) || refNumExact != null;
+
+    if (!hasAnyQuery || isBareHashOnly) {
+      return sorted.slice(0, 80);
+    }
+
+    return sorted
+      .map((b) => {
+        const nameN = normalizeSearchText(b.name);
+        const wsN = b.workshopName ? normalizeSearchText(b.workshopName) : "";
+        const acceptN = b.inviteAcceptedByName
+          ? normalizeSearchText(b.inviteAcceptedByName)
+          : "";
+        const idShort = normalizeSearchText(b.id.slice(0, 8));
+        let score = 0;
+
+        if (refNumExact != null && b.cutListNumber === refNumExact) {
+          score += 150;
+        } else if (
+          refDigitsPrefix != null &&
+          b.cutListNumber != null &&
+          String(b.cutListNumber).startsWith(refDigitsPrefix)
+        ) {
+          score += 95;
+        } else if (b.cutListNumber != null && q.length > 0) {
+          const cn = String(b.cutListNumber);
+          const hashNorm = normalizeSearchText(`#${cn}`);
+          if (q === hashNorm || q === cn) score += 125;
+          else if (q.includes(cn) && cn.length >= 1) score += 55;
+        }
+
+        if (nameN === q) score += 100;
+        else if (nameN.startsWith(q)) score += 80;
+        else if (q && nameN.includes(q)) score += 50;
+        if (q && wsN.includes(q)) score += 40;
+        if (q && acceptN.includes(q)) score += 38;
+        if (q && (idShort.includes(q) || normalizeSearchText(b.id).includes(q))) {
+          score += 35;
+        }
+
+        return { b, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          b.b.updatedAt.getTime() - a.b.updatedAt.getTime(),
+      )
+      .map((x) => x.b);
+  }, [batches, description]);
+
+  const selectedBatchForModal = useMemo(
+    () => batches.find((x) => x.id === selectedBatchId),
+    [batches, selectedBatchId],
+  );
+  const autoWorkshopFromBatch = useMemo(() => {
+    const b = selectedBatchForModal;
+    if (!b) return "";
+    const fromNames = acceptingWorkshopDisplayName(b);
+    if (fromNames) return fromNames;
+    if (b.workshopId) {
+      const w = workshops.find((x) => x.id === b.workshopId);
+      if (w?.name?.trim()) return w.name.trim();
+    }
+    return "";
+  }, [selectedBatchForModal, workshops]);
+
+  const clearBatchDescBlurTimer = () => {
+    if (batchDescBlurTimer.current) {
+      clearTimeout(batchDescBlurTimer.current);
+      batchDescBlurTimer.current = null;
+    }
+  };
 
   const loadData = async () => {
     if (!user?.id) return;
@@ -98,22 +246,6 @@ export default function Payments() {
       setPayments(paymentsData);
       setWorkshops(workshopsData);
       setBatches(batchesData);
-
-      // Calcular estatísticas
-      let pending = 0,
-        paid = 0,
-        overdue = 0,
-        amount = 0;
-      paymentsData.forEach((p) => {
-        amount += p.amount;
-        if (p.status === "pending") pending++;
-        else if (p.status === "paid") paid++;
-        else if (p.status === "overdue") overdue++;
-      });
-      setTotalPending(pending);
-      setTotalPaid(paid);
-      setTotalOverdue(overdue);
-      setTotalAmount(amount);
     } catch (error: any) {
       Alert.alert(t("common.error"), error.message || "Erro ao carregar pagamentos");
     } finally {
@@ -122,14 +254,55 @@ export default function Payments() {
   };
 
   const resetForm = () => {
+    clearBatchDescBlurTimer();
+    setBatchDescDropdownOpen(false);
     setDescription("");
     setAmountInput("");
-    setDueDate("");
     setPaidDate("");
-    setStatus("pending");
-    setSelectedWorkshopId("");
     setSelectedBatchId("");
     setErrors({});
+  };
+
+  const formatAmountInput = (value: number) => {
+    return value.toFixed(2).replace(".", ",");
+  };
+
+  const formatDateForInput = (date: Date) => {
+    const d = String(date.getDate()).padStart(2, "0");
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+  };
+
+  const handleDescriptionChange = (text: string) => {
+    clearBatchDescBlurTimer();
+    setDescription(text);
+    if (selectedBatchId) {
+      const b = batches.find((x) => x.id === selectedBatchId);
+      if (!b || normalizeSearchText(b.name) !== normalizeSearchText(text.trim())) {
+        setSelectedBatchId("");
+      }
+    }
+    setBatchDescDropdownOpen(true);
+  };
+
+  const selectBatchForDescription = (batch: Batch) => {
+    clearBatchDescBlurTimer();
+    setDescription(batch.name);
+    setSelectedBatchId(batch.id);
+    const amt = batchSuggestedAmount(batch);
+    if (amt != null) {
+      setAmountInput(formatAmountInput(amt));
+    } else {
+      setAmountInput("");
+    }
+    setBatchDescDropdownOpen(false);
+    Keyboard.dismiss();
+  };
+
+  const toggleBatchDescDropdown = () => {
+    clearBatchDescBlurTimer();
+    setBatchDescDropdownOpen((o) => !o);
   };
 
   const openModal = (payment?: Payment) => {
@@ -138,14 +311,12 @@ export default function Payments() {
       setEditingPayment(payment);
       setDescription(payment.description);
       setAmountInput(formatAmountInput(payment.amount));
-      setDueDate(formatDateForInput(payment.dueDate));
       setPaidDate(payment.paidDate ? formatDateForInput(payment.paidDate) : "");
-      setStatus(payment.status);
-      setSelectedWorkshopId(payment.workshopId || "");
       setSelectedBatchId(payment.batchId || "");
     } else {
       setEditingPayment(null);
     }
+    setBatchDescDropdownOpen(false);
     setModalVisible(true);
   };
 
@@ -153,10 +324,6 @@ export default function Payments() {
     setModalVisible(false);
     setEditingPayment(null);
     resetForm();
-  };
-
-  const formatAmountInput = (value: number) => {
-    return value.toFixed(2).replace(".", ",");
   };
 
   const parseAmount = (text: string): number => {
@@ -176,13 +343,6 @@ export default function Payments() {
       month: "2-digit",
       year: "numeric",
     }).format(date);
-  };
-
-  const formatDateForInput = (date: Date) => {
-    const d = String(date.getDate()).padStart(2, "0");
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const y = date.getFullYear();
-    return `${d}/${m}/${y}`;
   };
 
   const formatDateInput = (text: string) => {
@@ -208,20 +368,36 @@ export default function Payments() {
     }).format(value);
   };
 
+  const newPaymentFeePreview = useMemo(() => {
+    if (editingPayment) return null;
+    const b = parseAmount(amountInput);
+    if (b <= 0) return null;
+    return { base: b, total: applyMarketplaceFeeToBase(b) };
+  }, [amountInput, editingPayment]);
+
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
     if (!description.trim() || description.trim().length < 3) {
-      newErrors.description = t("payments.descriptionRequired");
+      newErrors.description = t("payments.loteRequired");
     }
     const parsedAmount = parseAmount(amountInput);
     if (!amountInput || parsedAmount <= 0) {
       newErrors.amount = t("payments.amountRequired");
     }
-    if (!dueDate || dueDate.replace(/\D/g, "").length < 8) {
-      newErrors.dueDate = t("payments.dueDateRequired");
-    } else if (!parseDate(dueDate)) {
-      newErrors.dueDate = t("payments.dueDateInvalid");
+    if (!editingPayment) {
+      const descOk = description.trim().length >= 3;
+      if (descOk && !selectedBatchId) {
+        newErrors.description = t("payments.batchPickRequired");
+      } else if (descOk && selectedBatchId) {
+        const b = batches.find((x) => x.id === selectedBatchId);
+        const link =
+          b?.linkedWorkshopUserId != null &&
+          String(b.linkedWorkshopUserId).trim().length > 0;
+        if (b && !link) {
+          newErrors.description = t("payments.batchNoLinkedWorkshop");
+        }
+      }
     }
     if (paidDate && paidDate.replace(/\D/g, "").length > 0) {
       if (paidDate.replace(/\D/g, "").length < 8 || !parseDate(paidDate)) {
@@ -233,41 +409,100 @@ export default function Payments() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm() || !user?.id) return;
+  const buildCreatePaymentData = (amountGross: number): CreatePaymentData => {
+    const dueForSave = editingPayment
+      ? editingPayment.dueDate
+      : startOfLocalToday();
+    const parsedPaidDate = paidDate ? parseDate(paidDate) || undefined : undefined;
+    const selectedBatch = selectedBatchId
+      ? batches.find((b) => b.id === selectedBatchId)
+      : null;
+    const workshopFromList =
+      selectedBatch?.workshopId != null
+        ? workshops.find((w) => w.id === selectedBatch.workshopId)
+        : null;
+    const acceptingName = selectedBatch
+      ? acceptingWorkshopDisplayName(selectedBatch)
+      : "";
+    const linkedUid =
+      selectedBatch?.linkedWorkshopUserId != null &&
+      String(selectedBatch.linkedWorkshopUserId).trim().length > 0
+        ? String(selectedBatch.linkedWorkshopUserId).trim()
+        : null;
+    const marketplaceWorkshopUserId =
+      linkedUid ||
+      (editingPayment?.marketplaceWorkshopUserId
+        ? String(editingPayment.marketplaceWorkshopUserId).trim()
+        : null) ||
+      null;
+    const statusForSave: PaymentStatus = editingPayment
+      ? editingPayment.status
+      : "pending";
+    return {
+      description: description.trim(),
+      amount: amountGross,
+      dueDate: dueForSave,
+      paidDate: parsedPaidDate,
+      status: statusForSave,
+      workshopId: selectedBatch?.workshopId || editingPayment?.workshopId,
+      workshopName:
+        workshopFromList?.name || acceptingName || editingPayment?.workshopName,
+      marketplaceWorkshopUserId,
+      batchId: selectedBatchId || editingPayment?.batchId || undefined,
+      batchName: selectedBatch?.name || editingPayment?.batchName || undefined,
+    };
+  };
 
+  const handleSaveEdit = async () => {
+    if (!editingPayment || !validateForm() || !user?.id) return;
     try {
       setSubmitting(true);
-      const parsedDueDate = parseDate(dueDate)!;
-      const parsedPaidDate = paidDate ? parseDate(paidDate) || undefined : undefined;
-
-      const selectedWorkshop = workshops.find((w) => w.id === selectedWorkshopId);
-      const selectedBatch = batches.find((b) => b.id === selectedBatchId);
-
-      const paymentData: CreatePaymentData = {
-        description: description.trim(),
-        amount: parseAmount(amountInput),
-        dueDate: parsedDueDate,
-        paidDate: parsedPaidDate,
-        status,
-        workshopId: selectedWorkshopId || undefined,
-        workshopName: selectedWorkshop?.name || undefined,
-        batchId: selectedBatchId || undefined,
-        batchName: selectedBatch?.name || undefined,
-      };
-
-      if (editingPayment) {
-        await updatePayment(editingPayment.id, paymentData);
-        Alert.alert(t("common.success"), t("payments.updateSuccess"));
-      } else {
-        await createPayment(user.id, paymentData);
-        Alert.alert(t("common.success"), t("payments.createSuccess"));
-      }
-
+      const amountGross = parseAmount(amountInput);
+      const paymentData = buildCreatePaymentData(amountGross);
+      await updatePayment(editingPayment.id, paymentData);
+      Alert.alert(t("common.success"), t("payments.updateSuccess"));
       closeModal();
       loadData();
     } catch (error: any) {
       Alert.alert(t("common.error"), error.message || "Erro ao salvar pagamento");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /** Novo: cria o pagamento com total (serviço + 2,5%), gera cobrança Asaas e abre QR + link. */
+  const handleNewPaymentPay = async () => {
+    if (editingPayment || !validateForm() || !user?.id) return;
+    const base = parseAmount(amountInput);
+    const gross = applyMarketplaceFeeToBase(base);
+    if (gross <= 0) {
+      Alert.alert(t("common.error"), t("payments.amountRequired"));
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const paymentData = buildCreatePaymentData(gross);
+      const created = await createPayment(user.id, paymentData);
+      const data = await createAsaasChargeForPayment(created.id);
+      setPixView({
+        description: created.description,
+        pixCopyPaste: data.pixCopyPaste,
+        pixEncodedImage: data.pixEncodedImage,
+        invoiceUrl: data.invoiceUrl,
+        platformFeeAmount: data.platformFeeAmount,
+        totalCharged: data.grossAmount,
+        feePercent: data.platformFeePercent,
+      });
+      closeModal();
+      setPixModalVisible(true);
+      loadData();
+    } catch (error: any) {
+      const msg =
+        error?.message ||
+        error?.details ||
+        (typeof error?.code === "string" ? error.code : "") ||
+        t("payments.asaasError");
+      Alert.alert(t("common.error"), String(msg));
     } finally {
       setSubmitting(false);
     }
@@ -321,6 +556,8 @@ export default function Payments() {
         pixEncodedImage: payment.pixEncodedImage ?? null,
         invoiceUrl: payment.asaasInvoiceUrl ?? null,
         platformFeeAmount: payment.platformFeeAmount,
+        totalCharged: payment.amount,
+        feePercent: payment.platformFeePercent,
       });
       setPixModalVisible(true);
       return;
@@ -334,6 +571,8 @@ export default function Payments() {
         pixEncodedImage: data.pixEncodedImage,
         invoiceUrl: data.invoiceUrl,
         platformFeeAmount: data.platformFeeAmount,
+        totalCharged: data.grossAmount,
+        feePercent: data.platformFeePercent,
       });
       setPixModalVisible(true);
       await loadData();
@@ -352,6 +591,11 @@ export default function Payments() {
   const copyPixCode = async (payload: string) => {
     await Clipboard.setStringAsync(payload);
     Alert.alert(t("common.success"), t("payments.pixCopied"));
+  };
+
+  const copyPaymentLink = async (url: string) => {
+    await Clipboard.setStringAsync(url);
+    Alert.alert(t("common.success"), t("payments.linkCopied"));
   };
 
   const getStatusColor = (s: PaymentStatus) => {
@@ -417,6 +661,13 @@ export default function Payments() {
     });
   }, [payments, historyLimited, entPlan]);
 
+  const batchById = useMemo(() => {
+    const m = new Map<string, Batch>();
+    batches.forEach((b) => m.set(b.id, b));
+    return m;
+  }, [batches]);
+
+  /** Totais e filtros usam o “bucket” (atraso do lote/oficina além de status no doc). */
   const scopeStats = useMemo(() => {
     let pending = 0,
       paid = 0,
@@ -424,17 +675,29 @@ export default function Payments() {
       amount = 0;
     paymentsInScope.forEach((p) => {
       amount += p.amount;
-      if (p.status === "pending") pending++;
-      else if (p.status === "paid") paid++;
-      else if (p.status === "overdue") overdue++;
+      const bucket = getPaymentListBucket(
+        p,
+        p.batchId ? batchById.get(p.batchId) : undefined,
+      );
+      if (bucket === "cancelled") return;
+      if (bucket === "pending") pending++;
+      else if (bucket === "paid") paid++;
+      else if (bucket === "overdue") overdue++;
     });
     return { pending, paid, overdue, amount };
-  }, [paymentsInScope]);
+  }, [paymentsInScope, batchById]);
 
-  const filteredPayments =
-    filterStatus === "all"
-      ? paymentsInScope
-      : paymentsInScope.filter((p) => p.status === filterStatus);
+  const filteredPayments = useMemo(() => {
+    if (filterStatus === "all") return paymentsInScope;
+    return paymentsInScope.filter((p) => {
+      const bucket = getPaymentListBucket(
+        p,
+        p.batchId ? batchById.get(p.batchId) : undefined,
+      );
+      if (bucket === "cancelled") return false;
+      return bucket === filterStatus;
+    });
+  }, [paymentsInScope, filterStatus, batchById]);
 
   if (loading) {
     return (
@@ -562,12 +825,18 @@ export default function Payments() {
               )}
             </View>
           ) : (
-            filteredPayments.map((payment) => (
+            filteredPayments.map((payment) => {
+              const listBucket = getPaymentListBucket(
+                payment,
+                payment.batchId ? batchById.get(payment.batchId) : undefined,
+              );
+              const displayStatus: PaymentStatus = listBucket;
+              return (
               <View
                 key={payment.id}
                 style={[
                   styles.paymentCard,
-                  { borderLeftColor: getStatusBorderColor(payment.status) },
+                  { borderLeftColor: getStatusBorderColor(displayStatus) },
                 ]}
               >
                 {/* Card Header */}
@@ -576,13 +845,13 @@ export default function Payments() {
                     <View
                       style={[
                         styles.statusIconContainer,
-                        { backgroundColor: getStatusBg(payment.status) },
+                        { backgroundColor: getStatusBg(displayStatus) },
                       ]}
                     >
                       <MaterialIcons
-                        name={getStatusIcon(payment.status) as any}
+                        name={getStatusIcon(displayStatus) as any}
                         size={20}
-                        color={getStatusColor(payment.status)}
+                        color={getStatusColor(displayStatus)}
                       />
                     </View>
                     <View style={styles.cardHeaderInfo}>
@@ -592,16 +861,16 @@ export default function Payments() {
                       <View
                         style={[
                           styles.statusBadge,
-                          { backgroundColor: getStatusBg(payment.status) },
+                          { backgroundColor: getStatusBg(displayStatus) },
                         ]}
                       >
                         <Text
                           style={[
                             styles.statusBadgeText,
-                            { color: getStatusColor(payment.status) },
+                            { color: getStatusColor(displayStatus) },
                           ]}
                         >
-                          {getStatusLabel(payment.status)}
+                          {getStatusLabel(displayStatus)}
                         </Text>
                       </View>
                     </View>
@@ -698,7 +967,8 @@ export default function Payments() {
                   </View>
                 </View>
               </View>
-            ))
+            );
+            })
           )}
         </ScrollView>
 
@@ -727,28 +997,136 @@ export default function Payments() {
               <ScrollView
                 style={styles.modalScroll}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+                onScrollBeginDrag={() => {
+                  clearBatchDescBlurTimer();
+                  setBatchDescDropdownOpen(false);
+                }}
               >
-                {/* Descrição */}
+                {/* Lote (busca + # corte) */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("payments.description")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="description" size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.input}
-                      value={description}
-                      onChangeText={setDescription}
-                      placeholder={t("payments.descriptionPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                    />
+                  <Text style={styles.label}>{t("payments.batch")}</Text>
+                  <View style={styles.descFieldWrap}>
+                    <View style={styles.inputContainer}>
+                      <MaterialIcons name="inventory-2" size={20} color="#6B7280" />
+                      <TextInput
+                        style={styles.input}
+                        value={description}
+                        onChangeText={handleDescriptionChange}
+                        placeholder={t("payments.loteSearchPlaceholder")}
+                        placeholderTextColor="#9CA3AF"
+                        onFocus={() => {
+                          clearBatchDescBlurTimer();
+                          if (batches.length > 0) setBatchDescDropdownOpen(true);
+                        }}
+                        onBlur={() => {
+                          clearBatchDescBlurTimer();
+                          /* Delay: no Android, o 1.º toque fechava o teclado e o timeout fechava a lista
+                           * antes de o item receber o press (ver keyboardShouldPersistTaps no ScrollView). */
+                          batchDescBlurTimer.current = setTimeout(() => {
+                            setBatchDescDropdownOpen(false);
+                          }, Platform.OS === "android" ? 400 : 220);
+                        }}
+                      />
+                      {batches.length > 0 ? (
+                        <TouchableOpacity
+                          onPress={toggleBatchDescDropdown}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t("payments.batchDropdownToggle")}
+                        >
+                          <MaterialIcons
+                            name={batchDescDropdownOpen ? "expand-less" : "expand-more"}
+                            size={22}
+                            color="#6B7280"
+                          />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                    {batchDescDropdownOpen && batches.length > 0 ? (
+                      <View style={styles.batchDescDropdown} collapsable={false}>
+                        <ScrollView
+                          style={styles.batchDescDropdownList}
+                          nestedScrollEnabled
+                          keyboardShouldPersistTaps="always"
+                          showsVerticalScrollIndicator
+                        >
+                          {filteredBatchesForDescription.length === 0 ? (
+                            <Text style={styles.batchDescDropdownEmpty}>
+                              {t("payments.batchDropdownNoResults")}
+                            </Text>
+                          ) : (
+                            filteredBatchesForDescription.map((b) => {
+                              const metaWs =
+                                acceptingWorkshopDisplayName(b) || b.workshopName || "";
+                              return (
+                                <TouchableOpacity
+                                  key={b.id}
+                                  style={styles.batchDescDropdownItem}
+                                  activeOpacity={0.7}
+                                  onPressIn={clearBatchDescBlurTimer}
+                                  onPress={() => {
+                                    clearBatchDescBlurTimer();
+                                    selectBatchForDescription(b);
+                                  }}
+                                >
+                                  <Text style={styles.batchDescDropdownTitle} numberOfLines={2}>
+                                    {b.cutListNumber != null
+                                      ? `#${b.cutListNumber} · ${b.name}`
+                                      : b.name}
+                                  </Text>
+                                  <Text style={styles.batchDescDropdownMeta} numberOfLines={1}>
+                                    {`${b.totalPieces} ${t("batches.pieces")}${
+                                      metaWs ? ` · ${metaWs}` : ""
+                                    }`}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })
+                          )}
+                        </ScrollView>
+                      </View>
+                    ) : null}
                   </View>
+                  <Text style={styles.fieldHint}>{t("payments.loteSearchHint")}</Text>
                   {errors.description && (
                     <Text style={styles.errorText}>{errors.description}</Text>
                   )}
                 </View>
 
-                {/* Valor */}
+                {/* Oficina que aceitou o lote — acima do valor (só novo pagamento) */}
+                {!editingPayment ? (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>{t("payments.workshopAutoFromBatch")}</Text>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        autoWorkshopFromBatch ? styles.readOnlyField : styles.readOnlyFieldPending,
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="business"
+                        size={20}
+                        color={autoWorkshopFromBatch ? "#059669" : "#9CA3AF"}
+                      />
+                      <Text
+                        style={[
+                          styles.readOnlyText,
+                          !autoWorkshopFromBatch && styles.readOnlyPlaceholder,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {autoWorkshopFromBatch || t("payments.workshopFromBatchPlaceholder")}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Valor (novo = serviço + taxa 2,5% no total; edição = valor já lançado) */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("payments.amount")}</Text>
+                  <Text style={styles.label}>
+                    {editingPayment ? t("payments.amount") : t("payments.amountService")}
+                  </Text>
                   <View style={styles.inputContainer}>
                     <MaterialIcons name="attach-money" size={20} color="#6B7280" />
                     <TextInput
@@ -760,76 +1138,23 @@ export default function Payments() {
                       keyboardType="decimal-pad"
                     />
                   </View>
+                  {!editingPayment && newPaymentFeePreview ? (
+                    <View style={styles.feeNoticeBox}>
+                      <Text style={styles.feeNoticeText}>
+                        {t("payments.fee2_5Line")
+                          .replace("{pct}", String(MARKETPLACE_FEE_PERCENT))
+                          .replace("{total}", formatCurrency(newPaymentFeePreview.total))}
+                      </Text>
+                    </View>
+                  ) : null}
                   {errors.amount && (
                     <Text style={styles.errorText}>{errors.amount}</Text>
                   )}
                 </View>
 
-                {/* Data de Vencimento */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("payments.dueDate")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="event" size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.input}
-                      value={dueDate}
-                      onChangeText={(text) =>
-                        setDueDate(formatDateInput(text))
-                      }
-                      placeholder={t("payments.dueDatePlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="number-pad"
-                      maxLength={10}
-                    />
-                  </View>
-                  {errors.dueDate && (
-                    <Text style={styles.errorText}>{errors.dueDate}</Text>
-                  )}
-                </View>
-
-                {/* Status */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("payments.statusLabel")}</Text>
-                  <View style={styles.statusOptions}>
-                    {(["pending", "paid", "overdue", "cancelled"] as PaymentStatus[]).map(
-                      (s) => (
-                        <TouchableOpacity
-                          key={s}
-                          style={[
-                            styles.statusOption,
-                            status === s && {
-                              borderColor: getStatusColor(s),
-                              backgroundColor: getStatusBg(s),
-                            },
-                          ]}
-                          onPress={() => setStatus(s)}
-                        >
-                          <MaterialIcons
-                            name={getStatusIcon(s) as any}
-                            size={16}
-                            color={
-                              status === s ? getStatusColor(s) : "#6B7280"
-                            }
-                          />
-                          <Text
-                            style={[
-                              styles.statusOptionText,
-                              status === s && {
-                                color: getStatusColor(s),
-                                fontWeight: "600",
-                              },
-                            ]}
-                          >
-                            {getStatusLabel(s)}
-                          </Text>
-                        </TouchableOpacity>
-                      )
-                    )}
-                  </View>
-                </View>
-
-                {/* Data de Pagamento (opcional) */}
-                {(status === "paid" || editingPayment?.paidDate) && (
+                {/* Data de Pagamento (opcional) — ao editar, se já foi pago ou tiver data */}
+                {editingPayment &&
+                  (editingPayment.status === "paid" || editingPayment.paidDate) && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>
                       {t("payments.paidDate")}{" "}
@@ -861,122 +1186,21 @@ export default function Payments() {
                   </View>
                 )}
 
-                {/* Oficina (opcional) */}
-                {workshops.length > 0 && (
+                {/* Oficina — edição (novo pagamento mostra o bloco acima do valor) */}
+                {editingPayment && (autoWorkshopFromBatch || editingPayment?.workshopName) ? (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>
-                      {t("payments.workshop")}{" "}
-                      <Text style={styles.optionalLabel}>
-                        ({t("payments.optional")})
+                    <Text style={styles.label}>{t("payments.workshopAutoFromBatch")}</Text>
+                    <View style={[styles.inputContainer, styles.readOnlyField]}>
+                      <MaterialIcons name="business" size={20} color="#059669" />
+                      <Text style={styles.readOnlyText} numberOfLines={2}>
+                        {autoWorkshopFromBatch || editingPayment?.workshopName || ""}
                       </Text>
-                    </Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.selectorContent}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.selectorOption,
-                          selectedWorkshopId === "" && styles.selectorOptionActive,
-                        ]}
-                        onPress={() => setSelectedWorkshopId("")}
-                      >
-                        <Text
-                          style={[
-                            styles.selectorOptionText,
-                            selectedWorkshopId === "" &&
-                              styles.selectorOptionTextActive,
-                          ]}
-                        >
-                          Nenhuma
-                        </Text>
-                      </TouchableOpacity>
-                      {workshops.map((w) => (
-                        <TouchableOpacity
-                          key={w.id}
-                          style={[
-                            styles.selectorOption,
-                            selectedWorkshopId === w.id &&
-                              styles.selectorOptionActive,
-                          ]}
-                          onPress={() => setSelectedWorkshopId(w.id)}
-                        >
-                          <Text
-                            style={[
-                              styles.selectorOptionText,
-                              selectedWorkshopId === w.id &&
-                                styles.selectorOptionTextActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {w.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                    </View>
                   </View>
-                )}
-
-                {/* Lote (opcional) */}
-                {batches.length > 0 && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>
-                      {t("payments.batch")}{" "}
-                      <Text style={styles.optionalLabel}>
-                        ({t("payments.optional")})
-                      </Text>
-                    </Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.selectorContent}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.selectorOption,
-                          selectedBatchId === "" && styles.selectorOptionActive,
-                        ]}
-                        onPress={() => setSelectedBatchId("")}
-                      >
-                        <Text
-                          style={[
-                            styles.selectorOptionText,
-                            selectedBatchId === "" &&
-                              styles.selectorOptionTextActive,
-                          ]}
-                        >
-                          Nenhum
-                        </Text>
-                      </TouchableOpacity>
-                      {batches.map((b) => (
-                        <TouchableOpacity
-                          key={b.id}
-                          style={[
-                            styles.selectorOption,
-                            selectedBatchId === b.id &&
-                              styles.selectorOptionActive,
-                          ]}
-                          onPress={() => setSelectedBatchId(b.id)}
-                        >
-                          <Text
-                            style={[
-                              styles.selectorOptionText,
-                              selectedBatchId === b.id &&
-                                styles.selectorOptionTextActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {b.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
+                ) : null}
               </ScrollView>
 
-              {/* Modal Footer */}
+              {/* Modal Footer: novo = Pagar (PIX), edição = Salvar */}
               <View style={styles.modalFooter}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -987,17 +1211,34 @@ export default function Payments() {
                     {t("common.cancel")}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.saveButton}
-                  onPress={handleSubmit}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>{t("common.save")}</Text>
-                  )}
-                </TouchableOpacity>
+                {editingPayment ? (
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveEdit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.saveButtonText}>{t("common.save")}</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.payButton}
+                    onPress={handleNewPaymentPay}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="payment" size={20} color="#FFFFFF" />
+                        <Text style={styles.payButtonText}>{t("payments.payCta")}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -1029,7 +1270,33 @@ export default function Payments() {
                 {pixView ? (
                   <>
                     <Text style={styles.pixDesc}>{pixView.description}</Text>
-                    {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0 ? (
+                    {pixView.totalCharged != null && pixView.totalCharged > 0 ? (
+                      <Text style={styles.pixTotalLine}>
+                        {formatCurrency(pixView.totalCharged)}
+                      </Text>
+                    ) : null}
+                    {pixView.totalCharged != null &&
+                    pixView.totalCharged > 0 &&
+                    (pixView.platformFeeAmount != null || pixView.feePercent != null) ? (
+                      <Text style={styles.pixSubLine}>
+                        {t("payments.fee2_5Title").replace(
+                          "{pct}",
+                          String(
+                            pixView.feePercent != null
+                              ? pixView.feePercent
+                              : MARKETPLACE_FEE_PERCENT
+                          )
+                        )}
+                        {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0
+                          ? ` · ${t("payments.platformFeeLabel")}: ${formatCurrency(
+                              pixView.platformFeeAmount
+                            )}`
+                          : null}
+                      </Text>
+                    ) : null}
+                    {pixView.platformFeeAmount != null &&
+                    pixView.platformFeeAmount > 0 &&
+                    !(pixView.totalCharged != null && pixView.totalCharged > 0) ? (
                       <Text style={styles.pixFee}>
                         {t("payments.platformFeeLabel")}:{" "}
                         {formatCurrency(pixView.platformFeeAmount)}
@@ -1045,13 +1312,25 @@ export default function Payments() {
                       />
                     ) : null}
                     {pixView.invoiceUrl ? (
-                      <TouchableOpacity
-                        style={styles.pixLinkBtn}
-                        onPress={() => Linking.openURL(pixView.invoiceUrl!)}
-                      >
-                        <MaterialIcons name="open-in-new" size={18} color="#6366F1" />
-                        <Text style={styles.pixLinkText}>{t("payments.pixOpenInvoice")}</Text>
-                      </TouchableOpacity>
+                      <>
+                        <TouchableOpacity
+                          style={styles.pixCopyLinkBtn}
+                          onPress={() => copyPaymentLink(pixView.invoiceUrl!)}
+                        >
+                          <MaterialIcons name="link" size={20} color="#FFFFFF" />
+                          <Text style={styles.pixCopyLinkBtnText}>
+                            {t("payments.copyPayLink")}
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={styles.pixHint}>{t("payments.payLinkForBank")}</Text>
+                        <TouchableOpacity
+                          style={styles.pixLinkBtn}
+                          onPress={() => Linking.openURL(pixView.invoiceUrl!)}
+                        >
+                          <MaterialIcons name="open-in-new" size={18} color="#6366F1" />
+                          <Text style={styles.pixLinkText}>{t("payments.pixOpenInvoice")}</Text>
+                        </TouchableOpacity>
+                      </>
                     ) : null}
                     {pixView.pixCopyPaste ? (
                       <TouchableOpacity
@@ -1371,11 +1650,35 @@ const styles = StyleSheet.create({
     width: "92%",
     maxWidth: 420,
   },
+  feeNoticeBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  feeNoticeText: {
+    fontSize: 12,
+    color: "#166534",
+    lineHeight: 16,
+  },
   pixDesc: {
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
     marginBottom: 8,
+  },
+  pixTotalLine: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#059669",
+    marginBottom: 4,
+  },
+  pixSubLine: {
+    fontSize: 13,
+    color: "#4B5563",
+    marginBottom: 12,
   },
   pixFee: {
     fontSize: 13,
@@ -1387,6 +1690,22 @@ const styles = StyleSheet.create({
     height: 220,
     alignSelf: "center",
     marginVertical: 12,
+  },
+  pixCopyLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#0D9488",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  pixCopyLinkBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
   pixLinkBtn: {
     flexDirection: "row",
@@ -1446,6 +1765,73 @@ const styles = StyleSheet.create({
   modalScroll: {
     maxHeight: 480,
   },
+  descFieldWrap: {
+    position: "relative",
+    zIndex: 20,
+    elevation: 12,
+  },
+  batchDescDropdown: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    marginTop: 6,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  batchDescDropdownList: {
+    maxHeight: 200,
+  },
+  batchDescDropdownEmpty: {
+    padding: 14,
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  batchDescDropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  batchDescDropdownTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  batchDescDropdownMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  fieldHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: "#9CA3AF",
+    lineHeight: 15,
+  },
+  readOnlyField: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  readOnlyFieldPending: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
+  readOnlyText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#065F46",
+    fontWeight: "600",
+  },
+  readOnlyPlaceholder: {
+    color: "#9CA3AF",
+    fontWeight: "400",
+  },
   inputGroup: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -1481,55 +1867,6 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     marginTop: 4,
   },
-  statusOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  statusOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-  },
-  statusOptionText: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  selectorContent: {
-    gap: 8,
-    paddingVertical: 2,
-  },
-  selectorOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    marginRight: 8,
-    maxWidth: 160,
-  },
-  selectorOptionActive: {
-    borderColor: "#6366F1",
-    backgroundColor: "#F0F4FF",
-    borderWidth: 2,
-  },
-  selectorOptionText: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  selectorOptionTextActive: {
-    color: "#6366F1",
-    fontWeight: "600",
-  },
   modalFooter: {
     flexDirection: "row",
     padding: 20,
@@ -1560,6 +1897,21 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  payButton: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#059669",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  payButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
     color: "#FFFFFF",
   },
 });

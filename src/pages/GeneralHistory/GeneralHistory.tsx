@@ -436,7 +436,9 @@ function mapBatchesToEvents(
       id: b.id,
       type: "batch",
       date,
-      title: b.name,
+      title: fromOwnerInvite
+        ? t("generalHistory.batchInviteAcceptedTitle").replace("{name}", b.name)
+        : b.name,
       description: fromOwnerInvite
         ? t("generalHistory.batchFromOwnerInvite")
         : b.workshopName || "",

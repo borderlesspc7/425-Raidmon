@@ -43,6 +43,8 @@ export interface Payment {
 export interface CreatePaymentData {
   workshopId?: string;
   workshopName?: string;
+  /** Conta Firebase (oficina) que aceitou o lote — usado no marketplace Asaas (subconta). */
+  marketplaceWorkshopUserId?: string | null;
   batchId?: string;
   batchName?: string;
   amount: number;

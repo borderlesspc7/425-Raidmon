@@ -100,7 +100,16 @@ export default function BatchOffer() {
   };
 
   const onAccept = async () => {
-    if (!batchId || !token || !preview?.canAccept) return;
+    if (!batchId || !token || !preview) return;
+    const alreadyYours = !preview.canAccept && preview.reason === "already_yours";
+    if (!preview.canAccept && !alreadyYours) return;
+
+    if (alreadyYours) {
+      Alert.alert(t("common.success"), t("batchOffer.alreadyAccepted"));
+      navigate(paths.workshopProduction);
+      return;
+    }
+
     try {
       setActing(true);
       const res = await respondBatchInvite(batchId, token, "accept");
@@ -109,7 +118,7 @@ export default function BatchOffer() {
       } else {
         Alert.alert(t("common.success"), t("batchOffer.acceptSuccess"));
       }
-      navigate(paths.generalHistory);
+      navigate(paths.workshopProduction);
     } catch (e: unknown) {
       Alert.alert(t("common.error"), mapInviteErrorMessage(e, "batchOffer.actionError"));
     } finally {
@@ -178,6 +187,8 @@ export default function BatchOffer() {
   if (!preview) return null;
 
   const blocked = !preview.canAccept && preview.reason === "other_workshop";
+  const alreadyYours = !preview.canAccept && preview.reason === "already_yours";
+  const canStartProduction = preview.canAccept || alreadyYours;
 
   return (
     <Layout>
@@ -220,10 +231,10 @@ export default function BatchOffer() {
         <TouchableOpacity
           style={[
             styles.primaryBtn,
-            (!preview.canAccept || acting) && styles.btnDisabled,
+            (!canStartProduction || acting) && styles.btnDisabled,
           ]}
           onPress={onAccept}
-          disabled={!preview.canAccept || acting}
+          disabled={!canStartProduction || acting}
         >
           {acting ? (
             <ActivityIndicator color="#FFF" />

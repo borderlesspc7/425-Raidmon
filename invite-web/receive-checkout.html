@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Costura Conectada — Aprovar recebimento</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 2rem auto; padding: 0 1rem; color: #111; }
+    a.button {
+      display: inline-block; margin-top: 1rem; padding: 0.75rem 1.25rem;
+      background: #111; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;
+    }
+    .muted { color: #666; font-size: 0.9rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Abrir no app</h1>
+  <p>Aprove ou recuse o recebimento no <strong>Costura Conectada</strong>.</p>
+  <p><a class="button" id="openApp" href="#">Abrir no aplicativo</a></p>
+  <p class="muted">Se nada acontecer, instale o app e toque no botão novamente.</p>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var receiveId = params.get("receiveId");
+      var token = params.get("token");
+      if (!receiveId || !token) {
+        document.body.innerHTML = "<p>Link inválido ou incompleto.</p>";
+        return;
+      }
+      var deep =
+        "costuraconectada://receiveCheckout?receiveId=" +
+        encodeURIComponent(receiveId) +
+        "&token=" +
+        encodeURIComponent(token);
+      var openApp = document.getElementById("openApp");
+      openApp.href = deep;
+      function tryOpen() {
+        window.location.href = deep;
+      }
+      openApp.addEventListener("click", function (e) {
+        e.preventDefault();
+        tryOpen();
+      });
+      setTimeout(tryOpen, 300);
+    })();
+  </script>
+</body>
+</html>
