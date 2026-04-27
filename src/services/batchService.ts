@@ -103,6 +103,34 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
       typeof data.partialPiecesDone === "number" && Number.isFinite(data.partialPiecesDone)
         ? data.partialPiecesDone
         : undefined,
+    piecesDeliveredCumulative:
+      typeof data.piecesDeliveredCumulative === "number" &&
+      Number.isFinite(data.piecesDeliveredCumulative)
+        ? data.piecesDeliveredCumulative
+        : undefined,
+    checkoutReferencePieces:
+      typeof data.checkoutReferencePieces === "number" &&
+      Number.isFinite(data.checkoutReferencePieces)
+        ? data.checkoutReferencePieces
+        : undefined,
+    checkoutWaveGuaranteedBase:
+      typeof data.checkoutWaveGuaranteedBase === "number" &&
+      Number.isFinite(data.checkoutWaveGuaranteedBase)
+        ? data.checkoutWaveGuaranteedBase
+        : undefined,
+    ownerBatchCheckoutToken:
+      typeof data.ownerBatchCheckoutToken === "string"
+        ? data.ownerBatchCheckoutToken
+        : undefined,
+    ownerWorkshopPayPaymentId:
+      typeof data.ownerWorkshopPayPaymentId === "string"
+        ? data.ownerWorkshopPayPaymentId
+        : undefined,
+    completedAt: data.completedAt
+      ? data.completedAt instanceof Timestamp
+        ? data.completedAt.toDate()
+        : new Date(data.completedAt)
+      : undefined,
     createdAt:
       data.createdAt instanceof Timestamp
         ? data.createdAt.toDate()

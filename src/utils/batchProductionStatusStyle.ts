@@ -2,10 +2,10 @@ import type { Batch, ProductionFlowStatus } from '../types/batch';
 
 /**
  * Cores alinhadas entre dono e oficina:
- * - Vermelho: atraso (data de entrega < hoje, lote ainda ativo)
- * - Verde: in_production ou ready_for_pickup (lote concluído = verde)
- * - Laranja claro: partial ou paused
- * - Amarelo claro: demais estados
+ * - Vermelho: produção atrasada (data de entrega < hoje, lote ativo)
+ * - Verde: lote pronto (pronto para retirada ou concluído)
+ * - Amarelo: em produção (incl. pausa informada)
+ * - Laranja: conclusão / entrega parcial
  */
 export const BATCH_PRODUCTION_COLORS = {
   late: { bg: '#FEE2E2', fg: '#B91C1C' },
@@ -44,11 +44,14 @@ export function getBatchProductionPillColors(
     return { ...BATCH_PRODUCTION_COLORS.late };
   }
   const flow: ProductionFlowStatus | undefined = batch.productionFlowStatus;
-  if (flow === 'ready_for_pickup' || flow === 'in_production') {
+  if (flow === 'partial') {
+    return { ...BATCH_PRODUCTION_COLORS.orange };
+  }
+  if (flow === 'ready_for_pickup') {
     return { ...BATCH_PRODUCTION_COLORS.green };
   }
-  if (flow === 'partial' || flow === 'paused') {
-    return { ...BATCH_PRODUCTION_COLORS.orange };
+  if (flow === 'in_production' || flow === 'paused') {
+    return { ...BATCH_PRODUCTION_COLORS.yellow };
   }
   return { ...BATCH_PRODUCTION_COLORS.yellow };
 }

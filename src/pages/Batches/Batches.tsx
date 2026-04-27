@@ -39,6 +39,7 @@ import {
 } from "../../utils/planEntitlements";
 import { shareRomaneioForBatch } from "../../utils/romaneioPdf";
 import { getBatchProductionPillColors } from "../../utils/batchProductionStatusStyle";
+import OwnerBatchPreInviteModal from "../../components/OwnerBatchPreInviteModal/OwnerBatchPreInviteModal";
 
 function formatMoneyBRL(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -150,21 +151,32 @@ export default function Batches() {
 
   const [offerSummary, setOfferSummary] = useState<{
     visible: boolean;
+    step: "agreement" | "share";
+    batchId: string;
+    workshopName: string;
     inviteUrl: string;
     batchRef: string;
     pieceName: string;
     quantity: number;
     pricePerPiece: number;
     guaranteedTotal: number;
+    batchObservations: string;
+    cutObservations: string;
   }>({
     visible: false,
+    step: "agreement",
+    batchId: "",
+    workshopName: "",
     inviteUrl: "",
     batchRef: "",
     pieceName: "",
     quantity: 0,
     pricePerPiece: 0,
     guaranteedTotal: 0,
+    batchObservations: "",
+    cutObservations: "",
   });
+  const [offerLinkJustCopied, setOfferLinkJustCopied] = useState(false);
 
   const [romaneioLoadingId, setRomaneioLoadingId] = useState<string | null>(null);
 
@@ -512,8 +524,17 @@ export default function Batches() {
           const inviteUrl = buildBatchOfferShareUrl(created.id, created.inviteToken);
           const refNum =
             created.cutListNumber ?? cutListNumberField ?? null;
+          const cutForObs =
+            selectedCutId != null ? cuts.find((c) => c.id === selectedCutId) : undefined;
+          const cutObsText =
+            cutForObs?.observations && String(cutForObs.observations).trim()
+              ? String(cutForObs.observations).trim()
+              : "";
           setOfferSummary({
             visible: true,
+            step: "agreement",
+            batchId: created.id,
+            workshopName: (created.workshopName || batchData.workshopName || "").trim(),
             inviteUrl,
             batchRef:
               refNum != null
@@ -524,6 +545,8 @@ export default function Batches() {
             pricePerPiece: created.pricePerPiece ?? pricePerPieceField ?? 0,
             guaranteedTotal:
               created.guaranteedTotal ?? guaranteedTotalField ?? 0,
+            batchObservations: observations.trim(),
+            cutObservations: cutObsText,
           });
         } else {
           Alert.alert(t("common.success"), t("batches.createSuccess"));
@@ -536,20 +559,21 @@ export default function Batches() {
     }
   };
 
-  const formatOfferMoney = (n: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    }).format(n);
-
-  const shareOfferLink = async () => {
+  const copyOfferLinkOnly = async () => {
     const url = offerSummary.inviteUrl;
+    if (!url) return;
     try {
       await Clipboard.setStringAsync(url);
+      setOfferLinkJustCopied(true);
+      setTimeout(() => setOfferLinkJustCopied(false), 2200);
     } catch {
-      // Continua com o share mesmo se a área de transferência falhar
+      Alert.alert(t("common.error"), t("batches.offerLinkCopyError"));
     }
+  };
+
+  const shareOfferLinkNative = async () => {
+    const url = offerSummary.inviteUrl;
+    if (!url) return;
     try {
       await Share.share({
         message: url,
@@ -563,7 +587,32 @@ export default function Batches() {
   };
 
   const closeOfferSummary = () => {
-    setOfferSummary((s) => ({ ...s, visible: false }));
+    setOfferLinkJustCopied(false);
+    setOfferSummary((s) => ({ ...s, visible: false, step: "agreement" }));
+  };
+
+  const handlePreInviteConfirm = async (price: number, total: number) => {
+    if (!offerSummary.batchId) return;
+    const prevP = offerSummary.pricePerPiece;
+    const prevG = offerSummary.guaranteedTotal;
+    const changed =
+      Math.abs(price - prevP) > 0.009 || Math.abs(total - prevG) > 0.009;
+    try {
+      if (changed) {
+        await updateBatch(offerSummary.batchId, {
+          pricePerPiece: price,
+          guaranteedTotal: total,
+        });
+      }
+      setOfferSummary((s) => ({
+        ...s,
+        pricePerPiece: price,
+        guaranteedTotal: total,
+        step: "share",
+      }));
+    } catch (e: unknown) {
+      Alert.alert(t("common.error"), String((e as Error)?.message));
+    }
   };
 
   const handleDelete = (batch: Batch) => {
@@ -1252,91 +1301,35 @@ export default function Batches() {
           </View>
         </Modal>
 
-        {/* Resumo pós-salvar (dono) + link WhatsApp */}
-        <Modal
+        <OwnerBatchPreInviteModal
           visible={offerSummary.visible}
-          animationType="fade"
-          transparent
-          onRequestClose={closeOfferSummary}
-        >
-          <View style={styles.offerModalOverlay}>
-            <View style={styles.offerModalContent}>
-              <Text style={styles.offerWelcome}>
-                {t("batches.offerWelcome").replace(
-                  "{name}",
-                  user?.name ?? "…",
-                )}
-              </Text>
-              <Text style={styles.offerContext}>{t("batches.offerContext")}</Text>
-              <View style={styles.offerCard}>
-                <View style={styles.offerRow}>
-                  <View style={styles.offerLabelWrap}>
-                    <MaterialIcons name="confirmation-number" size={16} color="#6B7280" />
-                    <Text style={styles.offerLabel}>{t("batches.offerBatchRef")}</Text>
-                  </View>
-                  <Text style={styles.offerValue}>{offerSummary.batchRef}</Text>
-                </View>
-                <View style={styles.offerRow}>
-                  <View style={styles.offerLabelWrap}>
-                    <MaterialIcons name="checkroom" size={16} color="#6B7280" />
-                    <Text style={styles.offerLabel}>
-                      {t("batches.offerPieceName")}
-                    </Text>
-                  </View>
-                  <Text style={styles.offerValue}>{offerSummary.pieceName}</Text>
-                </View>
-                <View style={styles.offerRow}>
-                  <View style={styles.offerLabelWrap}>
-                    <MaterialIcons name="inventory-2" size={16} color="#6B7280" />
-                    <Text style={styles.offerLabel}>{t("batches.quantity")}</Text>
-                  </View>
-                  <Text style={styles.offerValue}>
-                    {offerSummary.quantity} {t("batches.pieces")}
-                  </Text>
-                </View>
-                <View style={styles.offerRow}>
-                  <View style={styles.offerLabelWrap}>
-                    <MaterialIcons name="sell" size={16} color="#6B7280" />
-                    <Text style={styles.offerLabel}>
-                      {t("batches.offerPricePerPiece")}
-                    </Text>
-                  </View>
-                  <Text style={styles.offerValue}>
-                    {formatOfferMoney(offerSummary.pricePerPiece)}
-                  </Text>
-                </View>
-                <View style={styles.offerRow}>
-                  <View style={styles.offerLabelWrap}>
-                    <MaterialIcons name="payments" size={16} color="#6B7280" />
-                    <Text style={styles.offerLabel}>
-                      {t("batches.offerGuaranteedTotal")}
-                    </Text>
-                  </View>
-                  <Text style={[styles.offerValue, styles.offerTotal]}>
-                    {formatOfferMoney(offerSummary.guaranteedTotal)}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.offerCopyBtn}
-                onPress={shareOfferLink}
-              >
-                <MaterialIcons name="share" size={20} color="#FFFFFF" />
-                <Text style={styles.offerCopyBtnText}>
-                  {t("batches.offerCopyLinkAndShare")}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.offerConfirmBtn}
-                onPress={closeOfferSummary}
-              >
-                <Text style={styles.offerConfirmBtnText}>
-                  {t("batches.offerConfirm")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          data={
+            offerSummary.visible
+              ? {
+                  step: offerSummary.step,
+                  batchId: offerSummary.batchId,
+                  inviteUrl: offerSummary.inviteUrl,
+                  batchRef: offerSummary.batchRef,
+                  pieceName: offerSummary.pieceName,
+                  quantity: offerSummary.quantity,
+                  pricePerPiece: offerSummary.pricePerPiece,
+                  guaranteedTotal: offerSummary.guaranteedTotal,
+                  batchObservations: offerSummary.batchObservations,
+                  cutObservations: offerSummary.cutObservations,
+                  workshopName: offerSummary.workshopName,
+                  photoURL: user?.photoURL,
+                  userFirstName:
+                    (user?.name && user.name.split(" ")[0]) || user?.name || "—",
+                  companyName: user?.companyName,
+                }
+              : null
+          }
+          onClose={closeOfferSummary}
+          onConfirmAgreement={handlePreInviteConfirm}
+          offerLinkJustCopied={offerLinkJustCopied}
+          onCopyLink={copyOfferLinkOnly}
+          onShareLink={shareOfferLinkNative}
+        />
       </View>
     </Layout>
   );
@@ -1807,87 +1800,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
-  },
-  offerModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  offerModalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    gap: 14,
-  },
-  offerWelcome: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-  },
-  offerContext: {
-    fontSize: 13,
-    color: "#6B7280",
-  },
-  offerCard: {
-    gap: 10,
-    paddingVertical: 8,
-  },
-  offerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-  offerLabelWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-    minWidth: 0,
-  },
-  offerLabel: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-  offerValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-    flexShrink: 0,
-    maxWidth: "58%",
-    textAlign: "right",
-  },
-  offerTotal: {
-    color: "#6366F1",
-    fontSize: 16,
-  },
-  offerCopyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#25D366",
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  offerCopyBtnText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  offerConfirmBtn: {
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-  },
-  offerConfirmBtnText: {
-    color: "#374151",
-    fontWeight: "700",
-    fontSize: 16,
   },
 });

@@ -3,7 +3,8 @@ export type InAppNotificationType =
   | 'workshop_partial'
   | 'workshop_pause'
   | 'workshop_started_from_invite'
-  | 'receive_checkout';
+  | 'receive_checkout'
+  | 'owner_workshop_payment';
 
 export interface InAppNotification {
   id: string;

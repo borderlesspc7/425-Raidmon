@@ -28,7 +28,9 @@ import EnterprisePlan from "../pages/Plans/EnterprisePlan";
 import PlanCheckout from "../pages/Plans/PlanCheckout";
 import BatchOffer from "../pages/BatchOffer/BatchOffer";
 import WorkshopProduction from "../pages/WorkshopProduction/WorkshopProduction";
+import WorkshopBatchHub from "../pages/WorkshopBatchHub/WorkshopBatchHub";
 import ReceiveCheckout from "../pages/ReceiveCheckout/ReceiveCheckout";
+import OwnerWorkshopPayment from "../pages/OwnerWorkshopPayment/OwnerWorkshopPayment";
 import { useNavigation } from "../routes/NavigationContext";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -46,6 +48,16 @@ import {
   readPendingReceiveCheckout,
   clearPendingReceiveCheckout,
 } from "../utils/pendingReceiveCheckout";
+import {
+  storePendingOwnerPayment,
+  readPendingOwnerPayment,
+  clearPendingOwnerPayment,
+} from "../utils/pendingOwnerPayment";
+import {
+  storePendingOwnerBatchCheckout,
+  readPendingOwnerBatchCheckout,
+  clearPendingOwnerBatchCheckout,
+} from "../utils/pendingOwnerBatchCheckout";
 
 const LANGUAGE_STORAGE_KEY = "@costura_conectada:language";
 const ADMIN_EMAIL = "costuraconectada@gmail.com";
@@ -75,7 +87,9 @@ const screenComponents: Record<ScreenName, React.ComponentType> = {
   EnterprisePlan,
   PlanCheckout,
   BatchOffer,
+  OwnerWorkshopPayment,
   WorkshopProduction,
+  WorkshopBatchHub,
   ReceiveCheckout,
 };
 
@@ -102,6 +116,29 @@ export const AppRoutes = () => {
     const receiveId = qp.receiveId;
     const token = qp.token;
     const batchId = qp.batchId;
+    const paymentId = qp.paymentId;
+    const oc = qp.ownerCheckout;
+    const ownerCheckout =
+      oc === "1" || (Array.isArray(oc) && oc[0] === "1");
+
+    if (
+      typeof paymentId === "string" &&
+      typeof token === "string" &&
+      typeof batchId !== "string"
+    ) {
+      void clearPendingOwnerPayment();
+      const u = userRef.current;
+      if (!u) {
+        void storePendingOwnerPayment({ paymentId, token });
+        navigate(paths.login);
+        return true;
+      }
+      navigate(paths.ownerWorkshopPayment, {
+        ownerWorkshopPay: { paymentId, token },
+      });
+      return true;
+    }
+
     if (
       typeof receiveId === "string" &&
       typeof token === "string" &&
@@ -125,6 +162,28 @@ export const AppRoutes = () => {
       );
       return true;
     }
+
+    if (typeof batchId === "string" && typeof token === "string" && ownerCheckout) {
+      void clearPendingOwnerBatchCheckout();
+      const u = userRef.current;
+      if (!u) {
+        void storePendingOwnerBatchCheckout({ batchId, token });
+        navigate(paths.login);
+        return true;
+      }
+      if (u.userType === "workshop") {
+        Alert.alert(
+          "Costura Conectada",
+          "Este link é para o dono da confecção conferir o lote e pagar.",
+        );
+        return true;
+      }
+      navigate(paths.ownerWorkshopPayment, {
+        ownerBatchCheckout: { batchId, token },
+      });
+      return true;
+    }
+
     if (typeof batchId === "string" && typeof token === "string") {
       const u = userRef.current;
       if (u?.userType === "workshop") {
@@ -203,6 +262,23 @@ export const AppRoutes = () => {
         if (receivePend && user.userType === "workshop") {
           await clearPendingReceiveCheckout();
           navigate(paths.receiveCheckout, { receiveCheckout: receivePend });
+          return;
+        }
+        const ownerBatchPend = await readPendingOwnerBatchCheckout();
+        if (
+          ownerBatchPend &&
+          (user.userType === "owner" || user.userType === "admin")
+        ) {
+          await clearPendingOwnerBatchCheckout();
+          navigate(paths.ownerWorkshopPayment, {
+            ownerBatchCheckout: ownerBatchPend,
+          });
+          return;
+        }
+        const ownerPayPend = await readPendingOwnerPayment();
+        if (ownerPayPend) {
+          await clearPendingOwnerPayment();
+          navigate(paths.ownerWorkshopPayment, { ownerWorkshopPay: ownerPayPend });
           return;
         }
         navigate(isAdmin ? paths.adminDashboard : paths.dashboard);

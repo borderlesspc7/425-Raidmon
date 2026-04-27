@@ -44,6 +44,17 @@ export interface Batch {
   productionNote?: string;
   /** Peças concluídas no cenário de parcial (opcional) */
   partialPiecesDone?: number;
+  /** Peças já pagas/recebidas em entregas parciais anteriores (soma) */
+  piecesDeliveredCumulative?: number;
+  /** Entrega parcial: teto de peças no checkout atual (PIX proporcional a esta leva) */
+  checkoutReferencePieces?: number;
+  /** Valor base (BRL) desta leva antes da taxa — usado no checkout do dono */
+  checkoutWaveGuaranteedBase?: number;
+  /** Token no link pós-conclusão: dono confere peças antes do PIX */
+  ownerBatchCheckoutToken?: string;
+  /** Pagamento PIX (dono) após conferência */
+  ownerWorkshopPayPaymentId?: string;
+  completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,6 +75,9 @@ export interface CreateBatchData {
   productionFlowStatus?: ProductionFlowStatus;
   productionNote?: string;
   partialPiecesDone?: number;
+  piecesDeliveredCumulative?: number;
+  checkoutReferencePieces?: number;
+  checkoutWaveGuaranteedBase?: number;
 }
 
 export interface UpdateBatchData extends Partial<CreateBatchData> {

@@ -1,0 +1,12 @@
+[
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.costuraconectada.app",
+        "sha256_cert_fingerprints": [
+          "FD:E5:D1:5D:50:80:9E:30:95:16:88:10:49:E2:63:41:DE:C3:1A:65:D7:30:A7:8E:46:A3:B5:96:42:23:29:46"
+        ]
+      }
+    }
+  ]

@@ -52,6 +52,61 @@ function tokensMatch(expected, incoming) {
   return incoming === expected;
 }
 
+function roundMoneyWh(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
+function toJsDateWh(fireOrDate) {
+  if (!fireOrDate) return null;
+  if (typeof fireOrDate.toDate === "function") return fireOrDate.toDate();
+  if (fireOrDate._seconds !== undefined) return new Date(fireOrDate._seconds * 1000);
+  if (fireOrDate.seconds !== undefined) return new Date(fireOrDate.seconds * 1000);
+  return new Date(fireOrDate);
+}
+
+function startOfLocalDayWh(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function isActiveBatchDelayedWh(batch) {
+  if (batch.status === "completed" || batch.status === "cancelled") return false;
+  const dd = toJsDateWh(batch.deliveryDate);
+  if (!dd) return false;
+  return startOfLocalDayWh(dd).getTime() < startOfLocalDayWh(new Date()).getTime();
+}
+
+/**
+ * @param {import("firebase-admin/firestore").Firestore} db
+ * @param {typeof import("firebase-admin/firestore").FieldValue} FieldValue
+ * @param {string} batchId
+ */
+async function syncWorkshopDocStatusForBatchWh(db, FieldValue, batchId) {
+  const bSnap = await db.collection("batches").doc(batchId).get();
+  if (!bSnap.exists) return;
+  const d = bSnap.data() || {};
+  const workshopId = d.workshopId;
+  const userId = d.userId;
+  if (!workshopId || !userId) return;
+  const wRef = db.collection("workshops").doc(workshopId);
+  const wSnap = await wRef.get();
+  if (!wSnap.exists || wSnap.data().userId !== userId) return;
+  const flow = d.productionFlowStatus;
+  let status = "yellow";
+  if (flow === "ready_for_pickup") {
+    status = "green";
+  } else if (flow === "partial") {
+    status = "orange";
+  } else if (flow === "in_production" || flow === "paused") {
+    status = "yellow";
+  }
+  if (isActiveBatchDelayedWh(d)) {
+    status = "red";
+  }
+  await wRef.update({ status, updatedAt: FieldValue.serverTimestamp() });
+}
+
 /**
  * @param {import("firebase-admin/firestore").Firestore} db
  * @param {typeof import("firebase-admin/firestore").FieldValue} FieldValue
@@ -141,6 +196,80 @@ async function applyPaymentWebhookToFirestore(db, FieldValue, admin, body) {
       plan: planToApply,
       updatedAt: FieldValue.serverTimestamp(),
     });
+  }
+
+  const paidOk = !isOverdueEvt && (paid || statusReceived);
+  if (
+    paidOk &&
+    pdata.batchId &&
+    typeof pdata.batchId === "string" &&
+    pdata.ownerPaymentInviteKind === "owner_batch_checkout"
+  ) {
+    try {
+      const bRef = db.collection("batches").doc(pdata.batchId);
+      const bSnap = await bRef.get();
+      if (bSnap.exists) {
+        const b = bSnap.data() || {};
+        const hasWave =
+          typeof b.checkoutReferencePieces === "number" && b.checkoutReferencePieces > 0;
+        if (hasWave && b.status === "in_progress") {
+          const paidBase =
+            pdata.ownerCheckoutBaseAmount != null
+              ? Number(pdata.ownerCheckoutBaseAmount)
+              : 0;
+          const billable =
+            pdata.batchBillablePieces != null ? Number(pdata.batchBillablePieces) : 0;
+          const T =
+            typeof b.totalPieces === "number" && Number.isFinite(b.totalPieces)
+              ? b.totalPieces
+              : 0;
+          const prevCum =
+            typeof b.piecesDeliveredCumulative === "number" &&
+            Number.isFinite(b.piecesDeliveredCumulative)
+              ? b.piecesDeliveredCumulative
+              : 0;
+          const safeBill = Number.isFinite(billable) ? billable : 0;
+          const newCum = prevCum + safeBill;
+          const prevGT =
+            typeof b.guaranteedTotal === "number" && Number.isFinite(b.guaranteedTotal)
+              ? b.guaranteedTotal
+              : 0;
+          const pp =
+            typeof b.pricePerPiece === "number" && Number.isFinite(b.pricePerPiece)
+              ? b.pricePerPiece
+              : null;
+          let newGT;
+          if (pp != null && pp > 0 && T > 0) {
+            newGT = roundMoneyWh(pp * Math.max(0, T - newCum));
+          } else {
+            newGT = roundMoneyWh(Math.max(0, prevGT - paidBase));
+          }
+          const allDone = T > 0 && newCum >= T;
+          /** @type {Record<string, unknown>} */
+          const batchUpdate = {
+            piecesDeliveredCumulative: newCum,
+            guaranteedTotal: newGT,
+            ownerBatchCheckoutToken: FieldValue.delete(),
+            checkoutReferencePieces: FieldValue.delete(),
+            checkoutWaveGuaranteedBase: FieldValue.delete(),
+            ownerWorkshopPayPaymentId: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          if (allDone) {
+            batchUpdate.status = "completed";
+            batchUpdate.productionFlowStatus = "ready_for_pickup";
+            batchUpdate.completedAt = FieldValue.serverTimestamp();
+          } else {
+            batchUpdate.status = "in_progress";
+            batchUpdate.productionFlowStatus = "in_production";
+          }
+          await bRef.update(batchUpdate);
+          await syncWorkshopDocStatusForBatchWh(db, FieldValue, pdata.batchId);
+        }
+      }
+    } catch (e) {
+      console.error("[asaasWebhook] batch partial checkout resume failed", e);
+    }
   }
 
   await db.collection("asaasWebhookEvents").add({

@@ -64,6 +64,10 @@ function statusLabel(t: (k: string) => string, s: OperationalDisplay): string {
   }
 }
 
+function statusPausedLabel(t: (k: string) => string): string {
+  return t('dashboard.owner.statusPaused');
+}
+
 function ownerBatchBadgeStyle(batch: Batch): { backgroundColor: string } {
   return { backgroundColor: getBatchProductionPillColors(batch).bg };
 }
@@ -85,8 +89,11 @@ function ownerBatchStatusLabel(
     if (flow === 'in_production') {
       return t('dashboard.owner.statusProducingOk');
     }
-    if (flow === 'partial' || flow === 'paused') {
+    if (flow === 'partial') {
       return t('dashboard.owner.statusPendencies');
+    }
+    if (flow === 'paused') {
+      return statusPausedLabel(t);
     }
   }
   return formatBatchStatus(t, language, batch.status);

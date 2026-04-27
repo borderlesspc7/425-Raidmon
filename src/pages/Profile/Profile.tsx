@@ -240,7 +240,12 @@ export default function Profile() {
       if (result.canceled || !result.assets?.[0]?.uri) return;
 
       setPhotoUploading(true);
-      const photoUrl = await authService.uploadProfilePhoto(user.id, result.assets[0].uri);
+      const asset = result.assets[0];
+      const photoUrl = await authService.uploadProfilePhoto(
+        user.id,
+        asset.uri,
+        asset.mimeType ?? null,
+      );
       await updateProfile({ photoURL: photoUrl });
       Alert.alert(t("common.success"), t("profile.photoUpdateSuccess"));
     } catch (error: any) {
@@ -319,28 +324,34 @@ export default function Profile() {
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarContainer}>
-                  <TouchableOpacity
-                    style={styles.avatarTouchable}
-                    onPress={handlePickProfilePhoto}
-                    disabled={photoUploading}
-                    activeOpacity={0.85}
-                  >
+                <TouchableOpacity
+                  style={styles.avatarTouchable}
+                  onPress={handlePickProfilePhoto}
+                  disabled={photoUploading}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.avatarClip}>
                     {user.photoURL ? (
-                      <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+                      <Image
+                        source={{ uri: user.photoURL }}
+                        style={styles.avatarImage}
+                        resizeMode="cover"
+                      />
                     ) : (
-                      <View style={styles.avatar}>
+                      <View style={styles.avatarPlaceholder}>
                         <MaterialIcons name="person" size={48} color="#6366F1" />
                       </View>
                     )}
-                    {photoUploading && (
+                    {photoUploading ? (
                       <View style={styles.avatarLoadingOverlay}>
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       </View>
-                    )}
-                    <View style={styles.avatarCameraBadge}>
-                      <MaterialIcons name="photo-camera" size={14} color="#FFFFFF" />
-                    </View>
-                  </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  <View style={styles.avatarCameraBadge} pointerEvents="none">
+                    <MaterialIcons name="photo-camera" size={18} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
               </View>
               <Text style={styles.userName}>{user.name}</Text>
               <Text style={styles.userEmail}>{user.email}</Text>
@@ -767,15 +778,26 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 16,
   },
+  /** Área tocável: filho com clip (foto) + badge fora do overflow para sobrepor a foto. */
   avatarTouchable: {
-    borderRadius: 50,
-    overflow: "hidden",
+    width: 100,
+    height: 100,
+    position: "relative",
   },
-  avatar: {
+  avatarClip: {
     width: 100,
     height: 100,
     borderRadius: 50,
+    overflow: "hidden",
     backgroundColor: "#F0F4FF",
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -785,18 +807,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  /** Canto inferior direito, sobreposto à foto (metade dentro do círculo). */
   avatarCameraBadge: {
     position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    right: -2,
+    bottom: -2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: "#6366F1",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#FFFFFF",
+    zIndex: 2,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
   },
   userName: {
     fontSize: 22,

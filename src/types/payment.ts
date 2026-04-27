@@ -38,6 +38,15 @@ export interface Payment {
   marketplaceMode?: boolean;
   marketplaceWorkshopUserId?: string;
   asaasMarketplaceWorkshopWalletId?: string;
+
+  /** Link seguro dono → PIX após oficina concluir lote */
+  ownerPaymentInviteToken?: string;
+  ownerPaymentInviteKind?: string;
+  /** Conferência dono → pagamento proporcional */
+  batchPiecesReceived?: number;
+  batchDefectivePieces?: number;
+  batchBillablePieces?: number;
+  ownerCheckoutBaseAmount?: number;
 }
 
 export interface CreatePaymentData {

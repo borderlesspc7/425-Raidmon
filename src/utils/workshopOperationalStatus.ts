@@ -24,7 +24,7 @@ const COLORS: Record<OperationalDisplay, string> = {
   ready_pickup: '#166534',
   pendencies: '#C2410C',
   sewing: '#854D0E',
-  producing_ok: '#166534',
+  producing_ok: '#854D0E',
   delayed: '#B91C1C',
 };
 
@@ -49,9 +49,8 @@ export function deriveWorkshopCardState(
   const anyReadyForPickup = rel.some(
     (b) => b.productionFlowStatus === 'ready_for_pickup',
   );
-  const anyPartialOrPause = rel.some(
-    (b) => b.productionFlowStatus === 'partial' || b.productionFlowStatus === 'paused',
-  );
+  const anyPartial = rel.some((b) => b.productionFlowStatus === 'partial');
+  const anyPaused = rel.some((b) => b.productionFlowStatus === 'paused');
 
   const anyProducingOk = activeBatches.some(
     (b) =>
@@ -65,11 +64,11 @@ export function deriveWorkshopCardState(
     status = 'delayed';
   } else if (anyReadyForPickup) {
     status = 'ready_pickup';
-  } else if (workshop.status === 'orange' || anyPartialOrPause) {
+  } else if (workshop.status === 'orange' || anyPartial) {
     status = 'pendencies';
   } else if (anyProducingOk) {
     status = 'producing_ok';
-  } else if (rel.some((b) => b.status === 'in_progress')) {
+  } else if (anyPaused || rel.some((b) => b.status === 'in_progress')) {
     status = 'sewing';
   } else if (rel.some((b) => b.status === 'pending')) {
     status = 'sewing';

@@ -396,17 +396,46 @@ export const authService = {
     }
   },
 
-  // Upload da foto de perfil para o Firebase Storage e retorno da URL pública
-  async uploadProfilePhoto(userId: string, localUri: string): Promise<string> {
+  /**
+   * Converte URI local (file://) em Blob — em React Native `fetch(uri)` costuma falhar;
+   * o padrão recomendado pelo Firebase é XMLHttpRequest + responseType blob.
+   */
+  async uriToBlob(uri: string): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => resolve(xhr.response as Blob);
+      xhr.onerror = () => reject(new TypeError('Falha ao ler a imagem (rede/arquivo).'));
+      xhr.responseType = 'blob';
+      xhr.open('GET', uri, true);
+      xhr.send();
+    });
+  },
+
+  // Upload da foto de perfil para o Firebase Storage e retorno da URL de download
+  async uploadProfilePhoto(
+    userId: string,
+    localUri: string,
+    mimeType?: string | null,
+  ): Promise<string> {
     try {
-      const response = await fetch(localUri);
-      const blob = await response.blob();
-      const storageRef = ref(storage, `profile-photos/${userId}-${Date.now()}.jpg`);
-      await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+      const blob = await this.uriToBlob(localUri);
+      const ext =
+        mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/webp'
+            ? 'webp'
+            : 'jpg';
+      const contentType =
+        mimeType && /^image\//.test(mimeType) ? mimeType : 'image/jpeg';
+      const storageRef = ref(
+        storage,
+        `profile-photos/${userId}/${Date.now()}.${ext}`,
+      );
+      await uploadBytes(storageRef, blob, { contentType });
       return await getDownloadURL(storageRef);
     } catch (error) {
       console.error('Erro ao fazer upload da foto de perfil:', error);
-      throw new Error('Não foi possível enviar a foto de perfil');
+      throw new Error('Não foi possível enviar a foto de perfil. Verifique o Firebase Storage e as regras.');
     }
   },
 

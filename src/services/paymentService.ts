@@ -71,6 +71,16 @@ function convertFirestoreToPayment(id: string, data: any): Payment {
     marketplaceMode: data.marketplaceMode === true ? true : undefined,
     marketplaceWorkshopUserId: data.marketplaceWorkshopUserId || undefined,
     asaasMarketplaceWorkshopWalletId: data.asaasMarketplaceWorkshopWalletId || undefined,
+    ownerPaymentInviteToken: data.ownerPaymentInviteToken || undefined,
+    ownerPaymentInviteKind: data.ownerPaymentInviteKind || undefined,
+    batchPiecesReceived:
+      data.batchPiecesReceived != null ? Number(data.batchPiecesReceived) : undefined,
+    batchDefectivePieces:
+      data.batchDefectivePieces != null ? Number(data.batchDefectivePieces) : undefined,
+    batchBillablePieces:
+      data.batchBillablePieces != null ? Number(data.batchBillablePieces) : undefined,
+    ownerCheckoutBaseAmount:
+      data.ownerCheckoutBaseAmount != null ? Number(data.ownerCheckoutBaseAmount) : undefined,
   };
 }
 

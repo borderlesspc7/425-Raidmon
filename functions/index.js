@@ -46,6 +46,49 @@ function roundMoney(n) {
   return Math.round(n * 100) / 100;
 }
 
+function batchRemainingPiecesFromData(d) {
+  const T =
+    typeof d.totalPieces === "number" && Number.isFinite(d.totalPieces) ? d.totalPieces : 0;
+  const cum =
+    typeof d.piecesDeliveredCumulative === "number" &&
+    Number.isFinite(d.piecesDeliveredCumulative)
+      ? d.piecesDeliveredCumulative
+      : 0;
+  return Math.max(0, T - cum);
+}
+
+function batchRemainingMonetaryBase(d) {
+  const rem = batchRemainingPiecesFromData(d);
+  if (rem <= 0) return null;
+  const gt =
+    typeof d.guaranteedTotal === "number" && Number.isFinite(d.guaranteedTotal)
+      ? d.guaranteedTotal
+      : null;
+  if (gt != null && gt > 0) return roundMoney(gt);
+  const pp =
+    typeof d.pricePerPiece === "number" && Number.isFinite(d.pricePerPiece)
+      ? d.pricePerPiece
+      : null;
+  if (pp != null && pp > 0) return roundMoney(pp * rem);
+  return null;
+}
+
+function partialWaveBaseFromBatch(d, wavePieces) {
+  const rem = batchRemainingPiecesFromData(d);
+  if (rem <= 0 || wavePieces <= 0) return null;
+  const baseFull = batchRemainingMonetaryBase(d);
+  if (baseFull == null || baseFull <= 0) return null;
+  return roundMoney((wavePieces / rem) * baseFull);
+}
+
+/** Valor cobrado do dono (base da oficina + % plataforma), alinhado ao app (`applyMarketplaceFeeToBase`). */
+function grossAmountWithPlatformFee(base) {
+  const b = Number(base);
+  if (!Number.isFinite(b) || b <= 0) return 0;
+  const pct = getPlatformFeePercent();
+  return roundMoney(b * (1 + pct / 100));
+}
+
 /**
  * Carteira admin para split. Prioridade: parâmetro Firebase → process.env (emulador/CI).
  */
@@ -689,6 +732,31 @@ exports.getBatchInvitePreview = onCall(async (request) => {
   const ownerSnap = await db.collection("users").doc(d.userId).get();
   const ownerName = ownerSnap.exists ? ownerSnap.data().name || "" : "";
 
+  let observations = typeof d.observations === "string" ? d.observations : "";
+  let cutObservations = null;
+  if (d.cutId && typeof d.cutId === "string") {
+    try {
+      const cutSnap = await db.collection("cuts").doc(d.cutId).get();
+      if (cutSnap.exists) {
+        const cd = cutSnap.data();
+        cutObservations =
+          typeof cd.observations === "string" && cd.observations.trim()
+            ? cd.observations
+            : null;
+      }
+    } catch (e) {
+      logger.warn("[getBatchInvitePreview] cut read failed", e);
+    }
+  }
+
+  let deliveryDateIso = null;
+  if (d.deliveryDate) {
+    const dd = toJsDate(d.deliveryDate);
+    if (dd && !Number.isNaN(dd.getTime())) {
+      deliveryDateIso = dd.toISOString();
+    }
+  }
+
   const workshopUid = request.auth.uid;
   let canAccept = true;
   let reason = null;
@@ -723,6 +791,9 @@ exports.getBatchInvitePreview = onCall(async (request) => {
     linkedWorkshopUserId: d.linkedWorkshopUserId || null,
     canAccept,
     reason,
+    observations: observations || null,
+    cutObservations,
+    deliveryDateIso,
   };
 });
 
@@ -730,7 +801,7 @@ exports.respondBatchInvite = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
-  const { batchId, token, action } = request.data || {};
+  const { batchId, token, action, deliveryDate: deliveryDateRaw } = request.data || {};
   if (!batchId || typeof batchId !== "string" || !token || typeof token !== "string") {
     throw new HttpsError("invalid-argument", "Parâmetros inválidos.");
   }
@@ -762,6 +833,15 @@ exports.respondBatchInvite = onCall(async (request) => {
   if (action !== "accept") {
     throw new HttpsError("invalid-argument", "Ação desconhecida.");
   }
+
+  if (!deliveryDateRaw || typeof deliveryDateRaw !== "string") {
+    throw new HttpsError("invalid-argument", "Informe a data de entrega prevista.");
+  }
+  const deliveryD = new Date(deliveryDateRaw);
+  if (Number.isNaN(deliveryD.getTime())) {
+    throw new HttpsError("invalid-argument", "Data de entrega inválida.");
+  }
+  const deliveryTs = admin.firestore.Timestamp.fromDate(deliveryD);
 
   if (d.linkedWorkshopUserId && d.linkedWorkshopUserId !== uid) {
     throw new HttpsError(
@@ -800,6 +880,7 @@ exports.respondBatchInvite = onCall(async (request) => {
     inviteAcceptedByUserId: uid,
     inviteAcceptedByName: workshopLabel || null,
     inviteAcceptedVia: "whatsapp_link",
+    deliveryDate: deliveryTs,
     ...(ownerName ? { ownerName } : {}),
     ...(workshopLabel ? { workshopName: workshopLabel } : {}),
     updatedAt: FieldValue.serverTimestamp(),
@@ -821,6 +902,498 @@ exports.respondBatchInvite = onCall(async (request) => {
   }
 
   return { ok: true };
+});
+
+/**
+ * Oficina: conclui o lote e gera link para o dono preencher recebimento (peças/defeitos) antes do PIX.
+ */
+exports.completeBatchAndInviteOwnerCheckout = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const { batchId } = request.data || {};
+  if (!batchId || typeof batchId !== "string") {
+    throw new HttpsError("invalid-argument", "Lote inválido.");
+  }
+  const uid = request.auth.uid;
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (userSnap.data()?.userType !== "workshop") {
+    throw new HttpsError("failed-precondition", "Apenas contas de oficina.");
+  }
+
+  const batchRef = db.collection("batches").doc(batchId);
+  const preSnap = await batchRef.get();
+  if (!preSnap.exists) {
+    throw new HttpsError("not-found", "Lote não encontrado.");
+  }
+  const pre = preSnap.data();
+  if (pre.linkedWorkshopUserId !== uid) {
+    throw new HttpsError("permission-denied", "Este lote não está vinculado a você.");
+  }
+
+  if (pre.status === "completed" && pre.ownerBatchCheckoutToken) {
+    return {
+      batchId,
+      token: pre.ownerBatchCheckoutToken,
+      alreadyCompleted: true,
+    };
+  }
+
+  if (pre.status !== "in_progress" && pre.status !== "pending") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Só é possível concluir lotes em produção ou pendentes vinculados a você.",
+    );
+  }
+
+  const ownerId = pre.userId;
+  if (!ownerId || typeof ownerId !== "string") {
+    throw new HttpsError("failed-precondition", "Lote sem dono vinculado.");
+  }
+
+  const workshopLabel =
+    (pre.workshopName ||
+      userSnap.data()?.companyName ||
+      userSnap.data()?.name ||
+      "").trim() || "Oficina";
+  const pieceLabel = pre.name || "Lote";
+  const checkoutToken = genToken();
+
+  const rem = batchRemainingPiecesFromData(pre);
+  const partialN = pre.partialPiecesDone;
+  const isPartialWave =
+    pre.productionFlowStatus === "partial" &&
+    typeof partialN === "number" &&
+    Number.isFinite(partialN) &&
+    partialN >= 1 &&
+    partialN <= rem;
+
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(batchRef);
+    if (!s.exists) {
+      throw new HttpsError("not-found", "Lote não encontrado.");
+    }
+    const cur = s.data();
+    if (cur.linkedWorkshopUserId !== uid) {
+      throw new HttpsError("permission-denied", "Este lote não está vinculado a você.");
+    }
+    if (cur.status === "completed" && cur.ownerBatchCheckoutToken) {
+      return;
+    }
+    if (cur.status !== "in_progress" && cur.status !== "pending") {
+      throw new HttpsError("failed-precondition", "Estado do lote não permite concluir.");
+    }
+
+    const remTx = batchRemainingPiecesFromData(cur);
+    const pN = cur.partialPiecesDone;
+    const partialWave =
+      cur.productionFlowStatus === "partial" &&
+      typeof pN === "number" &&
+      Number.isFinite(pN) &&
+      pN >= 1 &&
+      pN <= remTx;
+
+    if (partialWave) {
+      const waveBase = partialWaveBaseFromBatch(cur, pN);
+      if (waveBase == null || waveBase <= 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Não foi possível calcular o valor desta entrega parcial (preço/total do lote).",
+        );
+      }
+      tx.update(batchRef, {
+        status: "in_progress",
+        productionFlowStatus: "ready_for_pickup",
+        ownerBatchCheckoutToken: checkoutToken,
+        checkoutReferencePieces: pN,
+        checkoutWaveGuaranteedBase: waveBase,
+        partialPiecesDone: FieldValue.delete(),
+        productionNote: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      tx.update(batchRef, {
+        status: "completed",
+        productionFlowStatus: "ready_for_pickup",
+        completedAt: FieldValue.serverTimestamp(),
+        ownerBatchCheckoutToken: checkoutToken,
+        productionNote: FieldValue.delete(),
+        partialPiecesDone: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  });
+
+  const afterSnap = await batchRef.get();
+  const after = afterSnap.data() || {};
+  const finalToken = after.ownerBatchCheckoutToken || checkoutToken;
+  await updateWorkshopDocStatusForBatch({ ...pre, ...after, id: batchId });
+
+  const notifyPartial = isPartialWave;
+  await createInAppNotification({
+    userId: ownerId,
+    fromUserId: uid,
+    type: "owner_workshop_payment",
+    title: notifyPartial ? "Entrega parcial — conferir e pagar" : "Produção concluída",
+    body: notifyPartial
+      ? `${workshopLabel} registrou entrega parcial de "${pieceLabel}". Abra o link, confira as peças e gere o PIX (proporcional). O lote segue em produção até fechar o total.`
+      : `${workshopLabel} concluiu "${pieceLabel}". Abra o link, confira as peças recebidas e gere o PIX.`,
+    batchId,
+  });
+
+  return {
+    batchId,
+    token: finalToken,
+    alreadyCompleted: false,
+  };
+});
+
+/**
+ * Dono: dados do lote para tela de conferência antes do pagamento.
+ */
+exports.getOwnerBatchCheckoutPreview = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const { batchId, token } = request.data || {};
+  if (!batchId || typeof batchId !== "string" || !token || typeof token !== "string") {
+    throw new HttpsError("invalid-argument", "Dados inválidos.");
+  }
+  const uid = request.auth.uid;
+  const bRef = db.collection("batches").doc(batchId);
+  const bSnap = await bRef.get();
+  if (!bSnap.exists) {
+    throw new HttpsError("not-found", "Lote não encontrado.");
+  }
+  const d = bSnap.data();
+  if (d.userId !== uid) {
+    throw new HttpsError("permission-denied", "Este link não é para sua conta.");
+  }
+  if (!d.ownerBatchCheckoutToken || d.ownerBatchCheckoutToken !== token) {
+    throw new HttpsError("permission-denied", "Link inválido ou expirado.");
+  }
+  const checkoutRef =
+    typeof d.checkoutReferencePieces === "number" && Number.isFinite(d.checkoutReferencePieces)
+      ? d.checkoutReferencePieces
+      : null;
+  const partialWaveCheckout =
+    d.status === "in_progress" && checkoutRef != null && checkoutRef > 0;
+  if (d.status !== "completed" && !partialWaveCheckout) {
+    throw new HttpsError("failed-precondition", "Este lote ainda não foi concluído pela oficina.");
+  }
+
+  const totalPieces =
+    typeof d.totalPieces === "number" && Number.isFinite(d.totalPieces) ? d.totalPieces : 0;
+  const pricePerPiece =
+    typeof d.pricePerPiece === "number" && Number.isFinite(d.pricePerPiece)
+      ? d.pricePerPiece
+      : null;
+  const guaranteedTotal =
+    typeof d.guaranteedTotal === "number" && Number.isFinite(d.guaranteedTotal)
+      ? d.guaranteedTotal
+      : null;
+  const checkoutWaveGuaranteedBase =
+    typeof d.checkoutWaveGuaranteedBase === "number" && Number.isFinite(d.checkoutWaveGuaranteedBase)
+      ? d.checkoutWaveGuaranteedBase
+      : null;
+  const conferenceMaxPieces =
+    checkoutRef != null && checkoutRef > 0 ? checkoutRef : totalPieces;
+  const workshopName =
+    typeof d.workshopName === "string" && d.workshopName.trim()
+      ? d.workshopName.trim()
+      : null;
+  const wUid = d.linkedWorkshopUserId;
+  let marketplaceWorkshopUserId = typeof wUid === "string" ? wUid : null;
+
+  let existingPayment = null;
+  if (d.ownerWorkshopPayPaymentId && typeof d.ownerWorkshopPayPaymentId === "string") {
+    const pSnap = await db.collection("payments").doc(d.ownerWorkshopPayPaymentId).get();
+    if (pSnap.exists) {
+      const pd = pSnap.data();
+      existingPayment = {
+        paymentId: d.ownerWorkshopPayPaymentId,
+        inviteToken: pd.ownerPaymentInviteToken || null,
+        status: pd.status || "pending",
+        hasCharge: !!(pd.asaasPaymentId && String(pd.asaasPaymentId).trim()),
+        grossAmount: typeof pd.amount === "number" ? pd.amount : Number(pd.amount) || 0,
+        baseAmount:
+          pd.ownerCheckoutBaseAmount != null ? Number(pd.ownerCheckoutBaseAmount) : null,
+        piecesReceived:
+          pd.batchPiecesReceived != null ? Number(pd.batchPiecesReceived) : null,
+        defectivePieces:
+          pd.batchDefectivePieces != null ? Number(pd.batchDefectivePieces) : null,
+      };
+    }
+  }
+
+  return {
+    batchId,
+    batchName: d.name || null,
+    totalPieces,
+    conferenceMaxPieces,
+    checkoutWaveGuaranteedBase,
+    pricePerPiece,
+    guaranteedTotal,
+    workshopName,
+    marketplaceWorkshopUserId,
+    platformFeePercent: getPlatformFeePercent(),
+    existingPayment,
+  };
+});
+
+/**
+ * Dono: informa peças recebidas / defeitos e cria cobrança (valor proporcional + taxa plataforma).
+ */
+exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const { batchId, token, piecesReceived: prRaw, defectivePieces: defRaw } = request.data || {};
+  if (!batchId || typeof batchId !== "string" || !token || typeof token !== "string") {
+    throw new HttpsError("invalid-argument", "Dados inválidos.");
+  }
+  const piecesReceived = Number(prRaw);
+  const defectivePieces = defRaw == null || defRaw === "" ? 0 : Number(defRaw);
+  if (!Number.isFinite(piecesReceived) || piecesReceived < 0) {
+    throw new HttpsError("invalid-argument", "Quantidade de peças recebidas inválida.");
+  }
+  if (!Number.isFinite(defectivePieces) || defectivePieces < 0) {
+    throw new HttpsError("invalid-argument", "Quantidade com defeito inválida.");
+  }
+
+  const uid = request.auth.uid;
+  const batchRef = db.collection("batches").doc(batchId);
+
+  const preSnap = await batchRef.get();
+  if (!preSnap.exists) {
+    throw new HttpsError("not-found", "Lote não encontrado.");
+  }
+  const pre = preSnap.data();
+  if (pre.userId !== uid) {
+    throw new HttpsError("permission-denied", "Acesso negado.");
+  }
+  if (!pre.ownerBatchCheckoutToken || pre.ownerBatchCheckoutToken !== token) {
+    throw new HttpsError("permission-denied", "Link inválido ou expirado.");
+  }
+  const checkoutRef =
+    typeof pre.checkoutReferencePieces === "number" && Number.isFinite(pre.checkoutReferencePieces)
+      ? pre.checkoutReferencePieces
+      : null;
+  const partialWaveCheckout =
+    pre.status === "in_progress" && checkoutRef != null && checkoutRef > 0;
+  if (pre.status !== "completed" && !partialWaveCheckout) {
+    throw new HttpsError("failed-precondition", "Lote não está concluído.");
+  }
+
+  const totalPieces =
+    typeof pre.totalPieces === "number" && Number.isFinite(pre.totalPieces)
+      ? pre.totalPieces
+      : 0;
+  if (totalPieces <= 0) {
+    throw new HttpsError("failed-precondition", "Lote sem quantidade válida.");
+  }
+  const refCap = checkoutRef != null && checkoutRef > 0 ? checkoutRef : totalPieces;
+  if (piecesReceived > refCap) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Peças recebidas não podem ultrapassar o máximo desta entrega (${refCap}).`,
+    );
+  }
+  if (defectivePieces > piecesReceived) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Peças com defeito não podem ser maiores que as recebidas.",
+    );
+  }
+
+  const billable = Math.floor(piecesReceived - defectivePieces);
+  if (billable < 1) {
+    throw new HttpsError(
+      "invalid-argument",
+      "É necessário pelo menos uma peça em condição de uso para gerar o pagamento.",
+    );
+  }
+
+  const wShopUid = pre.linkedWorkshopUserId;
+  if (!wShopUid || typeof wShopUid !== "string") {
+    throw new HttpsError("failed-precondition", "Lote sem oficina vinculada para repasse.");
+  }
+
+  if (pre.ownerWorkshopPayPaymentId && typeof pre.ownerWorkshopPayPaymentId === "string") {
+    const existingRef = db.collection("payments").doc(pre.ownerWorkshopPayPaymentId);
+    const exSnap = await existingRef.get();
+    if (exSnap.exists) {
+      const ep = exSnap.data();
+      if (ep.status === "paid") {
+        throw new HttpsError("failed-precondition", "Este lote já foi pago.");
+      }
+      if (ep.status === "pending" || ep.status === "overdue") {
+        const inviteTok = ep.ownerPaymentInviteToken || null;
+        if (!inviteTok) {
+          throw new HttpsError("internal", "Pagamento pendente sem token.");
+        }
+        return {
+          paymentId: pre.ownerWorkshopPayPaymentId,
+          token: inviteTok,
+          grossAmount: typeof ep.amount === "number" ? ep.amount : Number(ep.amount) || 0,
+          baseAmount:
+            ep.ownerCheckoutBaseAmount != null ? Number(ep.ownerCheckoutBaseAmount) : null,
+          billablePieces: ep.batchBillablePieces != null ? Number(ep.batchBillablePieces) : billable,
+          alreadyCreated: true,
+        };
+      }
+    }
+  }
+
+  let base = null;
+  const waveBase =
+    typeof pre.checkoutWaveGuaranteedBase === "number" &&
+    Number.isFinite(pre.checkoutWaveGuaranteedBase)
+      ? pre.checkoutWaveGuaranteedBase
+      : null;
+  if (checkoutRef != null && checkoutRef > 0 && waveBase != null && waveBase > 0) {
+    base = roundMoney((billable / checkoutRef) * waveBase);
+  } else {
+    const pp = pre.pricePerPiece;
+    const pOk = typeof pp === "number" && Number.isFinite(pp) && pp > 0;
+    if (pOk) {
+      base = roundMoney(billable * pp);
+    } else {
+      const gt = pre.guaranteedTotal;
+      const gOk = typeof gt === "number" && Number.isFinite(gt) && gt > 0;
+      if (gOk) {
+        base = roundMoney((billable / totalPieces) * gt);
+      }
+    }
+  }
+  if (base == null || base <= 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Não foi possível calcular o valor (preço por peça ou total garantido ausente).",
+    );
+  }
+
+  const gross = grossAmountWithPlatformFee(base);
+  const due = new Date();
+  due.setDate(due.getDate() + 7);
+  const dueTs = admin.firestore.Timestamp.fromDate(due);
+  const payToken = genToken();
+  const payRef = db.collection("payments").doc();
+  const workshopLabel =
+    (typeof pre.workshopName === "string" && pre.workshopName.trim()
+      ? pre.workshopName
+      : "Oficina") || "Oficina";
+  const pieceLabel = pre.name || "Lote";
+  const desc = `Lote "${pieceLabel}" — ${billable} peça(s) ok (${piecesReceived} receb., ${defectivePieces} defeito)`;
+
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(batchRef);
+    if (!s.exists) {
+      throw new HttpsError("not-found", "Lote não encontrado.");
+    }
+    const cur = s.data();
+    if (cur.userId !== uid || cur.ownerBatchCheckoutToken !== token) {
+      throw new HttpsError("permission-denied", "Sessão inválida.");
+    }
+    if (cur.ownerWorkshopPayPaymentId) {
+      throw new HttpsError("already-exists", "Pagamento já registrado para este lote.");
+    }
+
+    tx.set(payRef, {
+      userId: uid,
+      amount: gross,
+      dueDate: dueTs,
+      description: desc.slice(0, 200),
+      status: "pending",
+      batchId,
+      batchName: pre.name || null,
+      workshopName: workshopLabel,
+      marketplaceWorkshopUserId: wShopUid,
+      ownerPaymentInviteToken: payToken,
+      ownerPaymentInviteKind: "owner_batch_checkout",
+      batchPiecesReceived: piecesReceived,
+      batchDefectivePieces: defectivePieces,
+      batchBillablePieces: billable,
+      ownerCheckoutBaseAmount: base,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    tx.update(batchRef, {
+      ownerWorkshopPayPaymentId: payRef.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return {
+    paymentId: payRef.id,
+    token: payToken,
+    grossAmount: gross,
+    baseAmount: base,
+    billablePieces: billable,
+    alreadyCreated: false,
+  };
+});
+
+/**
+ * Dono: valida token do link e obtém resumo + dados PIX se a cobrança já existir.
+ */
+exports.getOwnerPaymentInvitePreview = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const { paymentId, token } = request.data || {};
+  if (!paymentId || typeof paymentId !== "string" || !token || typeof token !== "string") {
+    throw new HttpsError("invalid-argument", "Dados inválidos.");
+  }
+  const uid = request.auth.uid;
+  const payRef = db.collection("payments").doc(paymentId);
+  const paySnap = await payRef.get();
+  if (!paySnap.exists) {
+    throw new HttpsError("not-found", "Pagamento não encontrado.");
+  }
+  const p = paySnap.data();
+  if (p.userId !== uid) {
+    throw new HttpsError("permission-denied", "Este link não é para sua conta.");
+  }
+  if (!p.ownerPaymentInviteToken || p.ownerPaymentInviteToken !== token) {
+    throw new HttpsError("permission-denied", "Link inválido ou expirado.");
+  }
+
+  let batchName = p.batchName || null;
+  let totalPieces = null;
+  if (p.batchId && typeof p.batchId === "string") {
+    try {
+      const bSnap = await db.collection("batches").doc(p.batchId).get();
+      if (bSnap.exists) {
+        const bd = bSnap.data();
+        batchName = bd.name || batchName;
+        if (typeof bd.totalPieces === "number" && Number.isFinite(bd.totalPieces)) {
+          totalPieces = bd.totalPieces;
+        }
+      }
+    } catch (e) {
+      logger.warn("[getOwnerPaymentInvitePreview] batch read failed", e);
+    }
+  }
+
+  const platformFeePercent = getPlatformFeePercent();
+
+  return {
+    paymentId,
+    batchName,
+    totalPieces,
+    amount: typeof p.amount === "number" ? p.amount : Number(p.amount) || 0,
+    workshopName: p.workshopName || null,
+    description: p.description || "",
+    status: p.status || "pending",
+    platformFeePercent,
+    hasCharge: !!(p.asaasPaymentId && String(p.asaasPaymentId).trim()),
+    pixCopyPaste: p.pixCopyPaste || null,
+    pixEncodedImage: p.pixEncodedImage || null,
+    asaasInvoiceUrl: p.asaasInvoiceUrl || null,
+    pixExpiration: p.pixExpiration || null,
+  };
 });
 
 const IN_APP_NOTIFICATIONS = "inAppNotifications";
@@ -886,12 +1459,12 @@ async function updateWorkshopDocStatusForBatch(batch) {
   let status = "yellow";
   if (flow === "ready_for_pickup") {
     status = "green";
-  } else if (flow === "in_production") {
-    status = "green";
-  } else if (flow === "partial" || flow === "paused") {
+  } else if (flow === "partial") {
     status = "orange";
+  } else if (flow === "in_production" || flow === "paused") {
+    status = "yellow";
   }
-  if (isActiveBatchDelayed(batch) && flow !== "ready_for_pickup") {
+  if (isActiveBatchDelayed(batch)) {
     status = "red";
   }
   await wRef.update({ status, updatedAt: FieldValue.serverTimestamp() });
@@ -954,12 +1527,24 @@ exports.workshopBatchAction = onCall(async (request) => {
     if (m.length < 3) {
       throw new HttpsError("invalid-argument", "Explique a situação (mínimo 3 caracteres).");
     }
+    const rem = batchRemainingPiecesFromData(d);
+    if (action === "mark_partial") {
+      const n = partialPiecesDone == null ? NaN : Number(partialPiecesDone);
+      if (!Number.isFinite(n) || n < 1 || n > rem) {
+        throw new HttpsError(
+          "invalid-argument",
+          rem < 1
+            ? "Não há peças pendentes neste lote para registrar entrega parcial."
+            : `Informe quantas peças serão entregues nesta etapa (1 a ${rem}).`,
+        );
+      }
+    }
     const u = {
       productionFlowStatus: action === "mark_partial" ? "partial" : "paused",
       productionNote: m,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (action === "mark_partial" && partialPiecesDone != null && Number.isFinite(Number(partialPiecesDone))) {
+    if (action === "mark_partial") {
       u.partialPiecesDone = Number(partialPiecesDone);
     } else {
       u.partialPiecesDone = FieldValue.delete();

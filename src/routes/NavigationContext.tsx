@@ -6,6 +6,13 @@ interface NavigationParams {
   planId?: "basic" | "premium" | "enterprise";
   batchOffer?: { batchId: string; token: string };
   receiveCheckout?: { receiveId: string; token: string };
+  ownerWorkshopPay?: { paymentId: string; token: string };
+  /** Dono: conferir peças recebidas antes de gerar PIX */
+  ownerBatchCheckout?: { batchId: string; token: string };
+  /** Oficina: painel visual do lote (hub) */
+  workshopBatchHub?: { batchId: string };
+  /** Oficina: abrir detalhes / ações deste lote em Sua produção */
+  workshopFocusBatchId?: string;
 }
 
 interface NavigationContextType {
