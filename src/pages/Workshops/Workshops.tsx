@@ -39,7 +39,7 @@ export default function Workshops() {
   const [name, setName] = useState('');
   const [contact1, setContact1] = useState('');
   const [contact2, setContact2] = useState('');
-  const [status, setStatus] = useState<WorkshopStatus>('yellow');
+  const [status, setStatus] = useState<WorkshopStatus>('free');
   const [addressValue, setAddressValue] = useState<AddressValue>({
     cep: '',
     street: '',
@@ -102,7 +102,7 @@ export default function Workshops() {
     setName('');
     setContact1('');
     setContact2('');
-    setStatus('yellow');
+    setStatus('free');
     setAddressValue({
       cep: '',
       street: '',
@@ -212,14 +212,10 @@ export default function Workshops() {
 
   const getStatusColor = (status: WorkshopStatus) => {
     switch (status) {
-      case 'green':
-        return '#10B981';
-      case 'yellow':
-        return '#F59E0B';
-      case 'orange':
+      case 'free':
+        return '#22C55E';
+      case 'busy':
         return '#F97316';
-      case 'red':
-        return '#EF4444';
       default:
         return '#6B7280';
     }
@@ -228,6 +224,9 @@ export default function Workshops() {
   const getStatusLabel = (status: WorkshopStatus) => {
     return t(`workshops.status.${status}`);
   };
+
+  const getStatusIcon = (status: WorkshopStatus) =>
+    status === 'free' ? 'check-circle' : 'work';
 
   const formatPhoneInput = (text: string) => {
     const numbers = text.replace(/\D/g, '').slice(0, 11);
@@ -357,23 +356,38 @@ export default function Workshops() {
                     </Text>
                   </View>
                   <View style={styles.statusButtons}>
-                    {(['green', 'yellow', 'orange', 'red'] as WorkshopStatus[]).map(
-                      (statusOption) => (
-                        <TouchableOpacity
-                          key={statusOption}
+                    {(['free', 'busy'] as WorkshopStatus[]).map((statusOption) => (
+                      <TouchableOpacity
+                        key={statusOption}
+                        style={[
+                          styles.statusButton,
+                          statusOption === workshop.status && {
+                            backgroundColor: getStatusColor(statusOption),
+                            borderColor: getStatusColor(statusOption),
+                          },
+                        ]}
+                        onPress={() => handleStatusChange(workshop, statusOption)}
+                      >
+                        <MaterialIcons
+                          name={getStatusIcon(statusOption)}
+                          size={16}
+                          color={statusOption === workshop.status ? '#FFFFFF' : getStatusColor(statusOption)}
+                        />
+                        <Text
                           style={[
-                            styles.statusButton,
+                            styles.statusButtonText,
                             {
-                              backgroundColor: getStatusColor(statusOption),
-                              opacity: workshop.status === statusOption ? 1 : 0.3,
+                              color:
+                                statusOption === workshop.status
+                                  ? '#FFFFFF'
+                                  : getStatusColor(statusOption),
                             },
                           ]}
-                          onPress={() => handleStatusChange(workshop, statusOption)}
                         >
-                          <View />
-                        </TouchableOpacity>
-                      )
-                    )}
+                          {getStatusLabel(statusOption)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
               </View>
@@ -472,7 +486,7 @@ export default function Workshops() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{t('workshops.statusLabel')}</Text>
                   <View style={styles.statusSelector}>
-                    {(['green', 'yellow', 'orange', 'red'] as WorkshopStatus[]).map(
+                    {(['free', 'busy'] as WorkshopStatus[]).map(
                       (statusOption) => (
                         <TouchableOpacity
                           key={statusOption}
@@ -482,11 +496,11 @@ export default function Workshops() {
                           ]}
                           onPress={() => setStatus(statusOption)}
                         >
-                          <View
-                            style={[
-                              styles.statusOptionDot,
-                              { backgroundColor: getStatusColor(statusOption) },
-                            ]}
+                          <MaterialIcons
+                            name={getStatusIcon(statusOption)}
+                            size={18}
+                            color={getStatusColor(statusOption)}
+                            style={styles.statusOptionIcon}
                           />
                           <Text
                             style={[
@@ -683,9 +697,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  statusButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -761,11 +785,8 @@ const styles = StyleSheet.create({
     borderColor: '#6366F1',
     backgroundColor: '#F0F4FF',
   },
-  statusOptionDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 12,
+  statusOptionIcon: {
+    marginRight: 10,
   },
   statusOptionText: {
     fontSize: 16,

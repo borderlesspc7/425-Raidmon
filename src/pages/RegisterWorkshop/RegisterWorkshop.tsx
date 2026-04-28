@@ -144,7 +144,7 @@ export default function RegisterWorkshop() {
         break;
       case "monthlyIncome":
         if (!monthlyIncome.trim() || !Number.isFinite(incomeNum) || incomeNum <= 0) {
-          nextErrors.monthlyIncome = "Informe faturamento/renda mensal (valor > 0)";
+          nextErrors.monthlyIncome = "Informe o faturamento estimado (valor > 0)";
         } else delete nextErrors.monthlyIncome;
         break;
       case "address":
@@ -260,9 +260,6 @@ export default function RegisterWorkshop() {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigate(paths.registerSelection)} style={styles.backButton}>
-              <MaterialIcons name="arrow-back-ios" size={24} color="#6366F1" />
-            </TouchableOpacity>
             <Text style={styles.title}>Cadastro da Oficina</Text>
             <Text style={styles.subtitle}>
               Crie sua conta. Os dados fiscais e endereço são necessários para a conta de pagamento (Asaas).
@@ -437,7 +434,7 @@ export default function RegisterWorkshop() {
             ) : null}
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Faturamento / renda mensal (R$)</Text>
+              <Text style={styles.label}>Faturamento estimado (R$)</Text>
               <View style={[styles.inputWrapper, errors.monthlyIncome ? styles.inputError : null]}>
                 <MaterialIcons name="attach-money" size={20} color="#6B7280" style={styles.inputIcon} />
                 <TextInput
@@ -620,7 +617,6 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 32, position: "relative" },
-  backButton: { position: "absolute", left: 0, top: 0, padding: 12 },
   title: { fontSize: 28, fontWeight: "bold", color: "#1F2937", marginBottom: 8, textAlign: "center" },
   subtitle: { fontSize: 14, color: "#6B7280", textAlign: "center", paddingHorizontal: 8 },
   form: { width: "100%" },

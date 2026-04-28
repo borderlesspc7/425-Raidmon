@@ -30,10 +30,8 @@ export default function WorkshopStatus() {
 
   // Statistics
   const [totalWorkshops, setTotalWorkshops] = useState(0);
-  const [greenWorkshops, setGreenWorkshops] = useState(0);
-  const [yellowWorkshops, setYellowWorkshops] = useState(0);
-  const [orangeWorkshops, setOrangeWorkshops] = useState(0);
-  const [redWorkshops, setRedWorkshops] = useState(0);
+  const [freeWorkshops, setFreeWorkshops] = useState(0);
+  const [busyWorkshops, setBusyWorkshops] = useState(0);
   const [totalPieces, setTotalPieces] = useState(0);
   const [startedInviteBatches, setStartedInviteBatches] = useState<Batch[]>([]);
 
@@ -57,10 +55,8 @@ export default function WorkshopStatus() {
       
       // Calcular estatísticas
       setTotalWorkshops(data.length);
-      setGreenWorkshops(data.filter((w) => w.status === "green").length);
-      setYellowWorkshops(data.filter((w) => w.status === "yellow").length);
-      setOrangeWorkshops(data.filter((w) => w.status === "orange").length);
-      setRedWorkshops(data.filter((w) => w.status === "red").length);
+      setFreeWorkshops(data.filter((w) => w.status === "free").length);
+      setBusyWorkshops(data.filter((w) => w.status === "busy").length);
       setTotalPieces(data.reduce((sum, w) => sum + w.totalPieces, 0));
       setStartedInviteBatches(
         ownerBatches.filter(
@@ -91,14 +87,10 @@ export default function WorkshopStatus() {
 
   const getStatusColor = (status: WorkshopStatusType) => {
     switch (status) {
-      case "green":
-        return "#10B981";
-      case "yellow":
-        return "#F59E0B";
-      case "orange":
+      case "free":
+        return "#22C55E";
+      case "busy":
         return "#F97316";
-      case "red":
-        return "#EF4444";
       default:
         return "#6B7280";
     }
@@ -125,10 +117,8 @@ export default function WorkshopStatus() {
       : workshops.filter((w) => w.status === selectedStatus);
 
   const statusGroups: { status: WorkshopStatusType; workshops: Workshop[] }[] = [
-    { status: "green", workshops: workshops.filter((w) => w.status === "green") },
-    { status: "yellow", workshops: workshops.filter((w) => w.status === "yellow") },
-    { status: "orange", workshops: workshops.filter((w) => w.status === "orange") },
-    { status: "red", workshops: workshops.filter((w) => w.status === "red") },
+    { status: "free", workshops: workshops.filter((w) => w.status === "free") },
+    { status: "busy", workshops: workshops.filter((w) => w.status === "busy") },
   ];
 
   if (loading) {
@@ -165,32 +155,18 @@ export default function WorkshopStatus() {
             <Text style={styles.statLabel}>{t("workshopStatus.total")}</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: "#D1FAE5" }]}>
-              <View style={[styles.statusDotSmall, { backgroundColor: "#10B981" }]} />
+            <View style={[styles.statIconContainer, { backgroundColor: "#DCFCE7" }]}>
+              <View style={[styles.statusDotSmall, { backgroundColor: "#22C55E" }]} />
             </View>
-            <Text style={styles.statValue}>{greenWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshopStatus.green")}</Text>
+            <Text style={styles.statValue}>{freeWorkshops}</Text>
+            <Text style={styles.statLabel}>{t("workshops.status.free")}</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: "#FEF3C7" }]}>
-              <View style={[styles.statusDotSmall, { backgroundColor: "#F59E0B" }]} />
-            </View>
-            <Text style={styles.statValue}>{yellowWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshopStatus.yellow")}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: "#FED7AA" }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: "#FFEDD5" }]}>
               <View style={[styles.statusDotSmall, { backgroundColor: "#F97316" }]} />
             </View>
-            <Text style={styles.statValue}>{orangeWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshopStatus.orange")}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: "#FEE2E2" }]}>
-              <View style={[styles.statusDotSmall, { backgroundColor: "#EF4444" }]} />
-            </View>
-            <Text style={styles.statValue}>{redWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshopStatus.red")}</Text>
+            <Text style={styles.statValue}>{busyWorkshops}</Text>
+            <Text style={styles.statLabel}>{t("workshops.status.busy")}</Text>
           </View>
         </View>
 
@@ -217,7 +193,7 @@ export default function WorkshopStatus() {
                 {t("workshopStatus.all")}
               </Text>
             </TouchableOpacity>
-            {(["green", "yellow", "orange", "red"] as WorkshopStatusType[]).map((status) => (
+            {(["free", "busy"] as WorkshopStatusType[]).map((status) => (
               <TouchableOpacity
                 key={status}
                 style={[
@@ -415,7 +391,7 @@ function WorkshopCard({
           </Text>
         </View>
         <View style={styles.statusButtons}>
-          {(["green", "yellow", "orange", "red"] as WorkshopStatusType[]).map(
+          {(["free", "busy"] as WorkshopStatusType[]).map(
             (statusOption) => (
               <TouchableOpacity
                 key={statusOption}

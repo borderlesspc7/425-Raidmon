@@ -170,13 +170,6 @@ export default function Register() {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigate('Login')}
-              style={styles.backButton}
-            >
-              <MaterialIcons name="arrow-back" size={24} color="#6366F1" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
               onPress={toggleLanguage}
               style={styles.languageButton}
             >
@@ -407,22 +400,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
     position: 'relative',
-  },
-  backButton: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   languageButton: {
     position: 'absolute',

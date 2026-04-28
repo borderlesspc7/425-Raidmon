@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
@@ -54,6 +56,7 @@ export default function Cuts() {
   const [totalPiecesInput, setTotalPiecesInput] = useState("");
   const [pricePerPieceInput, setPricePerPieceInput] = useState("");
   const [observations, setObservations] = useState("");
+  const [search, setSearch] = useState("");
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -225,6 +228,24 @@ export default function Cuts() {
     }).format(date);
   };
 
+  const filteredCuts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return cuts;
+    return cuts.filter((cut, idx) => {
+      const listNumber = `#${cuts.length - idx}`;
+      return (
+        cut.type.toLowerCase().includes(q) ||
+        listNumber.toLowerCase().includes(q)
+      );
+    });
+  }, [cuts, search]);
+
+  const getCutCode = (cutId: string) => {
+    const idx = cuts.findIndex((c) => c.id === cutId);
+    if (idx < 0) return "#-";
+    return `#${cuts.length - idx}`;
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -274,15 +295,30 @@ export default function Cuts() {
         </View>
 
         {/* Cuts List */}
+        <View style={styles.searchWrap}>
+          <View style={styles.searchInputContainer}>
+            <MaterialIcons name="search" size={18} color="#6B7280" />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar por nome ou #id"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {cuts.length === 0 ? (
+          {filteredCuts.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="content-cut" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>{t("cuts.empty")}</Text>
+              <Text style={styles.emptyText}>
+                {search.trim() ? "Nenhum corte encontrado" : t("cuts.empty")}
+              </Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => openModal()}
@@ -291,14 +327,14 @@ export default function Cuts() {
               </TouchableOpacity>
             </View>
           ) : (
-            cuts.map((cut, index) => (
+            filteredCuts.map((cut) => (
               <View key={cut.id} style={styles.cutCard}>
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
                     <View style={styles.cutNumber}>
                       <Text style={styles.cutNumberText}>
-                        #{cuts.length - index}
+                        {getCutCode(cut.id)}
                       </Text>
                     </View>
                     <View style={styles.cardHeaderInfo}>
@@ -338,7 +374,7 @@ export default function Cuts() {
                   {cut.pricePerPiece != null && Number.isFinite(cut.pricePerPiece) ? (
                     <View style={styles.infoItem}>
                       <MaterialIcons
-                        name="attach-money"
+                        name="payments"
                         size={18}
                         color="#6366F1"
                       />
@@ -373,6 +409,10 @@ export default function Cuts() {
           onRequestClose={closeModal}
         >
           <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboard}
+            >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
@@ -386,6 +426,7 @@ export default function Cuts() {
               <ScrollView
                 style={styles.modalScroll}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
                 {/* Tipo/Modelo */}
                 <View style={styles.inputGroup}>
@@ -432,7 +473,7 @@ export default function Cuts() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{t("cuts.pricePerPiece")}</Text>
                   <View style={styles.inputContainer}>
-                    <MaterialIcons name="attach-money" size={20} color="#6B7280" />
+                    <MaterialIcons name="payments" size={20} color="#6B7280" />
                     <TextInput
                       style={styles.input}
                       value={pricePerPieceInput}
@@ -499,6 +540,7 @@ export default function Cuts() {
                 </TouchableOpacity>
               </View>
             </View>
+            </KeyboardAvoidingView>
           </View>
         </Modal>
       </View>
@@ -589,6 +631,26 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  searchWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
   },
   scrollContent: {
     padding: 20,
@@ -726,7 +788,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
+    maxHeight: "94%",
+  },
+  modalKeyboard: {
+    width: "100%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -742,7 +807,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   modalScroll: {
-    maxHeight: 400,
+    maxHeight: 520,
   },
   inputGroup: {
     paddingHorizontal: 20,

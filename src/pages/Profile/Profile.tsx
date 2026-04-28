@@ -10,6 +10,8 @@ import {
   Modal,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -44,7 +46,6 @@ export default function Profile() {
   const [about, setAbout] = useState("");
   const [phone, setPhone] = useState("");
   const [cpf, setCpf] = useState("");
-  const [rg, setRg] = useState("");
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -65,7 +66,6 @@ export default function Profile() {
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
-      setRg(user.rg || "");
     }
   }, [user]);
 
@@ -85,7 +85,6 @@ export default function Profile() {
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
-      setRg(user.rg || "");
     }
     setErrors({});
     setModalVisible(true);
@@ -108,7 +107,6 @@ export default function Profile() {
       setAbout(user.about || "");
       setPhone(user.phone || "");
       setCpf(user.cpf || "");
-      setRg(user.rg || "");
     }
     setErrors({});
   };
@@ -137,19 +135,6 @@ export default function Profile() {
     }
   };
 
-  const formatRG = (text: string) => {
-    const numbers = text.replace(/\D/g, "");
-    if (numbers.length <= 2) {
-      return numbers;
-    } else if (numbers.length <= 5) {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2)}`;
-    } else if (numbers.length <= 8) {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5)}`;
-    } else {
-      return `${numbers.slice(0, 2)}.${numbers.slice(2, 5)}.${numbers.slice(5, 8)}-${numbers.slice(8, 9)}`;
-    }
-  };
-
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
@@ -175,15 +160,6 @@ export default function Profile() {
       }
     }
 
-    if (!rg.trim()) {
-      newErrors.rg = t("profile.rgRequired");
-    } else {
-      const rgNumbers = rg.replace(/\D/g, "");
-      if (rgNumbers.length < 7) {
-        newErrors.rg = t("profile.rgInvalid");
-      }
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -202,7 +178,6 @@ export default function Profile() {
         about: about.trim() || undefined,
         phone: phone.trim(),
         cpf: cpf.replace(/\D/g, ""),
-        rg: rg.replace(/\D/g, ""),
       };
 
       await updateProfile(updateData);
@@ -515,6 +490,10 @@ export default function Profile() {
           onRequestClose={closeModal}
         >
           <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboard}
+            >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{t("profile.edit")}</Text>
@@ -526,6 +505,7 @@ export default function Profile() {
               <ScrollView
                 style={styles.modalScroll}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
                 {/* Nome */}
                 <View style={styles.inputGroup}>
@@ -635,26 +615,6 @@ export default function Profile() {
                   )}
                 </View>
 
-                {/* RG */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("profile.rg")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="credit-card" size={20} color="#6B7280" />
-                    <TextInput
-                      style={styles.input}
-                      value={rg}
-                      onChangeText={(text) => setRg(formatRG(text))}
-                      placeholder={t("profile.rgPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="number-pad"
-                      maxLength={12}
-                    />
-                  </View>
-                  {errors.rg && (
-                    <Text style={styles.errorText}>{errors.rg}</Text>
-                  )}
-                </View>
-
                 {/* Sobre / Observações */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>{t("profile.about")}</Text>
@@ -702,6 +662,7 @@ export default function Profile() {
                 </TouchableOpacity>
               </View>
             </View>
+            </KeyboardAvoidingView>
           </View>
         </Modal>
       </View>
@@ -940,7 +901,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
+    maxHeight: "94%",
+  },
+  modalKeyboard: {
+    width: "100%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -956,7 +920,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   modalScroll: {
-    maxHeight: 400,
+    maxHeight: 520,
   },
   inputGroup: {
     paddingHorizontal: 20,

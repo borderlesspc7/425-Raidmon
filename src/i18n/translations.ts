@@ -221,6 +221,8 @@ export const translations = {
       statusLabel: "Status",
       pieces: "peças",
       status: {
+        free: "Livre",
+        busy: "Ocupado",
         green: "Verde - Livre",
         yellow: "Amarelo - Em Produção",
         orange: "Laranja - Atrasado",
@@ -1190,6 +1192,8 @@ export const translations = {
       statusLabel: "Estado",
       pieces: "piezas",
       status: {
+        free: "Libre",
+        busy: "Ocupado",
         green: "Verde - Libre",
         yellow: "Amarillo - En Producción",
         orange: "Naranja - Retrasado",

@@ -140,10 +140,8 @@ export default function Metrics() {
 
     const totalWorkshops = workshops.length;
     const workshopsByStatus = {
-      green: workshops.filter((w) => w.status === "green").length,
-      yellow: workshops.filter((w) => w.status === "yellow").length,
-      orange: workshops.filter((w) => w.status === "orange").length,
-      red: workshops.filter((w) => w.status === "red").length,
+      free: workshops.filter((w) => w.status === "free").length,
+      busy: workshops.filter((w) => w.status === "busy").length,
     };
 
     return {
@@ -700,39 +698,21 @@ export default function Metrics() {
             </View>
             <View style={styles.workshopStatusGrid}>
               <View style={styles.workshopStatusItem}>
-                <View style={[styles.workshopStatusDot, { backgroundColor: "#10B981" }]} />
+                <View style={[styles.workshopStatusDot, { backgroundColor: "#22C55E" }]} />
                 <Text style={styles.workshopStatusLabel}>
-                  {t("metrics.green")}
+                  {t("workshops.status.free")}
                 </Text>
                 <Text style={styles.workshopStatusValue}>
-                  {stats.workshopsByStatus.green}
-                </Text>
-              </View>
-              <View style={styles.workshopStatusItem}>
-                <View style={[styles.workshopStatusDot, { backgroundColor: "#F59E0B" }]} />
-                <Text style={styles.workshopStatusLabel}>
-                  {t("metrics.yellow")}
-                </Text>
-                <Text style={styles.workshopStatusValue}>
-                  {stats.workshopsByStatus.yellow}
+                  {stats.workshopsByStatus.free}
                 </Text>
               </View>
               <View style={styles.workshopStatusItem}>
                 <View style={[styles.workshopStatusDot, { backgroundColor: "#F97316" }]} />
                 <Text style={styles.workshopStatusLabel}>
-                  {t("metrics.orange")}
+                  {t("workshops.status.busy")}
                 </Text>
                 <Text style={styles.workshopStatusValue}>
-                  {stats.workshopsByStatus.orange}
-                </Text>
-              </View>
-              <View style={styles.workshopStatusItem}>
-                <View style={[styles.workshopStatusDot, { backgroundColor: "#EF4444" }]} />
-                <Text style={styles.workshopStatusLabel}>
-                  {t("metrics.red")}
-                </Text>
-                <Text style={styles.workshopStatusValue}>
-                  {stats.workshopsByStatus.red}
+                  {stats.workshopsByStatus.busy}
                 </Text>
               </View>
             </View>

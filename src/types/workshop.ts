@@ -1,4 +1,4 @@
-export type WorkshopStatus = 'green' | 'yellow' | 'orange' | 'red';
+export type WorkshopStatus = 'free' | 'busy';
 
 export interface AddressFields {
   cep?: string;

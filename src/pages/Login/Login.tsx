@@ -93,10 +93,6 @@ export default function Login() {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigate(paths.languageSelection)} style={styles.backButton}>
-              <MaterialIcons name="arrow-back-ios" size={24} color="#6366F1" />
-            </TouchableOpacity>
-            
             <TouchableOpacity
               onPress={toggleLanguage}
               style={styles.languageButton}
@@ -245,12 +241,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-  },
-  backButton: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    padding: 12,
   },
   languageText: {
     fontSize: 12,

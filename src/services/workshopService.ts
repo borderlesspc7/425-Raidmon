@@ -16,6 +16,13 @@ import { Workshop, CreateWorkshopData, UpdateWorkshopData } from '../types/works
 
 const WORKSHOPS_COLLECTION = 'workshops';
 
+function normalizeWorkshopStatus(raw: any): Workshop['status'] {
+  if (raw === 'free' || raw === 'busy') return raw;
+  // Compatibilidade com statuses antigos baseados em cores.
+  if (raw === 'green') return 'free';
+  return 'busy';
+}
+
 /**
  * Converter Firestore document para Workshop
  */
@@ -27,7 +34,7 @@ function convertFirestoreToWorkshop(docId: string, data: any): Workshop {
     addressFields: data.addressFields || undefined,
     contact1: data.contact1,
     contact2: data.contact2 || '',
-    status: data.status || 'yellow',
+    status: normalizeWorkshopStatus(data.status),
     totalPieces: data.totalPieces || 0,
     userId: data.userId,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
@@ -66,7 +73,7 @@ export async function createWorkshop(
       addressFields: workshopData.addressFields || undefined,
       contact1: workshopData.contact1.trim(),
       contact2: workshopData.contact2?.trim() || '',
-      status: workshopData.status || 'yellow',
+      status: workshopData.status || 'free',
       totalPieces: 0,
       userId,
       createdAt: now,
@@ -185,7 +192,7 @@ export async function deleteWorkshop(workshopId: string): Promise<void> {
  */
 export async function updateWorkshopStatus(
   workshopId: string,
-  status: 'green' | 'yellow' | 'orange' | 'red'
+  status: Workshop['status']
 ): Promise<void> {
   try {
     await updateWorkshop(workshopId, { status });

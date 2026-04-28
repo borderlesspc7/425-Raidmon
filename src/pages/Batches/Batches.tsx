@@ -12,6 +12,8 @@ import {
   Alert,
   Keyboard,
   Share,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
@@ -179,6 +181,7 @@ export default function Batches() {
   const [offerLinkJustCopied, setOfferLinkJustCopied] = useState(false);
 
   const [romaneioLoadingId, setRomaneioLoadingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const isOwner = user?.userType === "owner";
 
@@ -684,6 +687,9 @@ export default function Batches() {
     return label;
   };
 
+  const workshopStatusLabel = (status?: Workshop["status"]) =>
+    status === "free" ? "LIVRE" : "OCUPADO";
+
   const handleRomaneioPress = async (batch: Batch) => {
     const plan = getEffectiveUserPlan(user?.plan);
     if (!canExportRomaneioPdf(plan)) {
@@ -713,6 +719,24 @@ export default function Batches() {
     } finally {
       setRomaneioLoadingId(null);
     }
+  };
+
+  const filteredBatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return batches;
+    return batches.filter((batch, idx) => {
+      const listCode = `#${batches.length - idx}`;
+      return (
+        batch.name.toLowerCase().includes(q) ||
+        listCode.toLowerCase().includes(q)
+      );
+    });
+  }, [batches, search]);
+
+  const getBatchCode = (batchId: string) => {
+    const idx = batches.findIndex((b) => b.id === batchId);
+    if (idx < 0) return "#-";
+    return `#${batches.length - idx}`;
   };
 
   if (loading) {
@@ -759,6 +783,19 @@ export default function Batches() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.searchWrap}>
+            <View style={styles.searchInputContainer}>
+              <MaterialIcons name="search" size={18} color="#6B7280" />
+              <TextInput
+                style={styles.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Buscar por nome ou #id"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          </View>
+
           {/* Statistics Cards (moved inside scrollable area so they scroll with content) */}
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
@@ -790,10 +827,12 @@ export default function Batches() {
               <Text style={styles.statLabel}>{t("batches.pending")}</Text>
             </View>
           </View>
-          {batches.length === 0 ? (
+          {filteredBatches.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="inventory" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>{t("batches.empty")}</Text>
+              <Text style={styles.emptyText}>
+                {search.trim() ? "Nenhum lote encontrado" : t("batches.empty")}
+              </Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => openModal()}
@@ -804,16 +843,22 @@ export default function Batches() {
               </TouchableOpacity>
             </View>
           ) : (
-            batches.map((batch, index) => {
+            filteredBatches.map((batch) => {
               const productionPill = getBatchProductionPillColors(batch);
               return (
-              <View key={batch.id} style={styles.batchCard}>
+              <View
+                key={batch.id}
+                style={[
+                  styles.batchCard,
+                  { borderLeftColor: productionPill.fg },
+                ]}
+              >
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
                     <View style={styles.batchNumber}>
                       <Text style={styles.batchNumberText}>
-                        #{batches.length - index}
+                        {getBatchCode(batch.id)}
                       </Text>
                     </View>
                     <View style={styles.cardHeaderInfo}>
@@ -936,6 +981,10 @@ export default function Batches() {
           onRequestClose={closeModal}
         >
           <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboard}
+            >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
@@ -1088,7 +1137,7 @@ export default function Batches() {
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>{t("batches.unitPriceLabel")}</Text>
                       <View style={styles.inputContainer}>
-                        <MaterialIcons name="attach-money" size={20} color="#6B7280" />
+                        <MaterialIcons name="payments" size={20} color="#6B7280" />
                         <Text style={[styles.input, { paddingVertical: 12 }]}>
                           {(() => {
                             const c = cuts.find((x) => x.id === selectedCutId);
@@ -1196,27 +1245,36 @@ export default function Batches() {
                             {t("batches.noWorkshop")}
                           </Text>
                         </TouchableOpacity>
-                        {workshops.map((workshop) => (
+                        {workshops.map((workshop) => {
+                          const selectable = workshop.status === "free";
+                          return (
                           <TouchableOpacity
                             key={workshop.id}
                             style={[
                               styles.workshopOption,
                               selectedWorkshopId === workshop.id &&
                                 styles.workshopOptionActive,
+                              !selectable && styles.workshopOptionDisabled,
                             ]}
-                            onPress={() => setSelectedWorkshopId(workshop.id)}
+                            onPress={() => {
+                              if (!selectable) return;
+                              setSelectedWorkshopId(workshop.id);
+                            }}
+                            disabled={!selectable}
                           >
                             <Text
                               style={[
                                 styles.workshopOptionText,
                                 selectedWorkshopId === workshop.id &&
                                   styles.workshopOptionTextActive,
+                                !selectable && styles.workshopOptionTextDisabled,
                               ]}
                             >
-                              {workshop.name}
+                              {workshop.name} • {workshopStatusLabel(workshop.status)}
                             </Text>
                           </TouchableOpacity>
-                        ))}
+                          );
+                        })}
                       </ScrollView>
                     </View>
                   </View>
@@ -1298,6 +1356,7 @@ export default function Batches() {
                 </TouchableOpacity>
               </View>
             </View>
+            </KeyboardAvoidingView>
           </View>
         </Modal>
 
@@ -1402,6 +1461,27 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: "wrap",
   },
+  searchWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
+  },
   statCard: {
     flex: 1,
     minWidth: "45%",
@@ -1468,6 +1548,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+    borderLeftWidth: 6,
+    borderLeftColor: "#6366F1",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1533,9 +1615,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   statusText: {
     fontSize: 12,
@@ -1595,7 +1677,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
+    maxHeight: "94%",
+  },
+  modalKeyboard: {
+    width: "100%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1611,7 +1696,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   modalScroll: {
-    maxHeight: 400,
+    maxHeight: 520,
   },
   inputGroup: {
     paddingHorizontal: 20,
@@ -1760,6 +1845,10 @@ const styles = StyleSheet.create({
     borderColor: "#6366F1",
     backgroundColor: "#F0F4FF",
   },
+  workshopOptionDisabled: {
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F3F4F6",
+  },
   workshopOptionText: {
     fontSize: 14,
     color: "#6B7280",
@@ -1768,6 +1857,9 @@ const styles = StyleSheet.create({
   workshopOptionTextActive: {
     color: "#6366F1",
     fontWeight: "600",
+  },
+  workshopOptionTextDisabled: {
+    color: "#9CA3AF",
   },
   modalFooter: {
     flexDirection: "row",
