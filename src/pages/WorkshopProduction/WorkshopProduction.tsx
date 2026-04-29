@@ -24,12 +24,12 @@ import { callWorkshopBatchAction } from "../../services/workshopBatchFunctions";
 import { completeBatchAndInviteOwnerCheckout } from "../../services/ownerWorkshopPayFunctions";
 import { buildOwnerBatchCheckoutShareUrl } from "../../utils/appDeepLink";
 import type { Batch } from "../../types/batch";
+import { authService } from "../../services/authService";
 import {
   BATCH_PRODUCTION_COLORS,
   getBatchProductionPillColors,
   isBatchDeliveryLate,
 } from "../../utils/batchProductionStatusStyle";
-import { MARKETPLACE_FEE_PERCENT } from "../../constants/marketplaceFee";
 
 function formatDateOnly(d: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -127,6 +127,10 @@ export default function WorkshopProduction() {
     batch: Batch;
   } | null>(null);
   const [shareLinkJustCopied, setShareLinkJustCopied] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
+  const [detailOwnerPhoto, setDetailOwnerPhoto] = useState<string | null>(null);
+  const [detailWorkshopPhoto, setDetailWorkshopPhoto] = useState<string | null>(null);
 
   const acceptedInviteBatches = batches.filter(
     (b) => b.acceptedFromOwnerInvite && b.linkedWorkshopUserId === user?.id,
@@ -170,6 +174,39 @@ export default function WorkshopProduction() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!detailBatch) {
+      setDetailOwnerPhoto(null);
+      setDetailWorkshopPhoto(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      try {
+        const [owner, workshop] = await Promise.all([
+          detailBatch.userId ? authService.getUserById(detailBatch.userId) : Promise.resolve(null),
+          detailBatch.linkedWorkshopUserId
+            ? authService.getUserById(detailBatch.linkedWorkshopUserId)
+            : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        setDetailOwnerPhoto(owner?.photoURL || null);
+        setDetailWorkshopPhoto(workshop?.photoURL || null);
+      } catch {
+        if (cancelled) return;
+        setDetailOwnerPhoto(null);
+        setDetailWorkshopPhoto(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailBatch]);
 
   const submitNote = async () => {
     if (!noteModal || !noteBatchId) return;
@@ -230,6 +267,13 @@ export default function WorkshopProduction() {
     const d = new Date(yy, mm - 1, dd);
     if (Number.isNaN(d.getTime())) {
       Alert.alert(t("common.error"), t("workshopProduction.dateInvalid"));
+      return;
+    }
+    const today = new Date();
+    const startDelivery = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    if (startDelivery < startToday) {
+      Alert.alert(t("common.error"), t("batches.deliveryDateMinToday"));
       return;
     }
     const bId = deliveryModal;
@@ -369,23 +413,34 @@ export default function WorkshopProduction() {
         <Text style={styles.sub}>{t("workshopProduction.subtitle")}</Text>
 
         <View style={styles.legendBox}>
-          <Text style={styles.legendTitle}>{t("workshopProduction.legendTitle")}</Text>
-          <LegendRow
-            color={BATCH_PRODUCTION_COLORS.late.fg}
-            label={t("workshopProduction.legendRed")}
-          />
-          <LegendRow
-            color={BATCH_PRODUCTION_COLORS.green.fg}
-            label={t("workshopProduction.legendGreen")}
-          />
-          <LegendRow
-            color={BATCH_PRODUCTION_COLORS.yellow.fg}
-            label={t("workshopProduction.legendYellow")}
-          />
-          <LegendRow
-            color={BATCH_PRODUCTION_COLORS.orange.fg}
-            label={t("workshopProduction.legendOrange")}
-          />
+          <TouchableOpacity style={styles.legendHeader} onPress={() => setLegendExpanded((v) => !v)}>
+            <Text style={styles.legendTitle}>{t("workshopProduction.legendTitle")}</Text>
+            <MaterialIcons
+              name={legendExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+              size={22}
+              color="#111827"
+            />
+          </TouchableOpacity>
+          {legendExpanded ? (
+            <>
+              <LegendRow
+                color={BATCH_PRODUCTION_COLORS.late.fg}
+                label={t("workshopProduction.legendRed")}
+              />
+              <LegendRow
+                color={BATCH_PRODUCTION_COLORS.green.fg}
+                label={t("workshopProduction.legendGreen")}
+              />
+              <LegendRow
+                color={BATCH_PRODUCTION_COLORS.yellow.fg}
+                label={t("workshopProduction.legendYellow")}
+              />
+              <LegendRow
+                color={BATCH_PRODUCTION_COLORS.orange.fg}
+                label={t("workshopProduction.legendOrange")}
+              />
+            </>
+          ) : null}
         </View>
 
         {acceptedInviteInfoOnly.length > 0 ? (
@@ -490,7 +545,25 @@ export default function WorkshopProduction() {
             <ScrollView keyboardShouldPersistTaps="handled">
               {detailBatch ? (
                 <>
-                  <Text style={styles.modalTitle}>{detailBatch.name}</Text>
+                  <View style={styles.detailTop}>
+                    <Text style={styles.modalTitlePadded}>{detailBatch.name}</Text>
+                    <View style={styles.avatarStack}>
+                      <View style={[styles.overlapAvatar, styles.avatarBack]}>
+                        {detailOwnerPhoto ? (
+                          <Image source={{ uri: detailOwnerPhoto }} style={styles.overlapAvatarImg} />
+                        ) : (
+                          <MaterialIcons name="person" size={16} color="#6B7280" />
+                        )}
+                      </View>
+                      <View style={[styles.overlapAvatar, styles.avatarFront]}>
+                        {detailWorkshopPhoto ? (
+                          <Image source={{ uri: detailWorkshopPhoto }} style={styles.overlapAvatarImg} />
+                        ) : (
+                          <MaterialIcons name="business" size={16} color="#6B7280" />
+                        )}
+                      </View>
+                    </View>
+                  </View>
                   <Text style={styles.detailMeta}>
                     {t("batches.pieces")}: {detailBatch.totalPieces}
                   </Text>
@@ -501,10 +574,7 @@ export default function WorkshopProduction() {
                     </Text>
                   ) : null}
                   <Text style={styles.detailFeeNote}>
-                    {t("workshopProduction.detailFeeNote").replace(
-                      "{pct}",
-                      String(MARKETPLACE_FEE_PERCENT),
-                    )}
+                    {t("workshopProduction.detailFeeNote")}
                   </Text>
                   {detailBatch.deliveryDate ? (
                     <Text style={styles.detailMeta}>
@@ -525,10 +595,32 @@ export default function WorkshopProduction() {
                   detailBatch.productionNote ? (
                     <Text style={styles.note}>{detailBatch.productionNote}</Text>
                   ) : null}
+                  {detailBatch.defectPhotoUrlsLatest && detailBatch.defectPhotoUrlsLatest.length > 0 ? (
+                    <View style={styles.detailObs}>
+                      <Text style={styles.detailObsLabel}>Fotos de defeitos enviadas pelo dono</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.defectPhotoRow}>
+                        {detailBatch.defectPhotoUrlsLatest.map((u) => (
+                          <TouchableOpacity key={u} onPress={() => setPhotoPreviewUri(u)}>
+                            <Image source={{ uri: u }} style={styles.defectPhotoThumb} />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
 
                   <TouchableOpacity
                     style={styles.modalLinkRow}
                     onPress={() => {
+                      const deliveryEditLocked =
+                        !!detailBatch.deliveryDate &&
+                        (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1;
+                      if (deliveryEditLocked) {
+                        Alert.alert(
+                          t("common.info"),
+                          "A data de entrega ja foi alterada uma vez e nao pode ser editada novamente.",
+                        );
+                        return;
+                      }
                       setDeliveryModal(detailBatch.id);
                       setDeliveryInput(
                         detailBatch.deliveryDate
@@ -536,12 +628,31 @@ export default function WorkshopProduction() {
                           : "",
                       );
                     }}
+                    disabled={
+                      !!detailBatch.deliveryDate &&
+                      (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1
+                    }
                   >
-                    <MaterialIcons name="event" size={18} color="#6366F1" />
+                    <MaterialIcons
+                      name="event"
+                      size={18}
+                      color={
+                        !!detailBatch.deliveryDate &&
+                        (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1
+                          ? "#9CA3AF"
+                          : "#6366F1"
+                      }
+                    />
                     <Text style={styles.deliveryLink}>
                       {t("workshopProduction.editDelivery")}
                     </Text>
                   </TouchableOpacity>
+                  {!!detailBatch.deliveryDate &&
+                  (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1 ? (
+                    <Text style={styles.deliveryLockText}>
+                      Voce ja usou a unica edicao permitida da data de entrega.
+                    </Text>
+                  ) : null}
 
                   <View style={styles.detailActions}>
                     <TouchableOpacity
@@ -602,45 +713,65 @@ export default function WorkshopProduction() {
 
       <Modal visible={!!noteModal} transparent animationType="fade">
         <View style={styles.modalBg}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>
+          <View style={[styles.modalBox, styles.formModalBox]}>
+            <View style={styles.formModalHeader}>
+              <View style={styles.formModalIcon}>
+                <MaterialIcons
+                  name={noteModal === "partial" ? "inventory-2" : "pause-circle-outline"}
+                  size={20}
+                  color="#4F46E5"
+                />
+              </View>
+              <Text style={styles.modalTitle}>
+                {noteModal === "partial"
+                  ? t("workshopProduction.partialTitle")
+                  : t("workshopProduction.pauseTitle")}
+              </Text>
+            </View>
+            <Text style={styles.modalSubText}>
               {noteModal === "partial"
-                ? t("workshopProduction.partialTitle")
-                : t("workshopProduction.pauseTitle")}
+                ? "Informe a quantidade e uma observacao para o dono."
+                : "Descreva o motivo da pausa e a previsao de retorno."}
             </Text>
             {noteModal === "partial" ? (
+              <View style={styles.formFieldBlock}>
+                <Text style={styles.formFieldLabel}>Quantidade da entrega parcial</Text>
+                <TextInput
+                  style={styles.input}
+                  value={partialPieces}
+                  onChangeText={setPartialPieces}
+                  placeholder={t("workshopProduction.partialQtyPlaceholder")}
+                  keyboardType="numeric"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            ) : null}
+            <View style={styles.formFieldBlock}>
+              <Text style={styles.formFieldLabel}>Mensagem para o dono</Text>
               <TextInput
-                style={styles.input}
-                value={partialPieces}
-                onChangeText={setPartialPieces}
-                placeholder={t("workshopProduction.partialQtyPlaceholder")}
-                keyboardType="numeric"
+                style={[styles.input, styles.textArea]}
+                value={noteText}
+                onChangeText={setNoteText}
+                multiline
+                placeholder={t("workshopProduction.notePlaceholder")}
                 placeholderTextColor="#9CA3AF"
               />
-            ) : null}
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={noteText}
-              onChangeText={setNoteText}
-              multiline
-              placeholder={t("workshopProduction.notePlaceholder")}
-              placeholderTextColor="#9CA3AF"
-            />
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.btnOutline}
+                style={styles.formBtnOutline}
                 onPress={() => {
                   setNoteModal(null);
                   setNoteBatchId(null);
                 }}
               >
-                <Text style={styles.btnOutlineText}>{t("common.cancel")}</Text>
+                <Text style={styles.formBtnOutlineText}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.btnPrimary}
+                style={styles.formBtnPrimary}
                 onPress={() => void submitNote()}
               >
-                <Text style={styles.btnPrimaryText}>{t("common.send")}</Text>
+                <Text style={styles.formBtnPrimaryText}>{t("common.send")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -649,25 +780,36 @@ export default function WorkshopProduction() {
 
       <Modal visible={!!deliveryModal} transparent animationType="fade">
         <View style={styles.modalBg}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{t("workshopProduction.deliveryTitle")}</Text>
-            <TextInput
-              style={styles.input}
-              value={deliveryInput}
-              onChangeText={(x) => setDeliveryInput(formatDateInput(x))}
-              placeholder="DD/MM/AAAA"
-              keyboardType="numeric"
-              maxLength={10}
-            />
+          <View style={[styles.modalBox, styles.formModalBox]}>
+            <View style={styles.formModalHeader}>
+              <View style={styles.formModalIcon}>
+                <MaterialIcons name="event" size={20} color="#4F46E5" />
+              </View>
+              <Text style={styles.modalTitle}>{t("workshopProduction.deliveryTitle")}</Text>
+            </View>
+            <Text style={styles.modalSubText}>
+              Informe uma data igual ou posterior a hoje.
+            </Text>
+            <View style={styles.formFieldBlock}>
+              <Text style={styles.formFieldLabel}>Data de entrega</Text>
+              <TextInput
+                style={styles.input}
+                value={deliveryInput}
+                onChangeText={(x) => setDeliveryInput(formatDateInput(x))}
+                placeholder="DD/MM/AAAA"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.btnOutline}
+                style={styles.formBtnOutline}
                 onPress={() => setDeliveryModal(null)}
               >
-                <Text style={styles.btnOutlineText}>{t("common.cancel")}</Text>
+                <Text style={styles.formBtnOutlineText}>{t("common.cancel")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={onSaveDelivery}>
-                <Text style={styles.btnPrimaryText}>{t("common.save")}</Text>
+              <TouchableOpacity style={styles.formBtnPrimary} onPress={onSaveDelivery}>
+                <Text style={styles.formBtnPrimaryText}>{t("common.save")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -764,6 +906,17 @@ export default function WorkshopProduction() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <Modal visible={!!photoPreviewUri} transparent animationType="fade" onRequestClose={() => setPhotoPreviewUri(null)}>
+        <View style={styles.shareModalOverlay}>
+          <TouchableOpacity style={styles.photoPreviewClose} onPress={() => setPhotoPreviewUri(null)}>
+            <MaterialIcons name="close" size={26} color="#FFF" />
+          </TouchableOpacity>
+          {photoPreviewUri ? (
+            <Image source={{ uri: photoPreviewUri }} style={styles.photoPreviewImage} resizeMode="contain" />
+          ) : null}
+        </View>
+      </Modal>
     </Layout>
   );
 }
@@ -773,7 +926,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "800", color: "#111827" },
   sub: { fontSize: 14, color: "#6B7280", marginBottom: 4 },
   legendBox: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
@@ -781,6 +934,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
+  legendHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   legendTitle: { fontSize: 13, fontWeight: "800", color: "#111827" },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
@@ -869,20 +1023,64 @@ const styles = StyleSheet.create({
   outlineText: { color: "#6366F1", fontWeight: "600" },
   modalBg: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(15,23,42,0.55)",
     justifyContent: "center",
     padding: 20,
   },
-  modalBox: { backgroundColor: "#FFF", borderRadius: 14, padding: 16, gap: 10 },
+  modalBox: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  formModalBox: { gap: 12 },
+  formModalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  formModalIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSubText: { fontSize: 13, color: "#6B7280", lineHeight: 18 },
   detailModalBox: { maxHeight: "85%" },
+  detailTop: { position: "relative", minHeight: 42, justifyContent: "center" },
+  modalTitlePadded: { fontSize: 17, fontWeight: "800", color: "#111827", paddingRight: 86 },
+  avatarStack: { position: "absolute", right: 0, top: 0, width: 68, height: 40 },
+  overlapAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    position: "absolute",
+  },
+  avatarBack: { left: 0, top: 4, zIndex: 1 },
+  avatarFront: { right: 0, top: 0, zIndex: 2 },
+  overlapAvatarImg: { width: "100%", height: "100%" },
   modalTitle: { fontSize: 17, fontWeight: "800", color: "#111827" },
   detailMeta: { fontSize: 14, color: "#4B5563" },
   detailFeeNote: { fontSize: 12, color: "#6B7280", marginTop: 4 },
   detailObs: { marginTop: 10, gap: 4 },
   detailObsLabel: { fontSize: 12, fontWeight: "700", color: "#6B7280" },
   detailObsText: { fontSize: 14, color: "#374151", lineHeight: 20 },
+  defectPhotoRow: { gap: 8, paddingVertical: 4 },
+  defectPhotoThumb: { width: 78, height: 78, borderRadius: 8, backgroundColor: "#E5E7EB" },
   modalLinkRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
   deliveryLink: { fontSize: 14, color: "#6366F1", fontWeight: "600" },
+  deliveryLockText: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
   detailActions: { flexDirection: "row", gap: 10, marginTop: 14 },
   modalClose: { alignItems: "center", paddingVertical: 8, marginTop: 4 },
   modalCloseText: { color: "#6B7280", fontWeight: "600" },
@@ -890,11 +1088,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D1D5DB",
     borderRadius: 8,
-    padding: 10,
+    padding: 12,
     fontSize: 15,
+    backgroundColor: "#F8FAFC",
   },
+  formFieldBlock: { gap: 6 },
+  formFieldLabel: { fontSize: 12, fontWeight: "700", color: "#475569" },
   textArea: { minHeight: 100, textAlignVertical: "top" },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+  formBtnOutline: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  formBtnOutlineText: { color: "#475569", fontWeight: "700", fontSize: 14 },
+  formBtnPrimary: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4F46E5",
+  },
+  formBtnPrimaryText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
   shareModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -994,4 +1215,6 @@ const styles = StyleSheet.create({
   },
   shareBtnPrimaryText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
   shareModalBack: { alignItems: "center", paddingVertical: 8, marginTop: 2 },
+  photoPreviewClose: { position: "absolute", top: 42, right: 20, zIndex: 3 },
+  photoPreviewImage: { width: "92%", height: "82%", alignSelf: "center" },
 });

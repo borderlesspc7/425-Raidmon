@@ -1,4 +1,14 @@
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -76,6 +86,7 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       language: userData.language || 'pt',
       address: userData.address,
       about: userData.about,
+      estimatedRevenue: typeof userData.estimatedRevenue === 'number' ? userData.estimatedRevenue : undefined,
       workshopAsaas: userData.workshopAsaas,
       userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
       asaasCustomerId: userData.asaasCustomerId,
@@ -126,6 +137,7 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        estimatedRevenue: typeof userData.estimatedRevenue === 'number' ? userData.estimatedRevenue : undefined,
         workshopAsaas: userData.workshopAsaas,
         userType: isAdminUser ? 'admin' : (userData.userType || 'owner'),
         asaasCustomerId: userData.asaasCustomerId,
@@ -170,6 +182,12 @@ export const authService = {
       if (!credentials.email || !credentials.password || !credentials.name) {
         throw new Error('Todos os campos são obrigatórios');
       }
+      if (!credentials.companyName || !credentials.companyName.trim()) {
+        throw new Error('Nome da empresa/oficina é obrigatório');
+      }
+      if (!credentials.phone || onlyDigits(credentials.phone).length < 10) {
+        throw new Error('Telefone válido é obrigatório');
+      }
 
       if (credentials.password.length < 6) {
         throw new Error('A senha deve ter pelo menos 6 caracteres');
@@ -195,6 +213,25 @@ export const authService = {
         if (cpfLen === 14 && !w.companyType) {
           throw new Error('Selecione o tipo de empresa (MEI, Ltda, etc.)');
         }
+        if (!w.complement || !w.complement.trim()) {
+          throw new Error('Preencha o complemento do endereço');
+        }
+      }
+
+      if (credentials.userType === 'owner') {
+        if (!Number.isFinite(Number(credentials.estimatedRevenue)) || Number(credentials.estimatedRevenue) <= 0) {
+          throw new Error('Informe o faturamento estimado (valor maior que zero)');
+        }
+      }
+      const cpfDigits = onlyDigits(credentials.cpf || '');
+      if (cpfDigits.length !== 11 && cpfDigits.length !== 14) {
+        throw new Error('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido');
+      }
+
+      const cpfQuery = query(collection(db, 'users'), where('cpf', '==', cpfDigits));
+      const cpfExists = await getDocs(cpfQuery);
+      if (!cpfExists.empty) {
+        throw new Error('Já existe uma conta cadastrada com este CPF/CNPJ');
       }
 
       // Cria o usuário no Firebase Auth
@@ -212,12 +249,15 @@ export const authService = {
         email: credentials.email,
         username: credentials.email.split('@')[0],
         userType: credentials.userType,
-        cpf: onlyDigits(credentials.cpf || ''),
+        cpf: cpfDigits,
         rg: '',
         createdAt: new Date(),
         updatedAt: new Date(),
         ...(credentials.companyName ? { companyName: credentials.companyName } : {}),
         ...(credentials.phone ? { phone: credentials.phone } : {}),
+        ...(credentials.estimatedRevenue && credentials.estimatedRevenue > 0
+          ? { estimatedRevenue: credentials.estimatedRevenue }
+          : {}),
       };
 
       if (credentials.userType === 'workshop' && credentials.workshopAsaas) {
@@ -342,6 +382,7 @@ export const authService = {
         language: userData.language || 'pt',
         address: userData.address,
         about: userData.about,
+        estimatedRevenue: typeof userData.estimatedRevenue === 'number' ? userData.estimatedRevenue : undefined,
         workshopAsaas: userData.workshopAsaas,
         userType:
           userData.userType === 'admin' || (userData.email || '').toLowerCase() === ADMIN_EMAIL

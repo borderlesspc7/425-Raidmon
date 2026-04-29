@@ -45,6 +45,11 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
         ? data.deliveryDate.toDate()
         : new Date(data.deliveryDate)
       : undefined,
+    workshopDeliveryDateEditCount:
+      typeof data.workshopDeliveryDateEditCount === "number" &&
+      Number.isFinite(data.workshopDeliveryDateEditCount)
+        ? data.workshopDeliveryDateEditCount
+        : undefined,
     observations: data.observations || undefined,
     userId: data.userId,
     cutId: data.cutId || undefined,
@@ -125,6 +130,10 @@ function convertFirestoreToBatch(docId: string, data: any): Batch {
     ownerWorkshopPayPaymentId:
       typeof data.ownerWorkshopPayPaymentId === "string"
         ? data.ownerWorkshopPayPaymentId
+        : undefined,
+    defectPhotoUrlsLatest:
+      Array.isArray(data.defectPhotoUrlsLatest)
+        ? data.defectPhotoUrlsLatest.filter((u: unknown) => typeof u === "string")
         : undefined,
     completedAt: data.completedAt
       ? data.completedAt instanceof Timestamp

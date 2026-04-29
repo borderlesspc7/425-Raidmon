@@ -12,6 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useNavigation } from "../../routes/NavigationContext";
 import {
   getWorkshopsByUser,
   updateWorkshopStatus,
@@ -23,6 +24,7 @@ import { Workshop, WorkshopStatus as WorkshopStatusType } from "../../types/work
 export default function WorkshopStatus() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { navigate } = useNavigation();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +36,7 @@ export default function WorkshopStatus() {
   const [busyWorkshops, setBusyWorkshops] = useState(0);
   const [totalPieces, setTotalPieces] = useState(0);
   const [startedInviteBatches, setStartedInviteBatches] = useState<Batch[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -120,6 +123,20 @@ export default function WorkshopStatus() {
     { status: "free", workshops: workshops.filter((w) => w.status === "free") },
     { status: "busy", workshops: workshops.filter((w) => w.status === "busy") },
   ];
+
+  const isBatchReadyForReceive = (batch: Batch) =>
+    batch.status === "completed" || batch.productionFlowStatus === "ready_for_pickup";
+
+  const formatDateTime = (date?: Date) => {
+    if (!date) return "-";
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
 
   if (loading) {
     return (
@@ -243,9 +260,14 @@ export default function WorkshopStatus() {
                 {t("workshopStatus.startedByInviteTitle")}
               </Text>
               {startedInviteBatches.map((batch) => (
-                <View key={`started-${batch.id}`} style={styles.startedCard}>
+                <TouchableOpacity
+                  key={`started-${batch.id}`}
+                  style={styles.startedCard}
+                  activeOpacity={0.9}
+                  onPress={() => setSelectedBatch(batch)}
+                >
                   <View style={styles.startedCardHeader}>
-                    <View style={styles.startedGreenDot} />
+                    <View style={styles.startedYellowDot} />
                     <Text style={styles.startedCardTitle}>
                       {batch.workshopName || t("workshopStatus.unknownWorkshop")}
                     </Text>
@@ -256,7 +278,7 @@ export default function WorkshopStatus() {
                   <Text style={styles.startedCardText}>
                     {t("workshopStatus.startedStatusLabel")} {t("workshopStatus.startedGreenStatus")}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           ) : null}
@@ -318,6 +340,95 @@ export default function WorkshopStatus() {
             </>
           )}
         </ScrollView>
+
+        <Modal
+          visible={!!selectedBatch}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedBatch(null)}
+        >
+          <View style={styles.batchModalBg}>
+            <View style={styles.batchModalCard}>
+              {selectedBatch ? (
+                <>
+                  <View style={styles.batchModalHeader}>
+                    <Text style={styles.batchModalTitle}>Acompanhamento do lote</Text>
+                    <TouchableOpacity onPress={() => setSelectedBatch(null)}>
+                      <MaterialIcons name="close" size={22} color="#1F2937" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Lote</Text>
+                    <Text style={styles.batchInfoValue}>{selectedBatch.name}</Text>
+                  </View>
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Oficina</Text>
+                    <Text style={styles.batchInfoValue}>
+                      {selectedBatch.workshopName || t("workshopStatus.unknownWorkshop")}
+                    </Text>
+                  </View>
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Status</Text>
+                    <Text style={styles.batchInfoValue}>
+                      {isBatchReadyForReceive(selectedBatch)
+                        ? "Pronto para retirada"
+                        : "Em producao"}
+                    </Text>
+                  </View>
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Peças do lote</Text>
+                    <Text style={styles.batchInfoValue}>
+                      {String(selectedBatch.totalPieces)}
+                    </Text>
+                  </View>
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Entrega prevista</Text>
+                    <Text style={styles.batchInfoValue}>
+                      {selectedBatch.deliveryDate
+                        ? new Intl.DateTimeFormat("pt-BR").format(selectedBatch.deliveryDate)
+                        : "-"}
+                    </Text>
+                  </View>
+                  <View style={styles.batchInfoRow}>
+                    <Text style={styles.batchInfoLabel}>Ultima atualizacao</Text>
+                    <Text style={styles.batchInfoValue}>
+                      {formatDateTime(selectedBatch.updatedAt)}
+                    </Text>
+                  </View>
+
+                  {isBatchReadyForReceive(selectedBatch) &&
+                  selectedBatch.ownerBatchCheckoutToken ? (
+                    <TouchableOpacity
+                      style={styles.receiveBtn}
+                      onPress={() => {
+                        navigate("OwnerWorkshopPayment", {
+                          ownerBatchCheckout: {
+                            batchId: selectedBatch.id,
+                            token: selectedBatch.ownerBatchCheckoutToken as string,
+                          },
+                        });
+                        setSelectedBatch(null);
+                      }}
+                    >
+                      <MaterialIcons name="fact-check" size={18} color="#FFFFFF" />
+                      <Text style={styles.receiveBtnText}>
+                        Conferir recebimento de pecas
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  <TouchableOpacity
+                    style={styles.batchCloseBtn}
+                    onPress={() => setSelectedBatch(null)}
+                  >
+                    <Text style={styles.batchCloseBtnText}>{t("common.back")}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
       </View>
     </Layout>
   );
@@ -659,31 +770,99 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   startedCard: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
+    backgroundColor: "#FEF9C3",
+    borderColor: "#FDE68A",
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
     gap: 4,
+  },
+  batchModalBg: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  batchModalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+  },
+  batchModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  batchModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  batchInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  batchInfoLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  batchInfoValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "700",
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  receiveBtn: {
+    marginTop: 8,
+    borderRadius: 10,
+    backgroundColor: "#4F46E5",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  receiveBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  batchCloseBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    paddingVertical: 10,
+    alignItems: "center",
+    marginTop: 2,
+  },
+  batchCloseBtnText: {
+    color: "#374151",
+    fontWeight: "700",
   },
   startedCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  startedGreenDot: {
+  startedYellowDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#10B981",
+    backgroundColor: "#EAB308",
   },
   startedCardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#065F46",
+    color: "#854D0E",
   },
   startedCardText: {
     fontSize: 13,
-    color: "#064E3B",
+    color: "#92400E",
   },
 });

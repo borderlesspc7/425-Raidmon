@@ -1247,13 +1247,15 @@ export default function Batches() {
                         </TouchableOpacity>
                         {workshops.map((workshop) => {
                           const selectable = workshop.status === "free";
+                          const isSelected = selectedWorkshopId === workshop.id;
                           return (
                           <TouchableOpacity
                             key={workshop.id}
                             style={[
                               styles.workshopOption,
-                              selectedWorkshopId === workshop.id &&
-                                styles.workshopOptionActive,
+                              selectable && styles.workshopOptionFree,
+                              selectable && isSelected && styles.workshopOptionFreeActive,
+                              isSelected && !selectable && styles.workshopOptionActive,
                               !selectable && styles.workshopOptionDisabled,
                             ]}
                             onPress={() => {
@@ -1265,8 +1267,9 @@ export default function Batches() {
                             <Text
                               style={[
                                 styles.workshopOptionText,
-                                selectedWorkshopId === workshop.id &&
-                                  styles.workshopOptionTextActive,
+                                selectable && styles.workshopOptionTextFree,
+                                selectable && isSelected && styles.workshopOptionTextFreeActive,
+                                isSelected && !selectable && styles.workshopOptionTextActive,
                                 !selectable && styles.workshopOptionTextDisabled,
                               ]}
                             >
@@ -1845,6 +1848,14 @@ const styles = StyleSheet.create({
     borderColor: "#6366F1",
     backgroundColor: "#F0F4FF",
   },
+  workshopOptionFree: {
+    borderColor: "#16A34A",
+    backgroundColor: "#ECFDF5",
+  },
+  workshopOptionFreeActive: {
+    borderColor: "#15803D",
+    backgroundColor: "#16A34A",
+  },
   workshopOptionDisabled: {
     borderColor: "#D1D5DB",
     backgroundColor: "#F3F4F6",
@@ -1857,6 +1868,14 @@ const styles = StyleSheet.create({
   workshopOptionTextActive: {
     color: "#6366F1",
     fontWeight: "600",
+  },
+  workshopOptionTextFree: {
+    color: "#166534",
+    fontWeight: "600",
+  },
+  workshopOptionTextFreeActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   workshopOptionTextDisabled: {
     color: "#9CA3AF",

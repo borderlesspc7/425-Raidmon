@@ -13,7 +13,9 @@ import {
   Switch,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
 import { MaterialIcons } from "@expo/vector-icons";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -27,7 +29,7 @@ import {
   type OwnerPaymentInvitePreview,
 } from "../../services/ownerWorkshopPayFunctions";
 import { createAsaasChargeForPayment } from "../../services/asaasPayments";
-import { MARKETPLACE_FEE_PERCENT } from "../../constants/marketplaceFee";
+import { storage } from "../../lib/firebaseconfig";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -77,6 +79,7 @@ export default function OwnerWorkshopPayment() {
   const [defectsYes, setDefectsYes] = useState(false);
   const [defectCount, setDefectCount] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+  const [defectPhotoUris, setDefectPhotoUris] = useState<string[]>([]);
 
   const [loadingPix, setLoadingPix] = useState(true);
   const [charging, setCharging] = useState(false);
@@ -212,6 +215,25 @@ export default function OwnerWorkshopPayment() {
     return null;
   }, [checkoutPreview, piecesArrived, defectsYes, defectCount]);
 
+  const estimatedDefectDiscount = useMemo(() => {
+    if (!checkoutPreview) return null;
+    const pr = parseInt(piecesArrived.replace(/\D/g, ""), 10);
+    const dc = defectsYes ? parseInt(defectCount.replace(/\D/g, "") || "0", 10) : 0;
+    if (!Number.isFinite(pr) || !Number.isFinite(dc) || dc <= 0 || dc > pr) return null;
+    const cap = checkoutPreview.conferenceMaxPieces ?? checkoutPreview.totalPieces;
+    const waveBase = checkoutPreview.checkoutWaveGuaranteedBase;
+    if (waveBase != null && waveBase > 0 && cap > 0) {
+      return Math.round((dc / cap) * waveBase * 100) / 100;
+    }
+    if (checkoutPreview.pricePerPiece != null && checkoutPreview.pricePerPiece > 0) {
+      return Math.round(dc * checkoutPreview.pricePerPiece * 100) / 100;
+    }
+    if (checkoutPreview.guaranteedTotal != null && checkoutPreview.guaranteedTotal > 0 && checkoutPreview.totalPieces > 0) {
+      return Math.round((dc / checkoutPreview.totalPieces) * checkoutPreview.guaranteedTotal * 100) / 100;
+    }
+    return null;
+  }, [checkoutPreview, piecesArrived, defectsYes, defectCount]);
+
   const onSubmitReport = async () => {
     if (!batchNav || !checkoutPreview) return;
     const pr = parseInt(piecesArrived.replace(/\D/g, ""), 10);
@@ -235,11 +257,33 @@ export default function OwnerWorkshopPayment() {
     }
     setSubmittingReport(true);
     try {
+      let defectPhotoUrls: string[] = [];
+      if (defectPhotoUris.length > 0) {
+        const uploads = defectPhotoUris.slice(0, 8).map(async (uri, idx) => {
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.onload = () => resolve(xhr.response as Blob);
+            xhr.onerror = () => reject(new Error("Falha ao ler foto."));
+            xhr.responseType = "blob";
+            xhr.open("GET", uri, true);
+            xhr.send();
+          });
+          const photoRef = ref(
+            storage,
+            `owner-defect-photos/${batchNav.batchId}/${Date.now()}_${idx}.jpg`,
+          );
+          await uploadBytes(photoRef, blob, { contentType: "image/jpeg" });
+          return getDownloadURL(photoRef);
+        });
+        defectPhotoUrls = await Promise.all(uploads);
+      }
+
       const res = await submitOwnerBatchCheckoutAndCreatePayment(
         batchNav.batchId,
         batchNav.token,
         pr,
         dc,
+        defectPhotoUrls,
       );
       setPayId(res.paymentId);
       setPayTok(res.token);
@@ -326,7 +370,12 @@ export default function OwnerWorkshopPayment() {
             />
             <View style={styles.switchRow}>
               <Text style={styles.fieldLabel}>{t("ownerWorkshopPay.defectsQuestion")}</Text>
-              <Switch value={defectsYes} onValueChange={setDefectsYes} />
+              <Switch
+                value={defectsYes}
+                onValueChange={setDefectsYes}
+                trackColor={{ false: "#22C55E", true: "#EF4444" }}
+                thumbColor="#FFFFFF"
+              />
             </View>
             {defectsYes ? (
               <>
@@ -341,6 +390,48 @@ export default function OwnerWorkshopPayment() {
                 />
               </>
             ) : null}
+            {defectsYes ? (
+              <View style={styles.photoSection}>
+                <TouchableOpacity
+                  style={styles.photoBtn}
+                  onPress={async () => {
+                    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    if (!perm.granted) {
+                      Alert.alert("Permissão necessária", "Permita acesso à galeria para enviar fotos.");
+                      return;
+                    }
+                    const pick = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      quality: 0.8,
+                      allowsMultipleSelection: true,
+                      selectionLimit: 8,
+                    });
+                    if (!pick.canceled) {
+                      const uris = pick.assets.map((a) => a.uri).filter(Boolean);
+                      setDefectPhotoUris((prev) => Array.from(new Set([...prev, ...uris])).slice(0, 8));
+                    }
+                  }}
+                >
+                  <MaterialIcons name="add-a-photo" size={18} color="#374151" />
+                  <Text style={styles.photoBtnText}>Adicionar foto(s) das peças com defeito</Text>
+                </TouchableOpacity>
+                {defectPhotoUris.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+                    {defectPhotoUris.map((uri) => (
+                      <View key={uri} style={styles.photoThumbWrap}>
+                        <Image source={{ uri }} style={styles.photoThumb} />
+                        <TouchableOpacity
+                          style={styles.removePhotoBtn}
+                          onPress={() => setDefectPhotoUris((prev) => prev.filter((u) => u !== uri))}
+                        >
+                          <MaterialIcons name="close" size={14} color="#FFF" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : null}
+              </View>
+            ) : null}
             {estimatedBase != null ? (
               <Text style={styles.estimate}>
                 {t("ownerWorkshopPay.estimatedService")}
@@ -348,11 +439,16 @@ export default function OwnerWorkshopPayment() {
                 {" · "}
                 {t("ownerWorkshopPay.estimatedWithFee").replace(
                   "{pct}",
-                  String(MARKETPLACE_FEE_PERCENT),
+                  String(checkoutPreview.platformFeePercent),
                 )}
                 {formatMoney(
-                  Math.round(estimatedBase * (1 + MARKETPLACE_FEE_PERCENT / 100) * 100) / 100,
+                  Math.round(estimatedBase * (1 + checkoutPreview.platformFeePercent / 100) * 100) / 100,
                 )}
+              </Text>
+            ) : null}
+            {estimatedDefectDiscount != null ? (
+              <Text style={styles.defectDiscountText}>
+                Desconto estimado por peças com defeito: {formatMoney(estimatedDefectDiscount)}
               </Text>
             ) : null}
             <Text style={styles.feeHintSmall}>
@@ -540,6 +636,34 @@ const styles = StyleSheet.create({
   },
   estimate: { fontSize: 14, color: "#111827", marginTop: 8, fontWeight: "600" },
   feeHintSmall: { fontSize: 12, color: "#6B7280", marginTop: 6 },
+  defectDiscountText: { fontSize: 12, color: "#B45309", marginTop: 4, fontWeight: "600" },
+  photoSection: { marginTop: 10, gap: 8 },
+  photoBtn: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F9FAFB",
+  },
+  photoBtnText: { fontSize: 13, color: "#374151", fontWeight: "600", flex: 1 },
+  photoRow: { gap: 8, paddingVertical: 2 },
+  photoThumbWrap: { width: 70, height: 70, borderRadius: 8, overflow: "hidden", position: "relative" },
+  photoThumb: { width: "100%", height: "100%" },
+  removePhotoBtn: {
+    position: "absolute",
+    right: 2,
+    top: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   feeHint: { fontSize: 12, color: "#6B7280", marginTop: 4 },
   pixWait: { alignItems: "center", gap: 8, paddingVertical: 16 },
   muted: { color: "#6B7280", fontSize: 14 },

@@ -770,11 +770,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statusSelector: {
+    flexDirection: 'row',
     gap: 10,
   },
   statusOption: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 12,
     borderRadius: 10,
     borderWidth: 2,

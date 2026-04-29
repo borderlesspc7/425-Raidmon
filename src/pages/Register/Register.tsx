@@ -15,16 +15,20 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Register() {
   const { navigate } = useNavigation();
   const { register, loading, error, clearError } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const insets = useSafeAreaInsets();
   
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [cpfCnpj, setCpfCnpj] = useState('');
+  const [estimatedRevenue, setEstimatedRevenue] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -51,6 +55,23 @@ export default function Register() {
     } else {
       return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
     }
+  };
+
+  const onlyDigits = (text: string) => text.replace(/\D/g, '');
+
+  const formatCpfCnpj = (text: string) => {
+    const d = onlyDigits(text).slice(0, 14);
+    if (d.length <= 11) {
+      if (d.length <= 3) return d;
+      if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+      if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+      return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
+    }
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+    if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+    if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
   };
 
   const validateField = (field: string, value: string) => {
@@ -98,6 +119,24 @@ export default function Register() {
           delete newErrors.phone;
         }
         break;
+      case 'cpfCnpj': {
+        const digits = onlyDigits(value);
+        if (digits.length !== 11 && digits.length !== 14) {
+          newErrors.cpfCnpj = 'Informe CPF (11) ou CNPJ (14) válido';
+        } else {
+          delete newErrors.cpfCnpj;
+        }
+        break;
+      }
+      case 'estimatedRevenue': {
+        const rev = parseFloat(value.replace(/\./g, '').replace(',', '.'));
+        if (!value.trim() || !Number.isFinite(rev) || rev <= 0) {
+          newErrors.estimatedRevenue = 'Informe o faturamento estimado (valor maior que zero)';
+        } else {
+          delete newErrors.estimatedRevenue;
+        }
+        break;
+      }
 
       case 'password':
         if (!value) {
@@ -134,19 +173,24 @@ export default function Register() {
     const isCompanyNameValid = validateField('companyName', companyName);
     const isEmailValid = validateField('email', email);
     const isPhoneValid = validateField('phone', phone);
+    const isCpfCnpjValid = validateField('cpfCnpj', cpfCnpj);
+    const isRevenueValid = validateField('estimatedRevenue', estimatedRevenue);
     const isPasswordValid = validateField('password', password);
     const isConfirmPasswordValid = validateField('confirmPassword', confirmPassword);
-    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isConfirmPasswordValid) {
+    if (!isNameValid || !isCompanyNameValid || !isEmailValid || !isPhoneValid || !isCpfCnpjValid || !isRevenueValid || !isPasswordValid || !isConfirmPasswordValid) {
       return;
     }
 
     try {
       const phoneNumbers = phone.replace(/\D/g, '');
+      const revenue = parseFloat(estimatedRevenue.replace(/\./g, '').replace(',', '.'));
       await register({
         name: name.trim(),
         companyName: companyName.trim(),
         email: email.trim().toLowerCase(),
         phone: phoneNumbers,
+        cpf: onlyDigits(cpfCnpj),
+        estimatedRevenue: Number.isFinite(revenue) ? revenue : undefined,
         userType: 'owner',
         password,
         confirmPassword,
@@ -160,13 +204,22 @@ export default function Register() {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
+      keyboardVerticalOffset={Math.max(0, insets.top - 8)}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: Math.max(20, insets.top + 6),
+              paddingBottom: Math.max(24, insets.bottom + 16),
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -276,6 +329,50 @@ export default function Register() {
                 />
               </View>
               {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>CPF ou CNPJ</Text>
+              <View style={[styles.inputWrapper, errors.cpfCnpj ? styles.inputError : null]}>
+                <MaterialIcons name="badge" size={20} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="CPF ou CNPJ do titular"
+                  placeholderTextColor="#999"
+                  value={cpfCnpj}
+                  onChangeText={(text) => {
+                    const formatted = formatCpfCnpj(text);
+                    setCpfCnpj(formatted);
+                    if (errors.cpfCnpj) validateField('cpfCnpj', formatted);
+                  }}
+                  onBlur={() => validateField('cpfCnpj', cpfCnpj)}
+                  keyboardType="number-pad"
+                />
+              </View>
+              {errors.cpfCnpj ? <Text style={styles.errorText}>{errors.cpfCnpj}</Text> : null}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Faturamento estimado (R$)</Text>
+              <View style={[styles.inputWrapper, errors.estimatedRevenue ? styles.inputError : null]}>
+                <MaterialIcons name="attach-money" size={20} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5000 ou 12.000,50"
+                  placeholderTextColor="#999"
+                  value={estimatedRevenue}
+                  onChangeText={(text) => {
+                    setEstimatedRevenue(text);
+                    if (errors.estimatedRevenue) validateField('estimatedRevenue', text);
+                  }}
+                  onBlur={() => validateField('estimatedRevenue', estimatedRevenue)}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              {errors.estimatedRevenue ? <Text style={styles.errorText}>{errors.estimatedRevenue}</Text> : null}
+              <Text style={styles.infoText}>
+                O dinheiro caira no CPF/CNPJ informado acima.
+              </Text>
             </View>
 
             {/* Password Input */}
@@ -553,5 +650,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6366F1',
     fontWeight: '600',
+  },
+  infoText: {
+    marginTop: 6,
+    marginLeft: 2,
+    fontSize: 12,
+    color: '#4B5563',
   },
 });

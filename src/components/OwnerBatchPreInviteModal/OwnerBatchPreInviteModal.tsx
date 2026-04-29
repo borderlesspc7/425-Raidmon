@@ -14,10 +14,11 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Alert, Platform } from "react-native";
 
-const BG = "#0F0820";
+const BG = "#120A24";
 const BG_ELEV = "#1a0f2e";
 const GOLD = "#E8C547";
 const GOLD_DIM = "#9A7B2D";
@@ -134,7 +135,12 @@ export default function OwnerBatchPreInviteModal({
       onRequestClose={onClose}
     >
       <StatusBar style="light" />
-      <View style={styles.root}>
+      <LinearGradient
+        colors={["#3B1C68", "#130A27", "#0B0717"]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={styles.root}
+      >
         <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
           {data.step === "agreement" ? (
             <ScrollView
@@ -143,11 +149,8 @@ export default function OwnerBatchPreInviteModal({
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.brandRow}>
-                <View style={styles.ccMark}>
-                  <Text style={styles.ccText}>C</Text>
-                  <View style={styles.ccSub}>
-                    <Text style={styles.ccSubT}>C</Text>
-                  </View>
+                <View style={styles.logoWrap}>
+                  <Image source={require("../../../assets/logo1.jpeg")} style={styles.logo} resizeMode="cover" />
                 </View>
                 <Text style={styles.brandSub}>{t("batches.preInviteBrand")}</Text>
               </View>
@@ -176,42 +179,56 @@ export default function OwnerBatchPreInviteModal({
 
               <Text style={styles.contextLabel}>{t("batches.preInviteContext")}</Text>
               <View style={styles.twoCards}>
-                <View style={styles.goldCard}>
+                <LinearGradient
+                  colors={["#F6D773", "#E8C547"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.goldCard}
+                >
                   <Text style={styles.goldCardLabel}>{t("batches.preInviteLot")}</Text>
                   <Text style={styles.goldCardBig}>{data.batchRef}</Text>
                   <Text style={styles.goldCardPiece} numberOfLines={2}>
                     {data.pieceName}
                   </Text>
-                </View>
-                <View style={styles.goldCard}>
+                </LinearGradient>
+                <LinearGradient
+                  colors={["#F6D773", "#E8C547"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.goldCard}
+                >
                   <Text style={styles.goldCardLabel}>
                     {t("batches.preInviteQuantityShort")}
                   </Text>
                   <Text style={styles.goldCardBig}>
                     {data.quantity} {t("batches.preInviteUnits")}
                   </Text>
-                </View>
+                </LinearGradient>
               </View>
 
               <Text style={styles.sectionTitle}>{t("batches.preInviteValueSection")}</Text>
               <View style={styles.valueRow}>
                 <View style={styles.valueCardLeft}>
                   <Text style={styles.valueCardLabel}>{t("batches.preInviteUnitLabel")}</Text>
-                  <View style={styles.unitBox}>
-                    <Text style={styles.rs}>R$</Text>
-                    <TextInput
-                      style={styles.unitInput}
-                      value={unitInput}
-                      onChangeText={setUnitInput}
-                      placeholder="0,00"
-                      placeholderTextColor={GOLD_DIM}
-                      keyboardType="decimal-pad"
-                    />
+                  <View style={styles.unitInputWrap}>
+                    <View style={styles.unitBox}>
+                      <Text style={styles.rs}>R$</Text>
+                      <TextInput
+                        style={styles.unitInput}
+                        value={unitInput}
+                        onChangeText={setUnitInput}
+                        placeholder="0,00"
+                        placeholderTextColor={GOLD_DIM}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
                   </View>
                   <Text style={styles.unitHint}>{t("batches.preInviteUnitHint")}</Text>
                 </View>
                 <View style={styles.valueCardRight}>
-                  <Text style={styles.valueCardLabel}>{t("batches.preInviteCalcLabel")}</Text>
+                  <View style={styles.calcHead}>
+                    <Text style={styles.calcHeadText}>{t("batches.preInviteCalcLabel")}</Text>
+                  </View>
                   <Text style={styles.totalHuge}>{formatBRL(computedTotal)}</Text>
                   <Text style={styles.totalSub}>{t("batches.preInviteTotalLot")}</Text>
                   <Text style={styles.breakLine}>
@@ -242,7 +259,7 @@ export default function OwnerBatchPreInviteModal({
                 ) : (
                   <>
                     <MaterialIcons name="check-circle" size={22} color={BG} />
-                    <Text style={styles.ctaText}>{t("batches.preInviteCta")}</Text>
+                    <Text style={styles.ctaText}>[{t("batches.preInviteCta")}]</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -285,7 +302,7 @@ export default function OwnerBatchPreInviteModal({
             </ScrollView>
           )}
         </SafeAreaView>
-      </View>
+      </LinearGradient>
     </Modal>
   );
 }
@@ -295,33 +312,19 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 32 },
   scrollShare: { padding: 20, paddingBottom: 40 },
-  brandRow: { alignItems: "center", marginTop: 8, marginBottom: 8 },
-  ccMark: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(232, 197, 71, 0.2)",
+  brandRow: { alignItems: "center", marginTop: 10, marginBottom: 10 },
+  logoWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    overflow: "hidden",
     borderWidth: 2,
-    borderColor: GOLD,
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: "rgba(232,197,71,0.55)",
   },
-  ccText: { fontSize: 22, fontWeight: "900", color: GOLD, fontStyle: "italic" },
-  ccSub: {
-    position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#5B4A9E",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ccSubT: { fontSize: 10, fontWeight: "800", color: "#F5E6A8" },
+  logo: { width: "100%", height: "100%" },
   brandSub: { fontSize: 10, color: TEXT_MUTED, marginTop: 6, letterSpacing: 1 },
   screenTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "800",
     color: GOLD,
     textAlign: "center",
@@ -334,21 +337,20 @@ const styles = StyleSheet.create({
   profileText: { flex: 1 },
   welcomeLine: { fontSize: 18, fontWeight: "700", color: "#F5E6A8" },
   workshopLine: { fontSize: 13, color: TEXT_MUTED, marginTop: 4 },
-  contextLabel: { fontSize: 12, color: TEXT_MUTED, marginBottom: 8 },
+  contextLabel: { fontSize: 13, color: TEXT_MUTED, marginBottom: 8, textAlign: "center" },
   twoCards: { flexDirection: "row", gap: 10, marginBottom: 22 },
   goldCard: {
     flex: 1,
-    backgroundColor: BG_ELEV,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(232, 197, 71, 0.45)",
     padding: 12,
     minHeight: 100,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  goldCardLabel: { fontSize: 10, fontWeight: "800", color: GOLD_DIM, letterSpacing: 0.5 },
-  goldCardBig: { fontSize: 20, fontWeight: "900", color: GOLD, marginTop: 6 },
-  goldCardPiece: { fontSize: 12, color: TEXT_MUTED, marginTop: 6 },
-  sectionTitle: { fontSize: 13, fontWeight: "800", color: GOLD, marginBottom: 12 },
+  goldCardLabel: { fontSize: 11, fontWeight: "800", color: BG, letterSpacing: 0.5, textAlign: "center" },
+  goldCardBig: { fontSize: 20, fontWeight: "900", color: BG, marginTop: 6, textAlign: "center" },
+  goldCardPiece: { fontSize: 13, color: BG, marginTop: 6, textAlign: "center", fontWeight: "600" },
+  sectionTitle: { fontSize: 14, fontWeight: "800", color: GOLD, marginBottom: 12, textAlign: "center" },
   valueRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
   valueCardLeft: {
     flex: 1,
@@ -357,6 +359,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(232, 197, 71, 0.35)",
     padding: 12,
+    alignItems: "center",
   },
   valueCardRight: {
     flex: 1,
@@ -364,18 +367,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(232, 197, 71, 0.35)",
-    padding: 12,
+    padding: 0,
+    overflow: "hidden",
+    alignItems: "center",
   },
-  valueCardLabel: { fontSize: 9, fontWeight: "800", color: GOLD_DIM, marginBottom: 8 },
+  valueCardLabel: { fontSize: 10, fontWeight: "800", color: GOLD, marginBottom: 8, textAlign: "center" },
+  unitInputWrap: { width: "100%", paddingHorizontal: 4 },
   unitBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(232, 197, 71, 0.12)",
+    backgroundColor: BG_ELEV,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "rgba(232, 197, 71, 0.25)",
+    borderWidth: 2,
+    borderColor: GOLD,
   },
   rs: { fontSize: 16, fontWeight: "800", color: GOLD, marginRight: 4 },
   unitInput: {
@@ -385,17 +391,27 @@ const styles = StyleSheet.create({
     color: GOLD,
     paddingVertical: Platform.OS === "ios" ? 8 : 4,
   },
-  unitHint: { fontSize: 10, color: TEXT_MUTED, marginTop: 8 },
-  totalHuge: { fontSize: 18, fontWeight: "900", color: GOLD, marginTop: 4 },
-  totalSub: { fontSize: 10, color: TEXT_MUTED, marginTop: 4 },
-  breakLine: { fontSize: 10, color: TEXT_MUTED, marginTop: 6 },
+  unitHint: { fontSize: 10, color: TEXT_MUTED, marginTop: 8, textAlign: "center" },
+  calcHead: {
+    width: "100%",
+    backgroundColor: "#6B7280",
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calcHeadText: { fontSize: 10, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.4 },
+  totalHuge: { fontSize: 20, fontWeight: "900", color: GOLD, marginTop: 12, textAlign: "center", paddingHorizontal: 6 },
+  totalSub: { fontSize: 11, color: GOLD, marginTop: 4, textAlign: "center", fontWeight: "700" },
+  breakLine: { fontSize: 10, color: GOLD, marginTop: 6, textAlign: "center", marginBottom: 10 },
   footnote: {
-    fontSize: 11,
+    fontSize: 13,
     color: TEXT_MUTED,
     fontStyle: "italic",
-    lineHeight: 16,
+    lineHeight: 20,
     marginTop: 8,
     marginBottom: 20,
+    textAlign: "center",
+    fontWeight: "700",
   },
   cta: {
     flexDirection: "row",
@@ -413,7 +429,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  ctaText: { fontSize: 12, fontWeight: "900", color: BG, textAlign: "center", flex: 1 },
+  ctaText: { fontSize: 12, fontWeight: "900", color: BG, textAlign: "center", flex: 1, paddingRight: 10 },
   skipX: { alignItems: "center", marginTop: 20, padding: 8 },
   skipXText: { color: TEXT_MUTED, fontSize: 14 },
   shareHead: { fontSize: 20, fontWeight: "800", color: GOLD, textAlign: "center", marginBottom: 8 },

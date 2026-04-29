@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { BackHandler, Platform } from "react-native";
 import { paths, type ScreenName } from "./paths";
 
 interface NavigationParams {
@@ -19,6 +20,8 @@ interface NavigationContextType {
   currentScreen: ScreenName;
   navigationParams: NavigationParams;
   navigate: (screen: ScreenName, params?: NavigationParams) => void;
+  goBack: () => boolean;
+  canGoBack: boolean;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(
@@ -28,14 +31,49 @@ const NavigationContext = createContext<NavigationContextType | undefined>(
 export const NavigationProvider = ({ children }: { children: ReactNode }) => {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>(paths.languageSelection);
   const [navigationParams, setNavigationParams] = useState<NavigationParams>({});
+  const [history, setHistory] = useState<ScreenName[]>([]);
+  const [paramsHistory, setParamsHistory] = useState<NavigationParams[]>([]);
 
   const navigate = (screen: ScreenName, params?: NavigationParams) => {
+    if (screen !== currentScreen) {
+      setHistory((prev) => [...prev, currentScreen]);
+      setParamsHistory((prev) => [...prev, navigationParams]);
+    }
     setCurrentScreen(screen);
     setNavigationParams(params || {});
   };
 
+  const goBack = () => {
+    if (history.length === 0) return false;
+
+    const previousScreen = history[history.length - 1];
+    const previousParams =
+      paramsHistory.length > 0 ? paramsHistory[paramsHistory.length - 1] : {};
+
+    setHistory((prev) => prev.slice(0, -1));
+    setParamsHistory((prev) => prev.slice(0, -1));
+    setCurrentScreen(previousScreen);
+    setNavigationParams(previousParams);
+    return true;
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => goBack());
+    return () => sub.remove();
+  }, [history, paramsHistory]);
+
   return (
-    <NavigationContext.Provider value={{ currentScreen, navigationParams, navigate }}>
+    <NavigationContext.Provider
+      value={{
+        currentScreen,
+        navigationParams,
+        navigate,
+        goBack,
+        canGoBack: history.length > 0,
+      }}
+    >
       {children}
     </NavigationContext.Provider>
   );

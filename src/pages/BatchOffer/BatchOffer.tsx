@@ -9,10 +9,12 @@ import {
   Alert,
   TextInput,
   Image,
+  Modal,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
@@ -74,6 +76,11 @@ export default function BatchOffer() {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [deliveryInput, setDeliveryInput] = useState("");
+  const [feedback, setFeedback] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({ visible: false, title: "", message: "" });
 
   const mapInviteErrorMessage = useCallback(
     (e: unknown, fallbackKey: "batchOffer.loadError" | "batchOffer.actionError") => {
@@ -157,8 +164,11 @@ export default function BatchOffer() {
     if (!preview.canAccept && !alreadyYours) return;
 
     if (alreadyYours) {
-      Alert.alert(t("common.success"), t("batchOffer.alreadyAccepted"));
-      navigate(paths.workshopProduction);
+      setFeedback({
+        visible: true,
+        title: t("common.success"),
+        message: t("batchOffer.alreadyAccepted"),
+      });
       return;
     }
 
@@ -173,32 +183,25 @@ export default function BatchOffer() {
       Alert.alert(t("common.error"), t("batchOffer.deliveryInvalid"));
       return;
     }
+    const today = new Date();
+    const startDelivery = new Date(deliveryD.getFullYear(), deliveryD.getMonth(), deliveryD.getDate()).getTime();
+    const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    if (startDelivery < startToday) {
+      Alert.alert(t("common.error"), t("batches.deliveryDateMinToday"));
+      return;
+    }
     const deliveryIso = deliveryD.toISOString();
 
     try {
       setActing(true);
       const res = await respondBatchInvite(batchId, token, "accept", deliveryIso);
-      if (res.alreadyAccepted) {
-        Alert.alert(t("common.success"), t("batchOffer.alreadyAccepted"));
-      } else {
-        Alert.alert(t("common.success"), t("batchOffer.acceptSuccess"));
-      }
-      navigate(paths.workshopProduction);
-    } catch (e: unknown) {
-      Alert.alert(t("common.error"), mapInviteErrorMessage(e, "batchOffer.actionError"));
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const onRequestAdjust = async () => {
-    if (!batchId || !token) return;
-    try {
-      setActing(true);
-      await respondBatchInvite(batchId, token, "request_adjust");
-      Alert.alert(t("common.info"), t("batchOffer.adjustComingSoon"), [
-        { text: t("common.close"), onPress: () => navigate(paths.dashboard) },
-      ]);
+      setFeedback({
+        visible: true,
+        title: t("common.success"),
+        message: res.alreadyAccepted
+          ? t("batchOffer.alreadyAccepted")
+          : t("batchOffer.acceptSuccess"),
+      });
     } catch (e: unknown) {
       Alert.alert(t("common.error"), mapInviteErrorMessage(e, "batchOffer.actionError"));
     } finally {
@@ -271,7 +274,12 @@ export default function BatchOffer() {
   const canStartProduction = preview.canAccept || alreadyYours;
 
   return (
-    <View style={styles.root}>
+    <LinearGradient
+      colors={["#3B1C68", "#130A27", "#0B0717"]}
+      start={{ x: 0, y: 0.5 }}
+      end={{ x: 1, y: 0.5 }}
+      style={styles.root}
+    >
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
         <ScrollView
@@ -280,11 +288,8 @@ export default function BatchOffer() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoRow}>
-            <View style={styles.wifiMark}>
-              <MaterialIcons name="wifi-tethering" size={12} color={GOLD} />
-            </View>
-            <View style={styles.ccMark}>
-              <Text style={styles.ccText}>CC</Text>
+            <View style={styles.logoWrap}>
+              <Image source={require("../../../assets/logo1.jpeg")} style={styles.logo} resizeMode="cover" />
             </View>
           </View>
           <Text style={styles.screenTitle}>{t("batchOffer.screenTitle")}</Text>
@@ -313,19 +318,19 @@ export default function BatchOffer() {
           <SectionLine title={t("batchOffer.sectionWorkSummary")} />
           <Text style={styles.contextLabel}>{t("batchOffer.contextSmall")}</Text>
           <View style={styles.twoCards}>
-            <View style={styles.goldLineCard}>
+            <LinearGradient colors={["#F6D773", "#E8C547"]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.goldLineCard}>
               <Text style={styles.cardTag}>{t("batchOffer.lotCardTitle")}</Text>
               <Text style={styles.cardRef}>{lotRef}</Text>
               <Text style={styles.cardPiece} numberOfLines={2}>
                 {preview.name}
               </Text>
-            </View>
-            <View style={styles.goldLineCard}>
+            </LinearGradient>
+            <LinearGradient colors={["#F6D773", "#E8C547"]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.goldLineCard}>
               <Text style={styles.cardTag}>{t("batchOffer.quantityCardTitle")}</Text>
               <Text style={styles.cardBig}>
                 {preview.totalPieces} {t("batchOffer.unitsShort")}
               </Text>
-            </View>
+            </LinearGradient>
           </View>
 
           <View style={{ height: 8 }} />
@@ -341,7 +346,9 @@ export default function BatchOffer() {
               <Text style={styles.vFooter}>{t("batchOffer.valueUnitFooter")}</Text>
             </View>
             <View style={styles.valueRight}>
-              <Text style={styles.vLabelRight}>{t("batchOffer.autoCalcLabel")}</Text>
+              <View style={styles.calcHead}>
+                <Text style={styles.calcHeadText}>{t("batchOffer.autoCalcLabel")}</Text>
+              </View>
               <Text style={styles.totalSub}>{t("batchOffer.totalLotShort")}</Text>
               <View style={styles.goldPillBig}>
                 <Text style={styles.goldPillText}>
@@ -405,17 +412,6 @@ export default function BatchOffer() {
                 </>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnNegotiate, acting && styles.btnDisabled]}
-              onPress={onRequestAdjust}
-              disabled={acting}
-              activeOpacity={0.9}
-            >
-              <MaterialIcons name="close" size={22} color="#FEF2F2" />
-              <Text style={styles.btnNegotiateText} numberOfLines={2}>
-                {t("batchOffer.negotiateCtaCaps")}
-              </Text>
-            </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.backDash} onPress={() => navigate(paths.dashboard)}>
@@ -423,7 +419,35 @@ export default function BatchOffer() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
-    </View>
+      <Modal
+        visible={feedback.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFeedback({ visible: false, title: "", message: "" })}
+      >
+        <View style={styles.feedbackOverlay}>
+          <View style={styles.feedbackCard}>
+            <View style={styles.feedbackIconWrap}>
+              <MaterialIcons name="check-circle" size={26} color="#16A34A" />
+            </View>
+            <Text style={styles.feedbackTitle}>{feedback.title}</Text>
+            <Text style={styles.feedbackMessage}>{feedback.message}</Text>
+            <Text style={styles.feedbackHint}>
+              Amarelo = em producao. Verde = lote pronto.
+            </Text>
+            <TouchableOpacity
+              style={styles.feedbackBtn}
+              onPress={() => {
+                setFeedback({ visible: false, title: "", message: "" });
+                navigate(paths.workshopProduction);
+              }}
+            >
+              <Text style={styles.feedbackBtnText}>{t("common.back")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </LinearGradient>
   );
 }
 
@@ -438,7 +462,16 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   scroll: { paddingHorizontal: 20, paddingBottom: 32 },
-  logoRow: { alignItems: "center", marginTop: 4, marginBottom: 8 },
+  logoRow: { alignItems: "center", marginTop: 8, marginBottom: 10 },
+  logoWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(232,197,71,0.55)",
+  },
+  logo: { width: "100%", height: "100%" },
   wifiMark: { marginBottom: 4 },
   ccMark: {
     width: 52,
@@ -464,21 +497,20 @@ const styles = StyleSheet.create({
   avatarPh: { backgroundColor: BG_CARD, alignItems: "center", justifyContent: "center" },
   welcomeGold: { fontSize: 18, fontWeight: "800", color: GOLD },
   subLine: { fontSize: 13, color: TEXT_LIGHT, marginTop: 4, lineHeight: 20 },
-  contextLabel: { fontSize: 12, color: TEXT_LIGHT, marginBottom: 8 },
+  contextLabel: { fontSize: 13, color: TEXT_LIGHT, marginBottom: 8, textAlign: "center" },
   twoCards: { flexDirection: "row", gap: 10, marginBottom: 6 },
   goldLineCard: {
     flex: 1,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(232, 197, 71, 0.45)",
-    backgroundColor: BG_CARD,
     padding: 12,
     minHeight: 96,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  cardTag: { fontSize: 9, fontWeight: "800", color: GOLD_MUTED, letterSpacing: 0.5 },
-  cardRef: { fontSize: 18, fontWeight: "900", color: GOLD, marginTop: 6 },
-  cardPiece: { fontSize: 12, color: TEXT_LIGHT, marginTop: 4 },
-  cardBig: { fontSize: 16, fontWeight: "800", color: TEXT_LIGHT, marginTop: 10 },
+  cardTag: { fontSize: 10, fontWeight: "800", color: BG, letterSpacing: 0.5, textAlign: "center" },
+  cardRef: { fontSize: 19, fontWeight: "900", color: BG, marginTop: 6, textAlign: "center" },
+  cardPiece: { fontSize: 12, color: BG, marginTop: 4, textAlign: "center", fontWeight: "600" },
+  cardBig: { fontSize: 17, fontWeight: "800", color: BG, marginTop: 10, textAlign: "center" },
   valueRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   valueLeft: {
     flex: 1,
@@ -487,6 +519,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(232, 197, 71, 0.2)",
     padding: 12,
+    alignItems: "center",
   },
   valueRight: {
     flex: 1,
@@ -494,11 +527,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    padding: 12,
+    padding: 0,
+    overflow: "hidden",
+    alignItems: "center",
   },
-  vLabel: { fontSize: 9, fontWeight: "800", color: TEXT_LIGHT, marginBottom: 6 },
-  vLabelRight: { fontSize: 9, fontWeight: "800", color: GOLD_MUTED, marginBottom: 2 },
-  totalSub: { fontSize: 9, fontWeight: "800", color: TEXT_LIGHT, marginBottom: 4 },
+  vLabel: { fontSize: 10, fontWeight: "800", color: GOLD, marginBottom: 6, textAlign: "center" },
+  totalSub: { fontSize: 10, fontWeight: "800", color: GOLD, marginTop: 10, marginBottom: 4, textAlign: "center" },
   goldPillBig: {
     backgroundColor: GOLD,
     borderRadius: 10,
@@ -507,7 +541,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   goldPillText: { fontSize: 15, fontWeight: "900", color: "#1a0f0a" },
-  vFooter: { fontSize: 10, color: TEXT_LIGHT, marginTop: 8, lineHeight: 14 },
+  vFooter: { fontSize: 10, color: TEXT_LIGHT, marginTop: 8, lineHeight: 14, textAlign: "center" },
+  calcHead: {
+    width: "100%",
+    backgroundColor: "#6B7280",
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calcHeadText: { fontSize: 10, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.4 },
   obs: { fontSize: 12, color: GOLD_MUTED, marginTop: 8, lineHeight: 18 },
   footnote: {
     fontSize: 12,
@@ -559,29 +601,55 @@ const styles = StyleSheet.create({
     textAlign: "center",
     flex: 1,
   },
-  btnNegotiate: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#B91C1C",
-    paddingVertical: 16,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    minHeight: 88,
-  },
-  btnNegotiateText: {
-    color: "#FEF2F2",
-    fontWeight: "900",
-    fontSize: 9,
-    textAlign: "center",
-    flex: 1,
-  },
   btnDisabled: { opacity: 0.5 },
   backDash: { alignItems: "center", marginTop: 20, padding: 8 },
   backDashT: { color: GOLD_MUTED, fontSize: 14, fontWeight: "600" },
   errLight: { color: "#FECACA", textAlign: "center", marginTop: 12, fontSize: 15 },
   textLink: { marginTop: 16, padding: 8 },
   textLinkT: { color: GOLD, fontWeight: "700" },
+  feedbackOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.55)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  feedbackCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 18,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  feedbackIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  feedbackTitle: { fontSize: 19, fontWeight: "800", color: "#111827" },
+  feedbackMessage: {
+    fontSize: 14,
+    color: "#374151",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  feedbackHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  feedbackBtn: {
+    marginTop: 14,
+    backgroundColor: "#6366F1",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  feedbackBtnText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
 });

@@ -29,13 +29,13 @@ const asaasApiUrl = defineString("ASAAS_API_URL", {
   default: "https://api.asaas.com/v3",
 });
 const platformFeePercentParam = defineString("PLATFORM_FEE_PERCENT", {
-  default: "2.5",
+  default: "1",
 });
 /** UUID da carteira Asaas que recebe a taxa da plataforma (nunca expor no app; só Functions) */
 const adminWalletIdParam = defineString("ASAAS_ADMIN_WALLET_ID", { default: "" });
 
 /** Percentual padrão da plataforma; sobrescrito por param/env PLATFORM_FEE_PERCENT */
-const DEFAULT_PLATFORM_FEE_PERCENT = 2.5;
+const DEFAULT_PLATFORM_FEE_PERCENT = 1;
 
 setGlobalOptions({
   region: "southamerica-east1",
@@ -841,6 +841,9 @@ exports.respondBatchInvite = onCall(async (request) => {
   if (Number.isNaN(deliveryD.getTime())) {
     throw new HttpsError("invalid-argument", "Data de entrega inválida.");
   }
+  if (isBeforeToday(deliveryD)) {
+    throw new HttpsError("invalid-argument", "A data de entrega não pode ser anterior a hoje.");
+  }
   const deliveryTs = admin.firestore.Timestamp.fromDate(deliveryD);
 
   if (d.linkedWorkshopUserId && d.linkedWorkshopUserId !== uid) {
@@ -1148,7 +1151,13 @@ exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
-  const { batchId, token, piecesReceived: prRaw, defectivePieces: defRaw } = request.data || {};
+  const {
+    batchId,
+    token,
+    piecesReceived: prRaw,
+    defectivePieces: defRaw,
+    defectPhotoUrls: defectPhotoUrlsRaw,
+  } = request.data || {};
   if (!batchId || typeof batchId !== "string" || !token || typeof token !== "string") {
     throw new HttpsError("invalid-argument", "Dados inválidos.");
   }
@@ -1205,6 +1214,12 @@ exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
       "Peças com defeito não podem ser maiores que as recebidas.",
     );
   }
+  const safeDefectPhotoUrls = Array.isArray(defectPhotoUrlsRaw)
+    ? defectPhotoUrlsRaw
+        .filter((u) => typeof u === "string" && /^https?:\/\//.test(u))
+        .map((u) => String(u).trim())
+        .slice(0, 8)
+    : [];
 
   const billable = Math.floor(piecesReceived - defectivePieces);
   if (billable < 1) {
@@ -1313,6 +1328,7 @@ exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
       ownerPaymentInviteKind: "owner_batch_checkout",
       batchPiecesReceived: piecesReceived,
       batchDefectivePieces: defectivePieces,
+      defectPhotoUrls: safeDefectPhotoUrls,
       batchBillablePieces: billable,
       ownerCheckoutBaseAmount: base,
       createdAt: FieldValue.serverTimestamp(),
@@ -1321,6 +1337,7 @@ exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
 
     tx.update(batchRef, {
       ownerWorkshopPayPaymentId: payRef.id,
+      defectPhotoUrlsLatest: safeDefectPhotoUrls,
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
@@ -1412,6 +1429,10 @@ function toJsDate(fireOrDate) {
 
 function startOfLocalDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function isBeforeToday(d) {
+  return startOfLocalDay(d).getTime() < startOfLocalDay(new Date()).getTime();
 }
 
 /**
@@ -1567,9 +1588,22 @@ exports.workshopBatchAction = onCall(async (request) => {
     if (Number.isNaN(dt.getTime())) {
       throw new HttpsError("invalid-argument", "Data inválida.");
     }
+    if (isBeforeToday(dt)) {
+      throw new HttpsError("invalid-argument", "A data de entrega não pode ser anterior a hoje.");
+    }
     const ts = admin.firestore.Timestamp.fromDate(dt);
+    const hadDelivery = !!d.deliveryDate;
+    const editCountRaw = Number(d.workshopDeliveryDateEditCount || 0);
+    const editCount = Number.isFinite(editCountRaw) && editCountRaw > 0 ? Math.floor(editCountRaw) : 0;
+    if (hadDelivery && editCount >= 1) {
+      throw new HttpsError(
+        "failed-precondition",
+        "A data de entrega já foi ajustada uma vez e não pode ser alterada novamente."
+      );
+    }
     await batchRef.update({
       deliveryDate: ts,
+      workshopDeliveryDateEditCount: hadDelivery ? editCount + 1 : editCount,
       updatedAt: FieldValue.serverTimestamp(),
     });
   } else {

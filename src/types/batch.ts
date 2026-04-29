@@ -15,6 +15,8 @@ export interface Batch {
   workshopId?: string; // ID da oficina associada (opcional)
   workshopName?: string; // Nome da oficina (para exibição)
   deliveryDate?: Date; // Data de entrega prevista (opcional)
+  /** Quantas vezes a oficina já ajustou a data após salvar */
+  workshopDeliveryDateEditCount?: number;
   observations?: string; // Observações adicionais
   userId: string; // ID do dono da confecção
   /** Corte de origem (dropdown Cortes), opcional */
@@ -54,6 +56,8 @@ export interface Batch {
   ownerBatchCheckoutToken?: string;
   /** Pagamento PIX (dono) após conferência */
   ownerWorkshopPayPaymentId?: string;
+  /** Últimas fotos anexadas pelo dono para peças com defeito */
+  defectPhotoUrlsLatest?: string[];
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;

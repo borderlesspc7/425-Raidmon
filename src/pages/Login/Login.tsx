@@ -17,11 +17,13 @@ import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { paths } from '../../routes/paths';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Login() {
   const { navigate } = useNavigation();
   const { login, loading, error, clearError } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const insets = useSafeAreaInsets();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,12 +87,21 @@ export default function Login() {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
+      keyboardVerticalOffset={Math.max(0, insets.top - 8)}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: Math.max(24, insets.top + 8),
+              paddingBottom: Math.max(24, insets.bottom + 16),
+            },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity

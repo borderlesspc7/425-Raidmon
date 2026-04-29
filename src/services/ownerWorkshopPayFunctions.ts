@@ -79,9 +79,10 @@ export async function submitOwnerBatchCheckoutAndCreatePayment(
   token: string,
   piecesReceived: number,
   defectivePieces: number,
+  defectPhotoUrls?: string[],
 ): Promise<SubmitOwnerBatchCheckoutResult> {
   const fn = httpsCallable(functions, "submitOwnerBatchCheckoutAndCreatePayment");
-  const res = await fn({ batchId, token, piecesReceived, defectivePieces });
+  const res = await fn({ batchId, token, piecesReceived, defectivePieces, defectPhotoUrls });
   return res.data as SubmitOwnerBatchCheckoutResult;
 }
 

@@ -18,6 +18,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { paths } from "../../routes/paths";
 import { db, auth } from "../../lib/firebaseconfig";
 import type { WorkshopAsaasFormData } from "../../types/auth";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const COMPANY_TYPES: { id: "MEI" | "LIMITED" | "INDIVIDUAL" | "ASSOCIATION"; label: string }[] = [
   { id: "MEI", label: "MEI" },
@@ -54,6 +55,7 @@ function formatCep(s: string) {
 export default function RegisterWorkshop() {
   const { navigate } = useNavigation();
   const { register, loading, error, clearError } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [workshopName, setWorkshopName] = useState("");
   const [responsibleName, setResponsibleName] = useState("");
@@ -155,6 +157,10 @@ export default function RegisterWorkshop() {
         if (!value.trim()) nextErrors.addressNumber = "Obrigatório";
         else delete nextErrors.addressNumber;
         break;
+      case "complement":
+        if (!value.trim()) nextErrors.complement = "Obrigatório";
+        else delete nextErrors.complement;
+        break;
       case "province":
         if (!value.trim()) nextErrors.province = "Obrigatório";
         else delete nextErrors.province;
@@ -196,6 +202,7 @@ export default function RegisterWorkshop() {
       validateField("monthlyIncome", monthlyIncome),
       validateField("address", address),
       validateField("addressNumber", addressNumber),
+      validateField("complement", complement),
       validateField("province", province),
       validateField("postalCode", postalCode),
       validateField("password", password),
@@ -256,9 +263,21 @@ export default function RegisterWorkshop() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+      keyboardVerticalOffset={Math.max(0, insets.top - 8)}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.content}>
+        <View
+          style={[
+            styles.content,
+            {
+              paddingTop: Math.max(20, insets.top + 6),
+              paddingBottom: Math.max(24, insets.bottom + 16),
+            },
+          ]}
+        >
           <View style={styles.header}>
             <Text style={styles.title}>Cadastro da Oficina</Text>
             <Text style={styles.subtitle}>
@@ -368,6 +387,7 @@ export default function RegisterWorkshop() {
                 />
               </View>
               {errors.cpfCnpj ? <Text style={styles.errorText}>{errors.cpfCnpj}</Text> : null}
+              <Text style={styles.hintText}>O dinheiro caira no CPF/CNPJ cadastrado.</Text>
             </View>
 
             {isPf ? (
@@ -492,15 +512,20 @@ export default function RegisterWorkshop() {
               </View>
               <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.label}>Complemento</Text>
-                <View style={styles.inputWrapper}>
+                <View style={[styles.inputWrapper, errors.complement ? styles.inputError : null]}>
                   <TextInput
                     style={styles.input}
                     placeholder="Apto, bloco..."
                     placeholderTextColor="#999"
                     value={complement}
-                    onChangeText={setComplement}
+                    onChangeText={(t) => {
+                      setComplement(t);
+                      if (errors.complement) validateField("complement", t);
+                    }}
+                    onBlur={() => validateField("complement", complement)}
                   />
                 </View>
+                {errors.complement ? <Text style={styles.errorText}>{errors.complement}</Text> : null}
               </View>
             </View>
 

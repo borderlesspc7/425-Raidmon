@@ -176,7 +176,7 @@ export default function AddressFields({
         <View style={[styles.inputGroup, { width: 110 }]}>
           <Text style={styles.label}>Número</Text>
           <View style={styles.inputContainer}>
-            <MaterialIcons name="tag" size={20} color="#6B7280" />
+            <MaterialIcons name="home" size={20} color="#6B7280" />
             <TextInput
               style={styles.input}
               value={value.number}

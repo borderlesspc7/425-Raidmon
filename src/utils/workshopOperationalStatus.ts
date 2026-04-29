@@ -23,8 +23,8 @@ export interface WorkshopCardModel {
 const COLORS: Record<OperationalDisplay, string> = {
   ready_pickup: '#166534',
   pendencies: '#C2410C',
-  sewing: '#854D0E',
-  producing_ok: '#854D0E',
+  sewing: '#EAB308',
+  producing_ok: '#EAB308',
   delayed: '#B91C1C',
 };
 

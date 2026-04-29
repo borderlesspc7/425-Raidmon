@@ -24,6 +24,7 @@
     language?: Language;
     address?: string;
     about?: string;
+    estimatedRevenue?: number;
     userType?: 'owner' | 'workshop' | 'admin';
     /** Preenchido pelo backend após integração Asaas */
     asaasCustomerId?: string;
@@ -90,6 +91,7 @@
     password: string;
     confirmPassword?: string;
     cpf?: string;
+    estimatedRevenue?: number;
     userType: 'owner' | 'workshop' | 'admin';
     /** Só oficina: persistido e usado na subconta Asaas */
     workshopAsaas?: WorkshopAsaasFormData;
