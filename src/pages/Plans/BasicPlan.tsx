@@ -5,10 +5,12 @@ import Layout from "../../components/Layout/Layout";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { paths } from "../../routes/paths";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function BasicPlan() {
   const { t } = useLanguage();
   const { navigate } = useNavigation();
+  const { theme } = useTheme();
 
   const handleBack = () => {
     navigate("Plans");
@@ -20,18 +22,18 @@ export default function BasicPlan() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={22} color="#4B5563" />
+            <MaterialIcons name="arrow-back" size={22} color={theme.colors.textMuted} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.title}>{t("plans.basic.name")}</Text>
-            <Text style={styles.subtitle}>{t("plans.basic.subtitle")}</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("plans.basic.name")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t("plans.basic.subtitle")}</Text>
           </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="star" size={26} color="#6366F1" />
+          <View style={[styles.headerIcon, { backgroundColor: theme.colors.iconSoft }]}>
+            <MaterialIcons name="star" size={26} color={theme.colors.primary} />
           </View>
         </View>
 
@@ -41,25 +43,25 @@ export default function BasicPlan() {
           showsVerticalScrollIndicator={false}
         >
           {/* Overview */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>{t("plans.overview")}</Text>
-            <Text style={styles.sectionText}>{t("plans.basic.description")}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("plans.overview")}</Text>
+            <Text style={[styles.sectionText, { color: theme.colors.textMuted }]}>{t("plans.basic.description")}</Text>
           </View>
 
           {/* For who */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="group" size={20} color="#2563EB" />
-              <Text style={styles.sectionTitle}>{t("plans.basic.forWhoTitle")}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("plans.basic.forWhoTitle")}</Text>
             </View>
-            <Text style={styles.sectionText}>{t("plans.basic.forWho")}</Text>
+            <Text style={[styles.sectionText, { color: theme.colors.textMuted }]}>{t("plans.basic.forWho")}</Text>
           </View>
 
           {/* Features */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={styles.sectionHeader}>
               <MaterialIcons name="check-circle" size={20} color="#10B981" />
-              <Text style={styles.sectionTitle}>{t("plans.features")}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("plans.features")}</Text>
             </View>
 
             {[
@@ -71,7 +73,7 @@ export default function BasicPlan() {
             ].map((feature, index) => (
               <View key={index} style={styles.featureItem}>
                 <MaterialIcons name="check" size={18} color="#10B981" />
-                <Text style={styles.featureText}>{feature}</Text>
+                <Text style={[styles.featureText, { color: theme.colors.text }]}>{feature}</Text>
               </View>
             ))}
           </View>

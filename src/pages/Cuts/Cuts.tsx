@@ -16,6 +16,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useTheme } from "../../hooks/useTheme";
 import {
   createCut,
   getCutsByUser,
@@ -40,6 +41,7 @@ function formatPriceDigitsToBrl(digits: string): string {
 export default function Cuts() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { theme } = useTheme();
 
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,12 +260,12 @@ export default function Cuts() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t("cuts.title")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("cuts.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {totalCuts} {t("cuts.registered")} • {totalPieces}{" "}
               {t("cuts.totalPieces")}
             </Text>
@@ -278,28 +280,28 @@ export default function Cuts() {
 
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={styles.statIconContainer}>
               <MaterialIcons name="content-cut" size={24} color="#6366F1" />
             </View>
-            <Text style={styles.statValue}>{totalCuts}</Text>
-            <Text style={styles.statLabel}>{t("cuts.totalCuts")}</Text>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{totalCuts}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("cuts.totalCuts")}</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={styles.statIconContainer}>
               <MaterialIcons name="inventory" size={24} color="#10B981" />
             </View>
-            <Text style={styles.statValue}>{totalPieces}</Text>
-            <Text style={styles.statLabel}>{t("cuts.pieces")}</Text>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{totalPieces}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("cuts.pieces")}</Text>
           </View>
         </View>
 
         {/* Cuts List */}
         <View style={styles.searchWrap}>
-          <View style={styles.searchInputContainer}>
-            <MaterialIcons name="search" size={18} color="#6B7280" />
+          <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <MaterialIcons name="search" size={18} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.colors.text }]}
               value={search}
               onChangeText={setSearch}
               placeholder="Buscar por nome ou #id"
@@ -316,7 +318,7 @@ export default function Cuts() {
           {filteredCuts.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="content-cut" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
                 {search.trim() ? "Nenhum corte encontrado" : t("cuts.empty")}
               </Text>
               <TouchableOpacity
@@ -328,7 +330,7 @@ export default function Cuts() {
             </View>
           ) : (
             filteredCuts.map((cut) => (
-              <View key={cut.id} style={styles.cutCard}>
+              <View key={cut.id} style={[styles.cutCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
@@ -338,10 +340,10 @@ export default function Cuts() {
                       </Text>
                     </View>
                     <View style={styles.cardHeaderInfo}>
-                      <Text style={styles.cutType} numberOfLines={1}>
+                      <Text style={[styles.cutType, { color: theme.colors.text }]} numberOfLines={1}>
                         {cut.type}
                       </Text>
-                      <Text style={styles.cutDate}>
+                      <Text style={[styles.cutDate, { color: theme.colors.textMuted }]}>
                         {formatDate(cut.createdAt)}
                       </Text>
                     </View>
@@ -366,7 +368,7 @@ export default function Cuts() {
                 <View style={styles.cardInfo}>
                   <View style={styles.infoItem}>
                     <MaterialIcons name="inventory" size={18} color="#6366F1" />
-                    <Text style={styles.infoLabel}>{t("cuts.quantity")}:</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("cuts.quantity")}:</Text>
                     <Text style={styles.infoValue}>
                       {cut.totalPieces} {t("cuts.pieces")}
                     </Text>
@@ -378,7 +380,7 @@ export default function Cuts() {
                         size={18}
                         color="#6366F1"
                       />
-                      <Text style={styles.infoLabel}>{t("cuts.pricePerPiece")}:</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("cuts.pricePerPiece")}:</Text>
                       <Text style={styles.infoValue}>
                         {formatMoneyBRL(cut.pricePerPiece)}
                       </Text>
@@ -390,7 +392,7 @@ export default function Cuts() {
                       <Text style={styles.observationsLabel}>
                         {t("cuts.observations")}:
                       </Text>
-                      <Text style={styles.observationsText} numberOfLines={3}>
+                      <Text style={[styles.observationsText, { color: theme.colors.text }]} numberOfLines={3}>
                         {cut.observations}
                       </Text>
                     </View>
@@ -408,18 +410,18 @@ export default function Cuts() {
           transparent={true}
           onRequestClose={closeModal}
         >
-          <View style={styles.modalOverlay}>
+          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={styles.modalKeyboard}
             >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                   {editingCut ? t("cuts.edit") : t("cuts.add")}
                 </Text>
                 <TouchableOpacity onPress={closeModal}>
-                  <MaterialIcons name="close" size={24} color="#1F2937" />
+                  <MaterialIcons name="close" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
               </View>
 

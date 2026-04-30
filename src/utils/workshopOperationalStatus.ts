@@ -21,11 +21,11 @@ export interface WorkshopCardModel {
 
 /** Acento do card: alinhado a `getBatchProductionPillColors` (dono + oficina). */
 const COLORS: Record<OperationalDisplay, string> = {
-  ready_pickup: '#166534',
-  pendencies: '#C2410C',
-  sewing: '#EAB308',
-  producing_ok: '#EAB308',
-  delayed: '#B91C1C',
+  ready_pickup: '#16A34A',
+  pendencies: '#EA580C',
+  sewing: '#CA8A04',
+  producing_ok: '#CA8A04',
+  delayed: '#DC2626',
 };
 
 /**

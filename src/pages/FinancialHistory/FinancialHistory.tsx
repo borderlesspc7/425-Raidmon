@@ -260,7 +260,7 @@ export default function FinancialHistory() {
                 { color: balance >= 0 ? "#6366F1" : "#EF4444" },
               ]}
             >
-              {formatCurrency(filteredTotalPaid)}
+              {formatCurrency(balance)}
             </Text>
             <Text style={styles.summaryLabel}>{t("financialHistory.balance")}</Text>
           </View>

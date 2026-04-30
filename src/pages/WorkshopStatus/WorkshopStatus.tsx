@@ -13,6 +13,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
+import { useTheme } from "../../hooks/useTheme";
 import {
   getWorkshopsByUser,
   updateWorkshopStatus,
@@ -25,6 +26,7 @@ export default function WorkshopStatus() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { navigate } = useNavigation();
+  const { theme } = useTheme();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,12 +152,12 @@ export default function WorkshopStatus() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t("workshopStatus.title")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("workshopStatus.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {totalWorkshops} {t("workshopStatus.registered")} • {totalPieces}{" "}
               {t("workshopStatus.totalPieces")}
             </Text>
@@ -164,31 +166,31 @@ export default function WorkshopStatus() {
 
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={[styles.statIconContainer, { backgroundColor: "#F0F4FF" }]}>
               <MaterialIcons name="business" size={24} color="#6366F1" />
             </View>
-            <Text style={styles.statValue}>{totalWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshopStatus.total")}</Text>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{totalWorkshops}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("workshopStatus.total")}</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={[styles.statIconContainer, { backgroundColor: "#DCFCE7" }]}>
               <View style={[styles.statusDotSmall, { backgroundColor: "#22C55E" }]} />
             </View>
-            <Text style={styles.statValue}>{freeWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshops.status.free")}</Text>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{freeWorkshops}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("workshops.status.free")}</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={[styles.statIconContainer, { backgroundColor: "#FFEDD5" }]}>
               <View style={[styles.statusDotSmall, { backgroundColor: "#F97316" }]} />
             </View>
-            <Text style={styles.statValue}>{busyWorkshops}</Text>
-            <Text style={styles.statLabel}>{t("workshops.status.busy")}</Text>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{busyWorkshops}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("workshops.status.busy")}</Text>
           </View>
         </View>
 
         {/* Status Filter */}
-        <View style={styles.filterContainer}>
+        <View style={[styles.filterContainer, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -197,6 +199,7 @@ export default function WorkshopStatus() {
             <TouchableOpacity
               style={[
                 styles.filterButton,
+                { borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
                 selectedStatus === "all" && styles.filterButtonActive,
               ]}
               onPress={() => setSelectedStatus("all")}
@@ -204,6 +207,7 @@ export default function WorkshopStatus() {
               <Text
                 style={[
                   styles.filterButtonText,
+                  { color: theme.colors.textMuted },
                   selectedStatus === "all" && styles.filterButtonTextActive,
                 ]}
               >
@@ -221,7 +225,7 @@ export default function WorkshopStatus() {
                     backgroundColor:
                       selectedStatus === status
                         ? `${getStatusColor(status)}20`
-                        : "#FFFFFF",
+                        : theme.colors.surface,
                   },
                 ]}
                 onPress={() => setSelectedStatus(status)}
@@ -235,6 +239,7 @@ export default function WorkshopStatus() {
                 <Text
                   style={[
                     styles.filterButtonText,
+                    { color: theme.colors.textMuted },
                     selectedStatus === status && styles.filterButtonTextActive,
                     selectedStatus === status && {
                       color: getStatusColor(status),
@@ -256,7 +261,7 @@ export default function WorkshopStatus() {
         >
           {startedInviteBatches.length > 0 ? (
             <View style={styles.startedSection}>
-              <Text style={styles.startedSectionTitle}>
+              <Text style={[styles.startedSectionTitle, { color: theme.colors.text }]}>
                 {t("workshopStatus.startedByInviteTitle")}
               </Text>
               {startedInviteBatches.map((batch) => (
@@ -286,7 +291,7 @@ export default function WorkshopStatus() {
           {filteredWorkshops.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="business" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
                 {selectedStatus === "all"
                   ? t("workshopStatus.empty")
                   : t("workshopStatus.emptyFiltered")}
@@ -317,9 +322,9 @@ export default function WorkshopStatus() {
                           workshop={workshop}
                           onStatusChange={handleStatusChange}
                           getStatusColor={getStatusColor}
-                          getStatusLabel={getStatusLabel}
                           formatPhone={formatPhone}
                           t={t}
+                          theme={theme}
                         />
                       ))}
                     </View>
@@ -331,9 +336,9 @@ export default function WorkshopStatus() {
                     workshop={workshop}
                     onStatusChange={handleStatusChange}
                     getStatusColor={getStatusColor}
-                    getStatusLabel={getStatusLabel}
                     formatPhone={formatPhone}
                     t={t}
+                    theme={theme}
                   />
                 ))
               )}
@@ -347,20 +352,20 @@ export default function WorkshopStatus() {
           animationType="fade"
           onRequestClose={() => setSelectedBatch(null)}
         >
-          <View style={styles.batchModalBg}>
-            <View style={styles.batchModalCard}>
+          <View style={[styles.batchModalBg, { backgroundColor: theme.colors.overlay }]}>
+            <View style={[styles.batchModalCard, { backgroundColor: theme.colors.surface }]}>
               {selectedBatch ? (
                 <>
                   <View style={styles.batchModalHeader}>
-                    <Text style={styles.batchModalTitle}>Acompanhamento do lote</Text>
+                    <Text style={[styles.batchModalTitle, { color: theme.colors.text }]}>Acompanhamento do lote</Text>
                     <TouchableOpacity onPress={() => setSelectedBatch(null)}>
-                      <MaterialIcons name="close" size={22} color="#1F2937" />
+                      <MaterialIcons name="close" size={22} color={theme.colors.text} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={styles.batchInfoRow}>
-                    <Text style={styles.batchInfoLabel}>Lote</Text>
-                    <Text style={styles.batchInfoValue}>{selectedBatch.name}</Text>
+                    <Text style={[styles.batchInfoLabel, { color: theme.colors.textMuted }]}>Lote</Text>
+                    <Text style={[styles.batchInfoValue, { color: theme.colors.text }]}>{selectedBatch.name}</Text>
                   </View>
                   <View style={styles.batchInfoRow}>
                     <Text style={styles.batchInfoLabel}>Oficina</Text>
@@ -438,21 +443,21 @@ interface WorkshopCardProps {
   workshop: Workshop;
   onStatusChange: (workshop: Workshop, status: WorkshopStatusType) => void;
   getStatusColor: (status: WorkshopStatusType) => string;
-  getStatusLabel: (status: WorkshopStatusType) => string;
   formatPhone: (phone: string) => string;
   t: (key: string) => string;
+  theme: { colors: { surface: string; border: string; text: string; textMuted: string; primary: string } };
 }
 
 function WorkshopCard({
   workshop,
   onStatusChange,
   getStatusColor,
-  getStatusLabel,
   formatPhone,
   t,
+  theme,
 }: WorkshopCardProps) {
   return (
-    <View style={styles.workshopCard}>
+    <View style={[styles.workshopCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
       {/* Header */}
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
@@ -463,11 +468,8 @@ function WorkshopCard({
             ]}
           />
           <View style={styles.cardHeaderInfo}>
-            <Text style={styles.workshopName} numberOfLines={1}>
+            <Text style={[styles.workshopName, { color: theme.colors.text }]} numberOfLines={1}>
               {workshop.name}
-            </Text>
-            <Text style={styles.workshopStatus}>
-              {getStatusLabel(workshop.status)}
             </Text>
           </View>
         </View>
@@ -476,28 +478,28 @@ function WorkshopCard({
       {/* Info */}
       <View style={styles.cardInfo}>
         <View style={styles.infoRow}>
-          <MaterialIcons name="location-on" size={16} color="#6B7280" />
-          <Text style={styles.infoText} numberOfLines={2}>
+          <MaterialIcons name="location-on" size={16} color={theme.colors.textMuted} />
+          <Text style={[styles.infoText, { color: theme.colors.textMuted }]} numberOfLines={2}>
             {workshop.address}
           </Text>
         </View>
         <View style={styles.infoRow}>
-          <MaterialIcons name="phone" size={16} color="#6B7280" />
-          <Text style={styles.infoText}>{formatPhone(workshop.contact1)}</Text>
+          <MaterialIcons name="phone" size={16} color={theme.colors.textMuted} />
+          <Text style={[styles.infoText, { color: theme.colors.textMuted }]}>{formatPhone(workshop.contact1)}</Text>
         </View>
         {workshop.contact2 && (
           <View style={styles.infoRow}>
-            <MaterialIcons name="phone" size={16} color="#6B7280" />
-            <Text style={styles.infoText}>{formatPhone(workshop.contact2)}</Text>
+            <MaterialIcons name="phone" size={16} color={theme.colors.textMuted} />
+            <Text style={[styles.infoText, { color: theme.colors.textMuted }]}>{formatPhone(workshop.contact2)}</Text>
           </View>
         )}
       </View>
 
       {/* Footer */}
-      <View style={styles.cardFooter}>
+      <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
         <View style={styles.piecesInfo}>
-          <MaterialIcons name="inventory" size={18} color="#6366F1" />
-          <Text style={styles.piecesText}>
+          <MaterialIcons name="inventory" size={18} color={theme.colors.primary} />
+          <Text style={[styles.piecesText, { color: theme.colors.primary }]}>
             {workshop.totalPieces} {t("workshops.pieces")}
           </Text>
         </View>

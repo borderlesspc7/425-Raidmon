@@ -8,13 +8,14 @@ import type { Batch, ProductionFlowStatus } from '../types/batch';
  * - Laranja: conclusão / entrega parcial
  */
 export const BATCH_PRODUCTION_COLORS = {
-  late: { bg: '#FFE4E6', fg: '#E11D48' },
-  green: { bg: '#DCFCE7', fg: '#16A34A' },
-  orange: { bg: '#FFEDD5', fg: '#F97316' },
-  yellow: { bg: '#FEF9C3', fg: '#EAB308' },
+  // Tons mais vivos para destacar bem em light e dark mode.
+  late: { bg: '#FECACA', fg: '#DC2626' },
+  green: { bg: '#BBF7D0', fg: '#16A34A' },
+  orange: { bg: '#FED7AA', fg: '#EA580C' },
+  yellow: { bg: '#FDE047', fg: '#CA8A04' },
   /** Concluído: mesmo verde de “produção ok” */
-  completed: { bg: '#DCFCE7', fg: '#16A34A' },
-  cancelled: { bg: '#F3F4F6', fg: '#4B5563' },
+  completed: { bg: '#BBF7D0', fg: '#16A34A' },
+  cancelled: { bg: '#E5E7EB', fg: '#374151' },
 } as const;
 
 function startOfDay(d: Date): Date {

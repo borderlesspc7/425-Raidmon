@@ -17,15 +17,14 @@ import Layout from "../../components/Layout/Layout";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { useAuth } from "../../hooks/useAuth";
+import { useTheme } from "../../hooks/useTheme";
 import { paths } from "../../routes/paths";
 import {
   PLAN_PRICES_BRL,
   type SubscriptionPlanId,
   isSubscriptionPlanId,
 } from "../../constants/planPricing";
-import { createPayment } from "../../services/paymentService";
-import { createAsaasChargeForPayment } from "../../services/asaasPayments";
-import type { Payment } from "../../types/payment";
+import { createAsaasSubscriptionForPlan } from "../../services/asaasPayments";
 
 function planScreenName(planId: SubscriptionPlanId): (typeof paths)[keyof typeof paths] {
   switch (planId) {
@@ -44,6 +43,7 @@ export default function PlanCheckout() {
   const { t } = useLanguage();
   const { navigate, navigationParams } = useNavigation();
   const { user, updateProfile } = useAuth();
+  const { theme } = useTheme();
 
   const planId = navigationParams.planId;
   const [loading, setLoading] = useState(false);
@@ -118,26 +118,20 @@ export default function PlanCheckout() {
 
     try {
       setLoading(true);
-      const due = new Date();
-      due.setDate(due.getDate() + 3);
-      const description = t("plans.checkout.paymentDescription").replace(
-        "{plan}",
-        planName
-      );
-      const payment: Payment = await createPayment(user.id, {
-        amount: price,
-        dueDate: due,
-        description,
-        status: "pending",
-        subscriptionPlan: validPlan,
+      const description = t("plans.checkout.paymentDescription").replace("{plan}", planName);
+      const nextDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const data = await createAsaasSubscriptionForPlan({
+        planId: validPlan as "premium" | "enterprise",
+        value: price,
+        nextDueDate,
       });
-      const data = await createAsaasChargeForPayment(payment.id);
       setPixView({
         description,
         pixCopyPaste: data.pixCopyPaste,
         pixEncodedImage: data.pixEncodedImage,
         invoiceUrl: data.invoiceUrl,
-        platformFeeAmount: data.platformFeeAmount,
       });
       setPixModalVisible(true);
     } catch (error: any) {
@@ -164,17 +158,17 @@ export default function PlanCheckout() {
 
   return (
     <Layout>
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={22} color="#4B5563" />
+            <MaterialIcons name="arrow-back" size={22} color={theme.colors.textMuted} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.title}>{t("plans.checkout.title")}</Text>
-            <Text style={styles.subtitle}>{planName}</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("plans.checkout.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{planName}</Text>
           </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="payment" size={24} color="#6366F1" />
+          <View style={[styles.headerIcon, { backgroundColor: theme.colors.iconSoft }]}>
+            <MaterialIcons name="payment" size={24} color={theme.colors.primary} />
           </View>
         </View>
 
@@ -183,16 +177,16 @@ export default function PlanCheckout() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <Text style={styles.amountLabel}>{t("plans.checkout.amountLabel")}</Text>
-            <Text style={styles.amountValue}>{formatCurrency(price)}</Text>
+            <Text style={[styles.amountValue, { color: theme.colors.text }]}>{formatCurrency(price)}</Text>
             <Text style={styles.periodHint}>
               / {t("plans.monthly")}
             </Text>
           </View>
 
-          <View style={styles.sectionCard}>
-            <Text style={styles.note}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+            <Text style={[styles.note, { color: theme.colors.textMuted }]}>
               {price <= 0 ? t("plans.checkout.freeNote") : t("plans.checkout.pixNote")}
             </Text>
           </View>
@@ -239,23 +233,23 @@ export default function PlanCheckout() {
             setPixView(null);
           }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, styles.pixModalBox]}>
+          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
+            <View style={[styles.modalContent, styles.pixModalBox, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{t("payments.pixModalTitle")}</Text>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{t("payments.pixModalTitle")}</Text>
                 <TouchableOpacity
                   onPress={() => {
                     setPixModalVisible(false);
                     setPixView(null);
                   }}
                 >
-                  <MaterialIcons name="close" size={24} color="#1F2937" />
+                  <MaterialIcons name="close" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                 {pixView ? (
                   <>
-                    <Text style={styles.pixDesc}>{pixView.description}</Text>
+                    <Text style={[styles.pixDesc, { color: theme.colors.text }]}>{pixView.description}</Text>
                     {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0 ? (
                       <Text style={styles.pixFee}>
                         {t("payments.platformFeeLabel")}:{" "}

@@ -10,6 +10,7 @@ import Layout from '../../components/Layout/Layout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../routes/NavigationContext';
+import { useTheme } from '../../hooks/useTheme';
 import DashboardOwner from './DashboardOwner';
 import { getCutStatistics } from '../../services/cutService';
 import { getBatchStatistics } from '../../services/batchService';
@@ -77,6 +78,7 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const { navigate } = useNavigation();
+  const { theme } = useTheme();
   const isWorkshopUser = user?.userType === 'workshop';
 
   const [stats, setStats] = useState<Stats>(INITIAL_STATS);
@@ -258,31 +260,31 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <View style={styles.container}>
-        <View style={styles.headerCard}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={[styles.headerCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
           <View style={styles.headerTextBlock}>
-            <Text style={styles.title}>{t('navigation.dashboard')}</Text>
-            <Text style={styles.subtitle}>{t('dashboard.subtitle')}</Text>
-            <Text style={styles.welcome}>{`${t('dashboard.hello')}, ${user?.name ?? '...'} ✨`}</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t('navigation.dashboard')}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('dashboard.subtitle')}</Text>
+            <Text style={[styles.welcome, { color: theme.colors.text }]}>{`${t('dashboard.hello')}, ${user?.name ?? '...'} ✨`}</Text>
           </View>
-          <View style={styles.headerIconWrap}>
-            <MaterialIcons name="dashboard" size={28} color="#6366F1" />
+          <View style={[styles.headerIconWrap, { backgroundColor: theme.colors.iconSoft }]}>
+            <MaterialIcons name="dashboard" size={28} color={theme.colors.primary} />
           </View>
         </View>
 
         {loading ? (
-          <View style={styles.loadingBox}>
+          <View style={[styles.loadingBox, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <ActivityIndicator size="large" color="#6366F1" />
           </View>
         ) : (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('dashboard.mainKpis')}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('dashboard.mainKpis')}</Text>
               <View style={styles.grid}>
                 {highlights.map((item) => (
                   <TouchableOpacity
                     key={item.id}
-                    style={styles.highlightCard}
+                    style={[styles.highlightCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}
                     onPress={() => navigate(item.route)}
                     activeOpacity={0.8}
                   >
@@ -290,86 +292,86 @@ export default function Dashboard() {
                       <MaterialIcons name={item.icon} size={20} color={item.color} />
                     </View>
 
-                    <Text style={styles.highlightTitle}>{item.title}</Text>
-                    <Text style={styles.highlightValue}>{item.value}</Text>
-                    <Text style={styles.highlightSubtitle}>{item.subtitle}</Text>
+                    <Text style={[styles.highlightTitle, { color: theme.colors.textMuted }]}>{item.title}</Text>
+                    <Text style={[styles.highlightValue, { color: theme.colors.text }]}>{item.value}</Text>
+                    <Text style={[styles.highlightSubtitle, { color: theme.colors.textMuted }]}>{item.subtitle}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('dashboard.operations')}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('dashboard.operations')}</Text>
               <View style={styles.infoRow}>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoLabel}>{t('navigation.batches')}</Text>
-                  <Text style={styles.infoValue}>{Math.round(animatedTotalBatches)}</Text>
-                  <Text style={styles.infoCaption}>{t('dashboard.totalBatches')}</Text>
+                <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t('navigation.batches')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.colors.text }]}>{Math.round(animatedTotalBatches)}</Text>
+                  <Text style={[styles.infoCaption, { color: theme.colors.textMuted }]}>{t('dashboard.totalBatches')}</Text>
                 </View>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoLabel}>{t('navigation.receivePieces')}</Text>
-                  <Text style={styles.infoValue}>{Math.round(animatedReceivesThisMonth)}</Text>
-                  <Text style={styles.infoCaption}>{t('dashboard.receivesThisMonth')}</Text>
+                <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t('navigation.receivePieces')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.colors.text }]}>{Math.round(animatedReceivesThisMonth)}</Text>
+                  <Text style={[styles.infoCaption, { color: theme.colors.textMuted }]}>{t('dashboard.receivesThisMonth')}</Text>
                 </View>
               </View>
 
               <View style={styles.infoRow}>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoLabel}>{t('dashboard.piecesReceived')}</Text>
-                  <Text style={styles.infoValue}>{Math.round(animatedPiecesReceived)}</Text>
-                  <Text style={styles.infoCaption}>{t('dashboard.pieces')}</Text>
+                <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t('dashboard.piecesReceived')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.colors.text }]}>{Math.round(animatedPiecesReceived)}</Text>
+                  <Text style={[styles.infoCaption, { color: theme.colors.textMuted }]}>{t('dashboard.pieces')}</Text>
                 </View>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoLabel}>{t('navigation.workshops')}</Text>
-                  <Text style={styles.infoValue}>{Math.round(animatedTotalWorkshops)}</Text>
-                  <Text style={styles.infoCaption}>{t('dashboard.activeWorkshops')}</Text>
+                <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t('navigation.workshops')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.colors.text }]}>{Math.round(animatedTotalWorkshops)}</Text>
+                  <Text style={[styles.infoCaption, { color: theme.colors.textMuted }]}>{t('dashboard.activeWorkshops')}</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('dashboard.finance')}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('dashboard.finance')}</Text>
 
               <TouchableOpacity
-                style={styles.financeCard}
+                style={[styles.financeCard, { backgroundColor: theme.colors.surface }]}
                 onPress={() => navigate('Payments')}
                 activeOpacity={0.8}
               >
                 <View style={styles.financeHeader}>
-                  <Text style={styles.financeTitle}>{t('navigation.payments')}</Text>
+                  <Text style={[styles.financeTitle, { color: theme.colors.text }]}>{t('navigation.payments')}</Text>
                   <MaterialIcons name="trending-down" size={20} color="#EF4444" />
                 </View>
                 <View style={styles.financeNumbers}>
                   <View>
-                    <Text style={styles.financeNumber}>{Math.round(animatedPendingPayments)}</Text>
-                    <Text style={styles.financeLabel}>{t('payments.pending')}</Text>
+                    <Text style={[styles.financeNumber, { color: theme.colors.text }]}>{Math.round(animatedPendingPayments)}</Text>
+                    <Text style={[styles.financeLabel, { color: theme.colors.textMuted }]}>{t('payments.pending')}</Text>
                   </View>
                   <View>
                     <Text style={[styles.financeNumber, { color: '#EF4444' }]}>
                       {Math.round(animatedOverduePayments)}
                     </Text>
-                    <Text style={styles.financeLabel}>{t('payments.overdue')}</Text>
+                    <Text style={[styles.financeLabel, { color: theme.colors.textMuted }]}>{t('payments.overdue')}</Text>
                   </View>
                   <View>
                     <Text style={styles.financeAmount}>{formatCurrency(Math.round(animatedOverdueAmount))}</Text>
-                    <Text style={styles.financeLabel}>{t('dashboard.overdueAmount')}</Text>
+                    <Text style={[styles.financeLabel, { color: theme.colors.textMuted }]}>{t('dashboard.overdueAmount')}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('dashboard.shortcuts')}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('dashboard.shortcuts')}</Text>
               <View style={styles.shortcutsGrid}>
                 {shortcuts.map((item) => (
                   <TouchableOpacity
                     key={item.id}
-                    style={styles.shortcutCard}
+                    style={[styles.shortcutCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}
                     onPress={() => navigate(item.route)}
                     activeOpacity={0.8}
                   >
                     <MaterialIcons name={item.icon} size={18} color="#6366F1" />
-                    <Text style={styles.shortcutText}>{item.label}</Text>
+                    <Text style={[styles.shortcutText, { color: theme.colors.text }]}>{item.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

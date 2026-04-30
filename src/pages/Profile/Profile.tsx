@@ -21,10 +21,12 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { User } from "../../types/auth";
 import AddressFields, { composeAddressString, type AddressValue } from "../../components/AddressFields/AddressFields";
 import { authService } from "../../services/authService";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
   const { t } = useLanguage();
+  const { theme, isDark, toggleTheme } = useTheme();
 
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -273,12 +275,12 @@ export default function Profile() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t("profile.title")}</Text>
-            <Text style={styles.subtitle}>{t("profile.subtitle")}</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("profile.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t("profile.subtitle")}</Text>
           </View>
           <TouchableOpacity
             style={styles.editButton}
@@ -294,8 +296,43 @@ export default function Profile() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          <View style={[styles.themeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <View style={styles.themeCardLeft}>
+              <View style={[styles.themeIconWrap, { backgroundColor: theme.colors.iconSoft }]}>
+                <MaterialIcons
+                  name={isDark ? "dark-mode" : "light-mode"}
+                  size={20}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <View>
+                <Text style={[styles.themeTitle, { color: theme.colors.text }]}>
+                  Tema do app
+                </Text>
+                <Text style={[styles.themeSubtitle, { color: theme.colors.textMuted }]}>
+                  {isDark ? "Modo escuro ativo" : "Modo claro ativo"}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.themeToggle,
+                { backgroundColor: isDark ? "#312E81" : "#E5E7EB" },
+              ]}
+              onPress={() => void toggleTheme()}
+              activeOpacity={0.85}
+            >
+              <View
+                style={[
+                  styles.themeThumb,
+                  isDark && styles.themeThumbActive,
+                ]}
+              />
+            </TouchableOpacity>
+          </View>
+
           {/* Profile Card */}
-          <View style={styles.profileCard}>
+          <View style={[styles.profileCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
               <View style={styles.avatarContainer}>
@@ -328,8 +365,8 @@ export default function Profile() {
                   </View>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
+              <Text style={[styles.userName, { color: theme.colors.text }]}>{user.name}</Text>
+              <Text style={[styles.userEmail, { color: theme.colors.textMuted }]}>{user.email}</Text>
               {userTypeInfo && (
                 <View
                   style={[
@@ -373,12 +410,12 @@ export default function Profile() {
               {/* Company Name */}
               {user.companyName && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
                     <MaterialIcons name="business" size={20} color="#6366F1" />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.companyName")}</Text>
-                    <Text style={styles.infoValue}>{user.companyName}</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.companyName")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>{user.companyName}</Text>
                   </View>
                 </View>
               )}
@@ -466,7 +503,7 @@ export default function Profile() {
               )}
 
               {/* Account Info */}
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
               <View style={styles.infoItem}>
                 <View style={styles.infoIconContainer}>
                   <MaterialIcons name="calendar-today" size={20} color="#6B7280" />
@@ -718,6 +755,50 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+  },
+  themeCard: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  themeCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  themeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  themeSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  themeToggle: {
+    width: 54,
+    height: 30,
+    borderRadius: 16,
+    padding: 3,
+    justifyContent: "center",
+  },
+  themeThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  themeThumbActive: {
+    alignSelf: "flex-end",
   },
   profileCard: {
     backgroundColor: "#FFFFFF",

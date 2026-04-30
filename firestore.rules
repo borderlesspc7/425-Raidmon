@@ -29,10 +29,30 @@ service cloud.firestore {
       );
     }
 
+    function userTouchesSensitiveFields() {
+      return request.resource.data.diff(resource.data).changedKeys().hasAny([
+        'asaasSubaccountApiKey',
+        'asaasSubaccountId',
+        'asaasSubaccountWalletId',
+        'asaasCustomerId',
+        'asaasSubscriptionId',
+        'subscriptionStatus',
+        'subscriptionOverdueSince',
+        'subscriptionNextDueDate',
+        'subscriptionValue',
+        'subscriptionLastWebhookEvent',
+        'subscriptionLastPaymentDate',
+        'ownerBatchCheckoutToken',
+        'ownerWorkshopPayPaymentId'
+      ]);
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && !userTouchesSensitiveFields();
       allow delete: if false;
     }
 
@@ -68,8 +88,19 @@ service cloud.firestore {
 
     match /payments/{docId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && !('paidDate' in request.resource.data)
+        && !('asaasPaymentStatus' in request.resource.data);
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).changedKeys().hasAny([
+          'status',
+          'paidDate',
+          'asaasPaymentStatus'
+        ]);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Notificações in-app: criadas só pelo backend (Admin SDK)

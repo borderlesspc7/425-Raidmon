@@ -8,6 +8,7 @@ import {
 import Header from '../Header/Header';
 import Sidebar from '../Sidebar/Sidebar';
 import { useNavigation } from '../../routes/NavigationContext';
+import { useTheme } from '../../hooks/useTheme';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,8 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentScreen } = useNavigation();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const panResponder = React.useMemo(
     () =>
@@ -79,18 +82,23 @@ export default function Layout({ children }: LayoutProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  content: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-});
+const createStyles = (theme: ReturnType<typeof useTheme>["theme"]) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    content: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    scrollView: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      backgroundColor: theme.colors.background,
+      minHeight: "100%",
+    },
+  });

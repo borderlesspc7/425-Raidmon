@@ -5,7 +5,42 @@ import net from "net";
  */
 export function findFreePort(startPort, maxRange = 40) {
   return new Promise((resolve, reject) => {
-    const attempt = (port) => {
+    const tryListen = (port, host) =>
+      new Promise((res, rej) => {
+        const server = net.createServer();
+        server.unref();
+        server.once("error", (err) => {
+          server.close(() => {
+            rej(err);
+          });
+        });
+        server.listen(port, host, () => {
+          server.close(() => res(true));
+        });
+      });
+
+    const isPortFree = async (port) => {
+      // Expo costuma validar disponibilidade em stacks diferentes (IPv4/IPv6).
+      // Se qualquer stack já estiver ocupada, consideramos a porta indisponível.
+      try {
+        await tryListen(port, "0.0.0.0");
+        try {
+          await tryListen(port, "::");
+        } catch (ipv6Err) {
+          if (ipv6Err?.code !== "EAFNOSUPPORT") {
+            return false;
+          }
+        }
+        return true;
+      } catch (err) {
+        if (err?.code === "EADDRINUSE") {
+          return false;
+        }
+        throw err;
+      }
+    };
+
+    const attempt = async (port) => {
       if (port > startPort + maxRange) {
         reject(
           new Error(
@@ -14,21 +49,19 @@ export function findFreePort(startPort, maxRange = 40) {
         );
         return;
       }
-      const server = net.createServer();
-      server.unref();
-      server.once("error", (err) => {
-        if (err.code === "EADDRINUSE") {
-          attempt(port + 1);
-        } else {
-          reject(err);
+
+      try {
+        const free = await isPortFree(port);
+        if (free) {
+          resolve(port);
+          return;
         }
-      });
-      server.listen(port, "0.0.0.0", () => {
-        const p = server.address().port;
-        server.close(() => resolve(p));
-      });
+        attempt(port + 1);
+      } catch (err) {
+        reject(err);
+      }
     };
-    attempt(startPort);
+    void attempt(startPort);
   });
 }
 

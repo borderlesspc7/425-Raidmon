@@ -17,6 +17,24 @@ export type CreateAsaasChargeResult = {
   grossAmount: number;
 };
 
+export type CreateAsaasSubscriptionResult = {
+  subscriptionId: string;
+  planId: "premium" | "enterprise";
+  subscriptionStatus: string;
+  nextDueDate: string | null;
+  invoiceUrl: string | null;
+  pixCopyPaste: string | null;
+  pixEncodedImage: string | null;
+  alreadyExists?: boolean;
+};
+
+export type CancelAsaasSubscriptionResult = {
+  success: boolean;
+  subscriptionId: string;
+  subscriptionStatus: "CANCELLED";
+  plan: "basic";
+};
+
 /**
  * Chama a Cloud Function `createAsaasCharge` (mesma região que o deploy em `functions/`).
  * Após `firebase deploy --only functions` e secrets Asaas, o app já usa isso.
@@ -28,4 +46,24 @@ export async function createAsaasChargeForPayment(
   const callable = httpsCallable(functions, "createAsaasCharge");
   const res: HttpsCallableResult = await callable({ paymentId });
   return res.data as CreateAsaasChargeResult;
+}
+
+export async function createAsaasSubscriptionForPlan(input: {
+  planId: "premium" | "enterprise";
+  value: number;
+  nextDueDate?: string;
+}): Promise<CreateAsaasSubscriptionResult> {
+  const functions = getFunctions(app, REGION);
+  const callable = httpsCallable(functions, "createAsaasSubscription");
+  const res: HttpsCallableResult = await callable(input);
+  return res.data as CreateAsaasSubscriptionResult;
+}
+
+export async function cancelAsaasSubscription(input: {
+  subscriptionId?: string;
+}): Promise<CancelAsaasSubscriptionResult> {
+  const functions = getFunctions(app, REGION);
+  const callable = httpsCallable(functions, "cancelAsaasSubscription");
+  const res: HttpsCallableResult = await callable(input || {});
+  return res.data as CancelAsaasSubscriptionResult;
 }

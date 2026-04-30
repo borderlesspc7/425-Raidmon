@@ -35,7 +35,14 @@ async function main() {
 
   const child = spawn(
     "npx",
-    ["expo", "start", "--port", String(port), "--tunnel", ...forwardedArgs],
+    [
+      "expo",
+      "start",
+      "--port",
+      String(port),
+      "--tunnel",
+      ...forwardedArgs,
+    ],
     {
       stdio: "inherit",
       env,

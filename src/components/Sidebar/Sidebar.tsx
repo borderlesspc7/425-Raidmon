@@ -11,6 +11,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../hooks/useTheme';
 import type { ScreenName } from '../../routes/paths';
 
 interface SidebarProps {
@@ -48,6 +49,7 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
   const { t } = useLanguage();
   const { navigate } = useNavigation();
   const { user } = useAuth();
+  const { theme } = useTheme();
   const isAdmin = user?.userType === 'admin' || user?.email?.toLowerCase() === 'costuraconectada@gmail.com';
   const isWorkshop = user?.userType === 'workshop';
   const workshopMenuRoutes = new Set<ScreenName>([
@@ -78,21 +80,21 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
     <>
       {/* Overlay */}
       <TouchableOpacity
-        style={styles.overlay}
+        style={[styles.overlay, { backgroundColor: theme.colors.overlay }]}
         activeOpacity={1}
         onPress={onClose}
       />
 
       {/* Sidebar */}
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{t('navigation.menu')}</Text>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.container, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border, borderRightWidth: 1 }]}>
+          <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{t('navigation.menu')}</Text>
             <TouchableOpacity
               onPress={onClose}
               style={styles.closeButton}
             >
-              <MaterialIcons name="close" size={24} color="#1F2937" />
+              <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -109,6 +111,8 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
                   style={[
                     styles.menuItem,
                     isActive && styles.menuItemActive,
+                    !isActive && { backgroundColor: theme.colors.surface },
+                    isActive && { backgroundColor: theme.mode === "dark" ? "#1E293B" : "#F0F4FF" },
                   ]}
                   onPress={() => handleNavigate(item.route)}
                   activeOpacity={0.7}
@@ -116,19 +120,23 @@ export default function Sidebar({ isOpen, onClose, currentRoute }: SidebarProps)
                   <View
                     style={[
                       styles.iconContainer,
+                      { backgroundColor: theme.colors.surfaceSoft },
                       isActive && styles.iconContainerActive,
+                      isActive && { backgroundColor: theme.mode === "dark" ? "#312E81" : "#E0E7FF" },
                     ]}
                   >
                     <MaterialIcons
                       name={item.icon}
                       size={20}
-                      color={isActive ? '#6366F1' : '#6B7280'}
+                      color={isActive ? '#6366F1' : theme.colors.textMuted}
                     />
                   </View>
                   <Text
                     style={[
                       styles.menuText,
+                      { color: theme.colors.text },
                       isActive && styles.menuTextActive,
+                      isActive && { color: theme.colors.primary },
                     ]}
                   >
                     {t(item.labelKey)}

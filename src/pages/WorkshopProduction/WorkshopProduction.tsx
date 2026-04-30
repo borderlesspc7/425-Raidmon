@@ -19,6 +19,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { paths } from "../../routes/paths";
+import { useTheme } from "../../hooks/useTheme";
 import { getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { callWorkshopBatchAction } from "../../services/workshopBatchFunctions";
 import { completeBatchAndInviteOwnerCheckout } from "../../services/ownerWorkshopPayFunctions";
@@ -109,6 +110,7 @@ export default function WorkshopProduction() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { navigate, navigationParams } = useNavigation();
+  const { theme } = useTheme();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -408,17 +410,17 @@ export default function WorkshopProduction() {
 
   return (
     <Layout>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{t("workshopProduction.title")}</Text>
-        <Text style={styles.sub}>{t("workshopProduction.subtitle")}</Text>
+      <ScrollView contentContainerStyle={[styles.content, { backgroundColor: theme.colors.background }]}>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{t("workshopProduction.title")}</Text>
+        <Text style={[styles.sub, { color: theme.colors.textMuted }]}>{t("workshopProduction.subtitle")}</Text>
 
-        <View style={styles.legendBox}>
+        <View style={[styles.legendBox, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
           <TouchableOpacity style={styles.legendHeader} onPress={() => setLegendExpanded((v) => !v)}>
-            <Text style={styles.legendTitle}>{t("workshopProduction.legendTitle")}</Text>
+            <Text style={[styles.legendTitle, { color: theme.colors.text }]}>{t("workshopProduction.legendTitle")}</Text>
             <MaterialIcons
               name={legendExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
               size={22}
-              color="#111827"
+              color={theme.colors.text}
             />
           </TouchableOpacity>
           {legendExpanded ? (
@@ -449,7 +451,7 @@ export default function WorkshopProduction() {
               {t("workshopProduction.acceptedInvitesTitle")}
             </Text>
             {acceptedInviteInfoOnly.map((batch) => (
-              <View key={`accepted-${batch.id}`} style={styles.acceptedCard}>
+              <View key={`accepted-${batch.id}`} style={[styles.acceptedCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                 <View style={styles.acceptedHeader}>
                   <MaterialIcons name="chat" size={16} color="#4F46E5" />
                   <Text style={styles.acceptedHeaderText}>
@@ -485,7 +487,7 @@ export default function WorkshopProduction() {
               borderLeftColor: pill.fg,
             };
             return (
-              <View key={batch.id} style={[styles.card, cardBorder]}>
+              <View key={batch.id} style={[styles.card, cardBorder, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
                 <TouchableOpacity
                   activeOpacity={0.92}
                   onPress={() =>
@@ -496,7 +498,7 @@ export default function WorkshopProduction() {
                   disabled={busy}
                 >
                   <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
+                    <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
                       {batch.name}
                     </Text>
                     <View
@@ -504,7 +506,7 @@ export default function WorkshopProduction() {
                       accessibilityLabel={t("workshopProduction.statusDotA11y")}
                     />
                   </View>
-                  <Text style={styles.line}>
+                  <Text style={[styles.line, { color: theme.colors.textMuted }]}>
                     {t("batches.pieces")}: {batch.totalPieces}
                     {(batch.piecesDeliveredCumulative ?? 0) > 0 ? (
                       <Text style={styles.lineMuted}>
@@ -540,8 +542,8 @@ export default function WorkshopProduction() {
       </ScrollView>
 
       <Modal visible={!!detailBatch} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={[styles.modalBox, styles.detailModalBox]}>
+          <View style={[styles.modalBg, { backgroundColor: theme.colors.overlay }]}>
+          <View style={[styles.modalBox, styles.detailModalBox, { backgroundColor: theme.colors.surface }]}>
             <ScrollView keyboardShouldPersistTaps="handled">
               {detailBatch ? (
                 <>

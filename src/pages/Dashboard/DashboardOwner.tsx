@@ -15,6 +15,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
+import { useTheme } from '../../hooks/useTheme';
 import { deriveWorkshopCardState, type OperationalDisplay } from '../../utils/workshopOperationalStatus';
 import { getBatchProductionPillColors, isBatchDeliveryLate } from '../../utils/batchProductionStatusStyle';
 import type { Batch } from '../../types/batch';
@@ -193,6 +194,7 @@ export default function DashboardOwner({
 }) {
   const { t, language } = useLanguage();
   const { navigate } = useNavigation();
+  const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const twoColumn = width >= 720;
   const entPlan = getEffectiveUserPlan(userPlan);
@@ -335,15 +337,15 @@ export default function DashboardOwner({
   );
 
   const piecesPanel = (
-    <View style={styles.panel}>
-      <Text style={styles.panelTitle}>{t('dashboard.owner.piecesTitle')}</Text>
-      <Text style={styles.panelSubtitle}>{t('dashboard.owner.piecesSubtitle')}</Text>
+    <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+      <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{t('dashboard.owner.piecesTitle')}</Text>
+      <Text style={[styles.panelSubtitle, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesSubtitle')}</Text>
       {loading ? (
         <View style={styles.panelLoading}>
           <ActivityIndicator color="#6366F1" />
         </View>
       ) : monthly.every((p) => p.pieces === 0) ? (
-        <Text style={styles.emptyText}>{t('dashboard.owner.piecesEmpty')}</Text>
+        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesEmpty')}</Text>
       ) : (
         <View style={styles.chartRow}>
           {monthly.map((point, index) => (
@@ -361,15 +363,15 @@ export default function DashboardOwner({
   );
 
   const workshopsPanel = (
-    <View style={styles.panel}>
-      <Text style={styles.panelTitle}>{t('navigation.workshops')}</Text>
-      <Text style={styles.hintText}>{t('dashboard.owner.syncHint')}</Text>
+    <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
+      <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{t('navigation.workshops')}</Text>
+      <Text style={[styles.hintText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.syncHint')}</Text>
       {loading ? (
         <View style={styles.panelLoading}>
           <ActivityIndicator color="#6366F1" />
         </View>
       ) : workshopCards.length === 0 ? (
-        <Text style={styles.emptyText}>{t('dashboard.owner.workshopsEmpty')}</Text>
+        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.workshopsEmpty')}</Text>
       ) : (
         <ScrollView
           style={styles.workshopScroll}
@@ -379,11 +381,11 @@ export default function DashboardOwner({
           {workshopCards.map((card) => (
             <View
               key={card.workshopId}
-              style={[styles.workshopCard, { borderLeftColor: card.color }]}
+              style={[styles.workshopCard, { borderLeftColor: card.color, backgroundColor: theme.colors.surfaceSoft }]}
             >
               <View style={styles.workshopBody}>
                 <View style={styles.workshopHeaderRow}>
-                  <Text style={styles.workshopTitle} numberOfLines={1}>
+                  <Text style={[styles.workshopTitle, { color: theme.colors.text }]} numberOfLines={1}>
                     {card.title}
                   </Text>
                   <View style={styles.statusPill}>
@@ -391,18 +393,15 @@ export default function DashboardOwner({
                   </View>
                 </View>
                 {card.subtitle ? (
-                  <Text style={styles.workshopSubtitle} numberOfLines={1}>
+                  <Text style={[styles.workshopSubtitle, { color: theme.colors.textMuted }]} numberOfLines={1}>
                     {card.subtitle}
                   </Text>
                 ) : null}
-                <Text style={styles.workshopProduct} numberOfLines={2}>
+                <Text style={[styles.workshopProduct, { color: theme.colors.text }]} numberOfLines={2}>
                   {card.productLine || '—'}
                   {card.moreActiveCount > 0
                     ? `  ${t('dashboard.owner.moreBatches').replace('{n}', String(card.moreActiveCount))}`
                     : ''}
-                </Text>
-                <Text style={styles.workshopStatusHint}>
-                  {statusLabel(t, card.status)}
                 </Text>
               </View>
             </View>
@@ -413,9 +412,9 @@ export default function DashboardOwner({
   );
 
   const batchesPanel = (
-    <View style={styles.panel}>
+    <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
       <View style={styles.batchesHeaderRow}>
-        <Text style={styles.panelTitle}>{t('dashboard.owner.batchesTitle')}</Text>
+        <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{t('dashboard.owner.batchesTitle')}</Text>
         <TouchableOpacity onPress={() => navigate('Batches')} hitSlop={8}>
           <Text style={styles.linkText}>{t('navigation.batches')} →</Text>
         </TouchableOpacity>
@@ -425,23 +424,23 @@ export default function DashboardOwner({
           <ActivityIndicator color="#6366F1" />
         </View>
       ) : sortedBatches.length === 0 ? (
-        <Text style={styles.emptyText}>{t('dashboard.owner.batchesEmpty')}</Text>
+        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.batchesEmpty')}</Text>
       ) : (
         <View style={styles.batchList}>
           {sortedBatches.map((batch) => (
             <TouchableOpacity
               key={batch.id}
-              style={styles.batchCard}
+              style={[styles.batchCard, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border }]}
               onPress={() => navigate('Batches')}
               activeOpacity={0.85}
             >
               <View style={styles.batchTop}>
-                <Text style={styles.batchName} numberOfLines={1}>
+                <Text style={[styles.batchName, { color: theme.colors.text }]} numberOfLines={1}>
                   {batch.name}
                 </Text>
                 <View style={styles.batchMeta}>
                   <MaterialIcons name="inventory-2" size={16} color="#6366F1" />
-                  <Text style={styles.batchPieces}>
+                  <Text style={[styles.batchPieces, { color: theme.colors.textMuted }]}>
                     {batch.totalPieces} {t('batches.pieces')}
                   </Text>
                 </View>
@@ -453,15 +452,15 @@ export default function DashboardOwner({
                   </Text>
                 </View>
                 {batch.workshopName ? (
-                  <Text style={styles.batchWorkshop} numberOfLines={1}>
+                  <Text style={[styles.batchWorkshop, { color: theme.colors.textMuted }]} numberOfLines={1}>
                     {batch.workshopName}
                   </Text>
                 ) : (
-                  <Text style={styles.batchWorkshopMuted}>{t('batches.noWorkshop')}</Text>
+                  <Text style={[styles.batchWorkshopMuted, { color: theme.colors.textMuted }]}>{t('batches.noWorkshop')}</Text>
                 )}
               </View>
               {batch.deliveryDate ? (
-                <Text style={styles.batchDue}>
+                <Text style={[styles.batchDue, { color: theme.colors.textMuted }]}>
                   {t('batches.deliveryDate')}:{' '}
                   {formatDateShort(language, batch.deliveryDate)}
                 </Text>
@@ -474,17 +473,17 @@ export default function DashboardOwner({
   );
 
   return (
-    <View style={styles.scrollContent}>
-      <View style={styles.headerCard}>
+    <View style={[styles.scrollContent, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.headerCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
         <View style={styles.headerTextBlock}>
-          <Text style={styles.title}>{t('navigation.dashboard')}</Text>
-          <Text style={styles.subtitle}>{t('dashboard.subtitle')}</Text>
-          <Text style={styles.welcome}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t('navigation.dashboard')}</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t('dashboard.subtitle')}</Text>
+          <Text style={[styles.welcome, { color: theme.colors.text }]}>
             {`${t('dashboard.hello')}, ${userName ?? '…'} ✨`}
           </Text>
         </View>
-        <View style={styles.headerIconWrap}>
-          <MaterialIcons name="dashboard" size={28} color="#6366F1" />
+        <View style={[styles.headerIconWrap, { backgroundColor: theme.colors.iconSoft }]}>
+          <MaterialIcons name="dashboard" size={28} color={theme.colors.primary} />
         </View>
       </View>
 
@@ -496,9 +495,9 @@ export default function DashboardOwner({
       {batchesPanel}
 
       {showRanking || showExport ? (
-        <View style={styles.entPanel}>
+        <View style={[styles.entPanel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
           <View style={styles.entHeaderRow}>
-            <Text style={styles.panelTitle}>{t('dashboard.owner.industryPanelTitle')}</Text>
+            <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{t('dashboard.owner.industryPanelTitle')}</Text>
             {showExport ? (
               <TouchableOpacity
                 onPress={handleExportOwnerCsv}
@@ -509,26 +508,26 @@ export default function DashboardOwner({
               </TouchableOpacity>
             ) : null}
           </View>
-          <Text style={styles.entSub}>{t('dashboard.owner.industryPanelSubtitle')}</Text>
+          <Text style={[styles.entSub, { color: theme.colors.textMuted }]}>{t('dashboard.owner.industryPanelSubtitle')}</Text>
           {showRanking ? (
             entLoading ? (
               <View style={styles.entLoadingBox}>
                 <ActivityIndicator color="#6366F1" />
               </View>
             ) : entRows.length === 0 ? (
-              <Text style={styles.emptyText}>{t('dashboard.owner.rankingEmpty')}</Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.rankingEmpty')}</Text>
             ) : (
               <View style={styles.rankingList}>
                 {entRows.map((r, i) => (
-                  <View key={`${r.name}-${i}`} style={styles.rankingRow}>
+                  <View key={`${r.name}-${i}`} style={[styles.rankingRow, { backgroundColor: theme.colors.surfaceSoft }]}>
                     <View style={styles.rankingIndex}>
                       <Text style={styles.rankingIndexText}>#{i + 1}</Text>
                     </View>
                     <View style={styles.rankingBody}>
-                      <Text style={styles.rankingTitle} numberOfLines={1}>
+                      <Text style={[styles.rankingTitle, { color: theme.colors.text }]} numberOfLines={1}>
                         {r.name}
                       </Text>
-                      <Text style={styles.rankingMeta}>
+                      <Text style={[styles.rankingMeta, { color: theme.colors.textMuted }]}>
                         {t('dashboard.owner.piecesThisMonth')}: {r.piecesThisMonth} ·{' '}
                         {t(`workshops.status.${r.status}` as any)}
                       </Text>

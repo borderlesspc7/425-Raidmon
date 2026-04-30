@@ -12,6 +12,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
+import { useTheme } from "../../hooks/useTheme";
 
 type PlanType = "basic" | "premium" | "enterprise";
 
@@ -31,6 +32,7 @@ export default function Plans() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { navigate } = useNavigation();
+  const { theme, isDark } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -132,15 +134,15 @@ export default function Plans() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t("plans.title")}</Text>
-            <Text style={styles.subtitle}>{t("plans.subtitle")}</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("plans.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{t("plans.subtitle")}</Text>
           </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="card-membership" size={28} color="#6366F1" />
+          <View style={[styles.headerIcon, { backgroundColor: theme.colors.iconSoft }]}>
+            <MaterialIcons name="card-membership" size={28} color={theme.colors.primary} />
           </View>
         </View>
 
@@ -151,14 +153,14 @@ export default function Plans() {
         >
           {/* Current Plan Info */}
           {user && (
-            <View style={styles.currentPlanCard}>
+            <View style={[styles.currentPlanCard, { backgroundColor: theme.colors.iconSoft }]}>
               <View style={styles.currentPlanHeader}>
-                <MaterialIcons name="info" size={20} color="#6366F1" />
+                <MaterialIcons name="info" size={20} color={theme.colors.primary} />
                 <Text style={styles.currentPlanTitle}>
                   {t("plans.currentPlan")}
                 </Text>
               </View>
-              <Text style={styles.currentPlanText}>
+              <Text style={[styles.currentPlanText, { color: theme.colors.textMuted }]}>
                 {t("plans.currentPlanDescription")}
               </Text>
             </View>
@@ -172,6 +174,7 @@ export default function Plans() {
                 style={[
                   styles.planCard,
                   plan.popular && styles.planCardPopular,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
                 ]}
               >
                 {/* Popular Badge */}
@@ -188,25 +191,25 @@ export default function Plans() {
                   <View style={[styles.planIconContainer, { backgroundColor: plan.color }]}>
                     <MaterialIcons name={plan.icon} size={32} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.planName}>{plan.name}</Text>
+                  <Text style={[styles.planName, { color: theme.colors.text }]}>{plan.name}</Text>
                 </View>
 
                 {/* Price */}
-                <View style={styles.priceContainer}>
+                <View style={[styles.priceContainer, { borderBottomColor: theme.colors.border }]}>
                   {plan.price === 0 ? (
                     <>
-                      <Text style={styles.priceValue}>{t("plans.freePrice")}</Text>
-                      <Text style={styles.pricePeriod}>
+                      <Text style={[styles.priceValue, { color: theme.colors.text }]}>{t("plans.freePrice")}</Text>
+                      <Text style={[styles.pricePeriod, { color: theme.colors.textMuted }]}>
                         {" · "}
                         {t("plans.freePriceHint")}
                       </Text>
                     </>
                   ) : (
                     <>
-                      <Text style={styles.priceValue}>
+                      <Text style={[styles.priceValue, { color: theme.colors.text }]}>
                         {formatCurrency(plan.price)}
                       </Text>
-                      <Text style={styles.pricePeriod}>/{plan.period}</Text>
+                      <Text style={[styles.pricePeriod, { color: theme.colors.textMuted }]}>/{plan.period}</Text>
                     </>
                   )}
                 </View>
@@ -220,7 +223,7 @@ export default function Plans() {
                         size={18}
                         color={plan.color}
                       />
-                      <Text style={styles.featureText}>{feature}</Text>
+                      <Text style={[styles.featureText, { color: theme.colors.text }]}>{feature}</Text>
                     </View>
                   ))}
                 </View>
@@ -254,33 +257,33 @@ export default function Plans() {
           </View>
 
           {/* Additional Info */}
-          <View style={styles.infoCard}>
+          <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <View style={styles.infoHeader}>
-              <MaterialIcons name="help-outline" size={20} color="#6366F1" />
-              <Text style={styles.infoTitle}>{t("plans.faq.title")}</Text>
+              <MaterialIcons name="help-outline" size={20} color={theme.colors.primary} />
+              <Text style={[styles.infoTitle, { color: theme.colors.text }]}>{t("plans.faq.title")}</Text>
             </View>
             <View style={styles.faqContainer}>
               <View style={styles.faqItem}>
-                <Text style={styles.faqQuestion}>
+                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
                   {t("plans.faq.question1")}
                 </Text>
-                <Text style={styles.faqAnswer}>
+                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
                   {t("plans.faq.answer1")}
                 </Text>
               </View>
               <View style={styles.faqItem}>
-                <Text style={styles.faqQuestion}>
+                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
                   {t("plans.faq.question2")}
                 </Text>
-                <Text style={styles.faqAnswer}>
+                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
                   {t("plans.faq.answer2")}
                 </Text>
               </View>
               <View style={styles.faqItem}>
-                <Text style={styles.faqQuestion}>
+                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
                   {t("plans.faq.question3")}
                 </Text>
-                <Text style={styles.faqAnswer}>
+                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
                   {t("plans.faq.answer3")}
                 </Text>
               </View>

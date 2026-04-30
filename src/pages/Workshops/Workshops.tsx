@@ -14,6 +14,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Layout from '../../components/Layout/Layout';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../hooks/useTheme';
 import AddressFields, { composeAddressString, type AddressValue } from '../../components/AddressFields/AddressFields';
 import {
   createWorkshop,
@@ -28,6 +29,7 @@ import { canCreateAnotherWorkshop, getEffectiveUserPlan } from '../../utils/plan
 export default function Workshops() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { theme } = useTheme();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,12 +263,12 @@ export default function Workshops() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t('workshops.title')}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t('workshops.title')}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {workshops.length} {t('workshops.registered')}
             </Text>
           </View>
@@ -287,7 +289,7 @@ export default function Workshops() {
           {workshops.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="business" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>{t('workshops.empty')}</Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('workshops.empty')}</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => openModal()}
@@ -297,7 +299,7 @@ export default function Workshops() {
             </View>
           ) : (
             workshops.map((workshop) => (
-              <View key={workshop.id} style={styles.workshopCard}>
+              <View key={workshop.id} style={[styles.workshopCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
@@ -307,7 +309,7 @@ export default function Workshops() {
                         { backgroundColor: getStatusColor(workshop.status) },
                       ]}
                     />
-                    <Text style={styles.workshopName} numberOfLines={1}>
+                    <Text style={[styles.workshopName, { color: theme.colors.text }]} numberOfLines={1}>
                       {workshop.name}
                     </Text>
                   </View>
@@ -330,25 +332,25 @@ export default function Workshops() {
                 {/* Info */}
                 <View style={styles.cardInfo}>
                   <View style={styles.infoRow}>
-                    <MaterialIcons name="location-on" size={16} color="#6B7280" />
-                    <Text style={styles.infoText} numberOfLines={2}>
+                    <MaterialIcons name="location-on" size={16} color={theme.colors.textMuted} />
+                    <Text style={[styles.infoText, { color: theme.colors.textMuted }]} numberOfLines={2}>
                       {workshop.address}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
-                    <MaterialIcons name="phone" size={16} color="#6B7280" />
-                    <Text style={styles.infoText}>{formatPhone(workshop.contact1)}</Text>
+                    <MaterialIcons name="phone" size={16} color={theme.colors.textMuted} />
+                    <Text style={[styles.infoText, { color: theme.colors.textMuted }]}>{formatPhone(workshop.contact1)}</Text>
                   </View>
                   {workshop.contact2 && (
                     <View style={styles.infoRow}>
-                      <MaterialIcons name="phone" size={16} color="#6B7280" />
-                      <Text style={styles.infoText}>{formatPhone(workshop.contact2)}</Text>
+                      <MaterialIcons name="phone" size={16} color={theme.colors.textMuted} />
+                      <Text style={[styles.infoText, { color: theme.colors.textMuted }]}>{formatPhone(workshop.contact2)}</Text>
                     </View>
                   )}
                 </View>
 
                 {/* Footer */}
-                <View style={styles.cardFooter}>
+                <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                   <View style={styles.piecesInfo}>
                     <MaterialIcons name="inventory" size={18} color="#6366F1" />
                     <Text style={styles.piecesText}>
@@ -402,14 +404,14 @@ export default function Workshops() {
           transparent={true}
           onRequestClose={closeModal}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
+          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                   {editingWorkshop ? t('workshops.edit') : t('workshops.add')}
                 </Text>
                 <TouchableOpacity onPress={closeModal}>
-                  <MaterialIcons name="close" size={24} color="#1F2937" />
+                  <MaterialIcons name="close" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
               </View>
 

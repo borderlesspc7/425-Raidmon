@@ -20,6 +20,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
+import { useTheme } from "../../hooks/useTheme";
 import { buildBatchOfferShareUrl } from "../../utils/appDeepLink";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -117,6 +118,7 @@ export default function Batches() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { navigate } = useNavigation();
+  const { theme } = useTheme();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -751,12 +753,12 @@ export default function Batches() {
 
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View style={styles.headerTextCol}>
-            <Text style={styles.title}>{t("batches.title")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("batches.title")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {totalBatches} {t("batches.registered")} • {totalPieces}{" "}
               {t("batches.totalPieces")}
             </Text>
@@ -784,10 +786,10 @@ export default function Batches() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.searchWrap}>
-            <View style={styles.searchInputContainer}>
-              <MaterialIcons name="search" size={18} color="#6B7280" />
+            <View style={[styles.searchInputContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <MaterialIcons name="search" size={18} color={theme.colors.textMuted} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: theme.colors.text }]}
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Buscar por nome ou #id"
@@ -798,39 +800,39 @@ export default function Batches() {
 
           {/* Statistics Cards (moved inside scrollable area so they scroll with content) */}
           <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
               <View style={styles.statIconContainer}>
                 <MaterialIcons name="inventory" size={24} color="#6366F1" />
               </View>
-              <Text style={styles.statValue}>{totalBatches}</Text>
-              <Text style={styles.statLabel}>{t("batches.totalBatches")}</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{totalBatches}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("batches.totalBatches")}</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
               <View style={styles.statIconContainer}>
                 <MaterialIcons name="check-circle" size={24} color="#10B981" />
               </View>
-              <Text style={styles.statValue}>{completedBatches}</Text>
-              <Text style={styles.statLabel}>{t("batches.completed")}</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{completedBatches}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("batches.completed")}</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
               <View style={styles.statIconContainer}>
                 <MaterialIcons name="schedule" size={24} color="#6366F1" />
               </View>
-              <Text style={styles.statValue}>{inProgressBatches}</Text>
-              <Text style={styles.statLabel}>{t("batches.inProgress")}</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{inProgressBatches}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("batches.inProgress")}</Text>
             </View>
-            <View style={styles.statCard}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
               <View style={styles.statIconContainer}>
                 <MaterialIcons name="pending" size={24} color="#6B7280" />
               </View>
-              <Text style={styles.statValue}>{pendingBatches}</Text>
-              <Text style={styles.statLabel}>{t("batches.pending")}</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{pendingBatches}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{t("batches.pending")}</Text>
             </View>
           </View>
           {filteredBatches.length === 0 ? (
             <View style={styles.emptyState}>
               <MaterialIcons name="inventory" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
                 {search.trim() ? "Nenhum lote encontrado" : t("batches.empty")}
               </Text>
               <TouchableOpacity
@@ -850,22 +852,22 @@ export default function Batches() {
                 key={batch.id}
                 style={[
                   styles.batchCard,
-                  { borderLeftColor: productionPill.fg },
+                  { borderLeftColor: productionPill.fg, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 },
                 ]}
               >
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
-                    <View style={styles.batchNumber}>
-                      <Text style={styles.batchNumberText}>
+                    <View style={[styles.batchNumber, { backgroundColor: theme.colors.iconSoft }]}>
+                      <Text style={[styles.batchNumberText, { color: theme.colors.primary }]}>
                         {getBatchCode(batch.id)}
                       </Text>
                     </View>
                     <View style={styles.cardHeaderInfo}>
-                      <Text style={styles.batchName} numberOfLines={1}>
+                      <Text style={[styles.batchName, { color: theme.colors.text }]} numberOfLines={1}>
                         {batch.name}
                       </Text>
-                      <Text style={styles.batchDate}>
+                      <Text style={[styles.batchDate, { color: theme.colors.textMuted }]}>
                         {formatDate(batch.createdAt)}
                       </Text>
                     </View>
@@ -903,65 +905,57 @@ export default function Batches() {
 
                 {/* Status: mesmas cores de produção dono + oficina (atraso / verde / laranja / amarelo) */}
                 <View style={styles.statusContainer}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: productionPill.bg },
-                    ]}
-                  >
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: productionPill.bg, borderColor: productionPill.fg, borderWidth: 1 },
+                      ]}
+                    >
                     <View
                       style={[
                         styles.statusDot,
                         { backgroundColor: productionPill.fg },
                       ]}
                     />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: productionPill.fg },
-                      ]}
-                    >
-                      {getStatusLabel(batch.status)}
-                    </Text>
                   </View>
                 </View>
 
                 {/* Info */}
                 <View style={styles.cardInfo}>
-                  <View style={styles.infoItem}>
+                  <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
                     <MaterialIcons name="inventory" size={18} color="#6366F1" />
-                    <Text style={styles.infoLabel}>{t("batches.quantity")}:</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("batches.quantity")}:</Text>
                     <Text style={styles.infoValue}>
                       {batch.totalPieces} {t("batches.pieces")}
                     </Text>
                   </View>
                   {batch.workshopName && (
-                    <View style={styles.infoItem}>
+                    <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
                       <MaterialIcons name="business" size={18} color="#6366F1" />
-                      <Text style={styles.infoLabel}>
+                      <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.workshop")}:
                       </Text>
-                      <Text style={styles.infoValue}>{batch.workshopName}</Text>
+                      <Text style={[styles.infoValue, { color: theme.colors.text }]}>{batch.workshopName}</Text>
                     </View>
                   )}
                   {batch.deliveryDate && (
-                    <View style={styles.infoItem}>
+                    <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
                       <MaterialIcons name="event" size={18} color="#6366F1" />
-                      <Text style={styles.infoLabel}>
+                      <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.deliveryDate")}:
                       </Text>
-                      <Text style={styles.infoValue}>
+                      <Text style={[styles.infoValue, { color: theme.colors.text }]}>
                         {formatDateOnly(batch.deliveryDate)}
                       </Text>
                     </View>
                   )}
                   {batch.observations && (
-                    <View style={styles.observationsContainer}>
-                      <MaterialIcons name="notes" size={18} color="#6B7280" />
-                      <Text style={styles.observationsLabel}>
+                    <View style={[styles.observationsContainer, { backgroundColor: theme.colors.surfaceSoft, borderLeftColor: theme.colors.primary }]}>
+                      <MaterialIcons name="notes" size={18} color={theme.colors.textMuted} />
+                      <Text style={[styles.observationsLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.observations")}:
                       </Text>
-                      <Text style={styles.observationsText} numberOfLines={3}>
+                      <Text style={[styles.observationsText, { color: theme.colors.text }]} numberOfLines={3}>
                         {batch.observations}
                       </Text>
                     </View>
@@ -980,18 +974,18 @@ export default function Batches() {
           transparent={true}
           onRequestClose={closeModal}
         >
-          <View style={styles.modalOverlay}>
+          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={styles.modalKeyboard}
             >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                   {editingBatch ? t("batches.edit") : t("batches.add")}
                 </Text>
                 <TouchableOpacity onPress={closeModal}>
-                  <MaterialIcons name="close" size={24} color="#1F2937" />
+                  <MaterialIcons name="close" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
               </View>
 

@@ -12,8 +12,10 @@ const admin = require("firebase-admin");
 const fetch = require("node-fetch");
 const { logger } = require("firebase-functions/logger");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { overdueDaysSince } = require("./subscriptionWebhook.logic");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -31,6 +33,12 @@ const asaasApiUrl = defineString("ASAAS_API_URL", {
 const platformFeePercentParam = defineString("PLATFORM_FEE_PERCENT", {
   default: "1",
 });
+const subscriptionOverdueDowngradeDaysParam = defineString(
+  "SUBSCRIPTION_OVERDUE_DOWNGRADE_DAYS",
+  {
+    default: "3",
+  }
+);
 /** UUID da carteira Asaas que recebe a taxa da plataforma (nunca expor no app; só Functions) */
 const adminWalletIdParam = defineString("ASAAS_ADMIN_WALLET_ID", { default: "" });
 
@@ -109,6 +117,15 @@ function getPlatformFeePercent() {
   const n = parseFloat(raw);
   if (!Number.isFinite(n)) return DEFAULT_PLATFORM_FEE_PERCENT;
   return Math.min(100, Math.max(0, n));
+}
+
+function getSubscriptionOverdueDowngradeDays() {
+  const raw =
+    subscriptionOverdueDowngradeDaysParam.value()?.trim() ||
+    String(process.env.SUBSCRIPTION_OVERDUE_DOWNGRADE_DAYS || "").trim();
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return 3;
+  return n;
 }
 
 async function asaasFetch(apiKey, path, options = {}) {
@@ -204,6 +221,32 @@ async function ensureAsaasCustomer(apiKey, uid) {
   });
 
   return customerId;
+}
+
+function parseIsoDateYYYYMMDD(value) {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return v;
+}
+
+async function getLatestSubscriptionPayment(apiKey, subscriptionId) {
+  if (!subscriptionId) return null;
+  try {
+    const list = await asaasFetch(
+      apiKey,
+      `/payments?subscription=${encodeURIComponent(subscriptionId)}&limit=1&offset=0`,
+      { method: "GET" }
+    );
+    if (Array.isArray(list?.data) && list.data.length > 0) {
+      return list.data[0];
+    }
+  } catch (e) {
+    logger.warn("[getLatestSubscriptionPayment] Não foi possível buscar cobrança inicial", e?.message);
+  }
+  return null;
 }
 
 const ASAAS_COMPANY_TYPES = new Set(["MEI", "LIMITED", "INDIVIDUAL", "ASSOCIATION"]);
@@ -387,7 +430,7 @@ exports.createAsaasSubaccount = onCall(
 
     await userRef.update({
       asaasSubaccountId: asaasId,
-      asaasSubaccountApiKey: subApiKey,
+      asaasSubaccountApiKey: FieldValue.delete(),
       asaasSubaccountWalletId: walletId,
       asaasSubaccountCreatedAt: FieldValue.serverTimestamp(),
       asaasSubaccountError: FieldValue.delete(),
@@ -659,6 +702,199 @@ exports.createAsaasCharge = onCall(
   }
 );
 
+exports.createAsaasSubscription = onCall(
+  {
+    secrets: [asaasApiKey],
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Faça login para assinar um plano.");
+    }
+    const uid = request.auth.uid;
+    const { planId, value, nextDueDate } = request.data || {};
+    const validPlan = planId === "premium" || planId === "enterprise";
+    if (!validPlan) {
+      throw new HttpsError("invalid-argument", "Plano inválido para assinatura.");
+    }
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new HttpsError("invalid-argument", "Valor da assinatura inválido.");
+    }
+
+    const apiKey = asaasApiKey.value();
+    const customerId = await ensureAsaasCustomer(apiKey, uid);
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw new HttpsError("failed-precondition", "Perfil do usuário não encontrado.");
+    }
+    const userData = userSnap.data() || {};
+
+    const dueDateStr =
+      parseIsoDateYYYYMMDD(nextDueDate) ||
+      new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const existingSubId =
+      typeof userData.asaasSubscriptionId === "string"
+        ? userData.asaasSubscriptionId.trim()
+        : "";
+    if (existingSubId) {
+      const existingPlan = userData.subscriptionPlan || null;
+      const status = userData.subscriptionStatus || "ACTIVE";
+      if (existingPlan === planId && status !== "CANCELLED" && status !== "INACTIVE") {
+        const latestPayment = await getLatestSubscriptionPayment(apiKey, existingSubId);
+        return {
+          alreadyExists: true,
+          subscriptionId: existingSubId,
+          planId,
+          subscriptionStatus: status,
+          nextDueDate: userData.subscriptionNextDueDate || null,
+          invoiceUrl: latestPayment?.invoiceUrl || null,
+          pixCopyPaste: null,
+          pixEncodedImage: null,
+        };
+      }
+    }
+
+    const subPayload = {
+      customer: customerId,
+      billingType: "PIX",
+      value: roundMoney(amount),
+      cycle: "MONTHLY",
+      nextDueDate: dueDateStr,
+      description: `Assinatura ${planId} - Costura Conectada`,
+      externalReference: `${uid}:${planId}`,
+    };
+
+    let createdSub;
+    try {
+      createdSub = await asaasFetch(apiKey, "/subscriptions", {
+        method: "POST",
+        body: JSON.stringify(subPayload),
+      });
+    } catch (e) {
+      logger.error("[createAsaasSubscription] Erro ao criar assinatura", e?.message, e?.body);
+      throw new HttpsError("internal", e?.message || "Não foi possível criar assinatura no Asaas.");
+    }
+
+    const subscriptionId = createdSub?.id;
+    if (!subscriptionId) {
+      throw new HttpsError("internal", "Asaas não retornou o id da assinatura.");
+    }
+
+    const latestPayment = await getLatestSubscriptionPayment(apiKey, subscriptionId);
+    if (latestPayment?.id) {
+      await db.collection("payments").add({
+        userId: uid,
+        amount: roundMoney(amount),
+        dueDate: latestPayment.dueDate
+          ? admin.firestore.Timestamp.fromDate(new Date(`${latestPayment.dueDate}T00:00:00`))
+          : FieldValue.serverTimestamp(),
+        description: `Assinatura ${planId} - Costura Conectada`,
+        status: "pending",
+        provider: "asaas",
+        subscriptionPlan: planId,
+        asaasSubscriptionId: subscriptionId,
+        asaasPaymentId: latestPayment.id,
+        asaasInvoiceUrl: latestPayment.invoiceUrl || null,
+        asaasBillingType: "PIX",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    await userRef.update({
+      asaasSubscriptionId: subscriptionId,
+      subscriptionPlan: planId,
+      subscriptionStatus: createdSub.status || "ACTIVE",
+      subscriptionValue: roundMoney(amount),
+      subscriptionNextDueDate: createdSub.nextDueDate || dueDateStr,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    let pixQr = null;
+    if (latestPayment?.id) {
+      try {
+        pixQr = await asaasFetch(apiKey, `/payments/${latestPayment.id}/pixQrCode`, {
+          method: "GET",
+        });
+      } catch (e) {
+        logger.warn("[createAsaasSubscription] Cobrança criada sem QR imediato", e?.message);
+      }
+    }
+
+    return {
+      subscriptionId,
+      planId,
+      subscriptionStatus: createdSub.status || "ACTIVE",
+      nextDueDate: createdSub.nextDueDate || dueDateStr,
+      invoiceUrl: latestPayment?.invoiceUrl || null,
+      pixCopyPaste: pixQr?.payload || null,
+      pixEncodedImage: pixQr?.encodedImage || null,
+    };
+  }
+);
+
+exports.cancelAsaasSubscription = onCall(
+  {
+    secrets: [asaasApiKey],
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Faça login para cancelar assinatura.");
+    }
+    const uid = request.auth.uid;
+    const requestedId =
+      typeof request.data?.subscriptionId === "string"
+        ? request.data.subscriptionId.trim()
+        : "";
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw new HttpsError("failed-precondition", "Perfil do usuário não encontrado.");
+    }
+    const userData = userSnap.data() || {};
+    const subscriptionId = requestedId || String(userData.asaasSubscriptionId || "").trim();
+    if (!subscriptionId) {
+      throw new HttpsError("failed-precondition", "Usuário não possui assinatura ativa no Asaas.");
+    }
+    if (
+      userData.asaasSubscriptionId &&
+      String(userData.asaasSubscriptionId).trim() !== subscriptionId
+    ) {
+      throw new HttpsError("permission-denied", "subscriptionId não pertence ao usuário autenticado.");
+    }
+
+    const apiKey = asaasApiKey.value();
+    try {
+      await asaasFetch(apiKey, `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+        method: "DELETE",
+      });
+    } catch (e) {
+      logger.error("[cancelAsaasSubscription] erro ao cancelar no Asaas", e?.message, e?.body);
+      throw new HttpsError("internal", e?.message || "Não foi possível cancelar assinatura no Asaas.");
+    }
+
+    await userRef.update({
+      subscriptionStatus: "CANCELLED",
+      subscriptionLastWebhookEvent: "manual_cancel_call",
+      plan: "basic",
+      subscriptionOverdueSince: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      subscriptionId,
+      subscriptionStatus: "CANCELLED",
+      plan: "basic",
+    };
+  }
+);
+
 /**
  * HTTP webhook Asaas (POST). Autenticação: ASAAS_WEBHOOK_TOKEN (secret / process.env)
  * vs header `asaas-access-token`, query `?token=` ou campos no body.
@@ -700,12 +936,81 @@ exports.asaasWebhook = onRequest(
     const eventType = typeof body.event === "string" ? body.event : null;
 
     try {
-      await dispatchAsaasEvent(eventType, body, { db, FieldValue, admin });
+      await dispatchAsaasEvent(eventType, body, {
+        db,
+        FieldValue,
+        admin,
+        overdueDaysThreshold: getSubscriptionOverdueDowngradeDays(),
+      });
     } catch (e) {
       console.error("[asaasWebhook] erro ao processar (ainda assim 200 OK):", e);
     }
 
     res.status(200).send("OK");
+  }
+);
+
+exports.reconcileAsaasSubscriptionsDaily = onSchedule(
+  {
+    schedule: "every day 03:00",
+    timeZone: "America/Sao_Paulo",
+    secrets: [asaasApiKey],
+  },
+  async () => {
+    const apiKey = asaasApiKey.value();
+    const overdueDaysThreshold = getSubscriptionOverdueDowngradeDays();
+    const usersSnap = await db
+      .collection("users")
+      .where("asaasSubscriptionId", "!=", null)
+      .get();
+    let processed = 0;
+    let updated = 0;
+    for (const docSnap of usersSnap.docs) {
+      const u = docSnap.data() || {};
+      const subscriptionId = String(u.asaasSubscriptionId || "").trim();
+      if (!subscriptionId) continue;
+      processed += 1;
+      try {
+        const sub = await asaasFetch(apiKey, `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+          method: "GET",
+        });
+        const next = {};
+        if (typeof sub.status === "string" && sub.status) {
+          next.subscriptionStatus = sub.status;
+          if (sub.status === "CANCELLED" || sub.status === "INACTIVE") {
+            next.plan = "basic";
+          }
+          if (sub.status === "OVERDUE") {
+            if (!u.subscriptionOverdueSince) {
+              next.subscriptionOverdueSince = FieldValue.serverTimestamp();
+            } else {
+              const days = overdueDaysSince(u.subscriptionOverdueSince);
+              if (days >= overdueDaysThreshold) {
+                next.plan = "basic";
+              }
+            }
+          } else if (u.subscriptionOverdueSince) {
+            next.subscriptionOverdueSince = FieldValue.delete();
+          }
+        }
+        if (typeof sub.nextDueDate === "string" && sub.nextDueDate) {
+          next.subscriptionNextDueDate = sub.nextDueDate;
+        }
+        next.updatedAt = FieldValue.serverTimestamp();
+        next.subscriptionLastWebhookEvent = "daily_reconciliation";
+        if (Object.keys(next).length > 0) {
+          await docSnap.ref.update(next);
+          updated += 1;
+        }
+      } catch (e) {
+        logger.warn(
+          "[reconcileAsaasSubscriptionsDaily] falha ao reconciliar",
+          subscriptionId,
+          e?.message
+        );
+      }
+    }
+    logger.info("[reconcileAsaasSubscriptionsDaily] concluído", { processed, updated });
   }
 );
 
