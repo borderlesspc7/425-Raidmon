@@ -471,14 +471,12 @@ export default function FinancialHistory() {
                                   { backgroundColor: getStatusBg(payment.status) },
                                 ]}
                               >
-                                <Text
+                                <View
                                   style={[
-                                    styles.paymentItemBadgeText,
-                                    { color: getStatusColor(payment.status) },
+                                    styles.paymentItemBadgeDot,
+                                    { backgroundColor: getStatusColor(payment.status) },
                                   ]}
-                                >
-                                  {t(`financialHistory.status.${payment.status}` as any)}
-                                </Text>
+                                />
                               </View>
                             </View>
                           </View>
@@ -784,12 +782,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   paymentItemBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    width: 20,
+    height: 20,
     borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  paymentItemBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
+  paymentItemBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

@@ -1193,19 +1193,6 @@ export default function Batches() {
                               },
                             ]}
                           />
-                          <Text
-                            style={[
-                              styles.statusButtonText,
-                              {
-                                color:
-                                  status === statusOption
-                                    ? getFormStatusColor(statusOption)
-                                    : "#6B7280",
-                              },
-                            ]}
-                          >
-                            {t(`batches.status.${statusOption}`)}
-                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -1805,14 +1792,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusButton: {
-    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    justifyContent: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
-    gap: 6,
-    minWidth: "45%",
   },
   statusButtonActive: {
     borderWidth: 2,
@@ -1821,10 +1806,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-  },
-  statusButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
   },
   workshopSelector: {
     flexDirection: "row",

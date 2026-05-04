@@ -16,8 +16,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useTheme } from '../../hooks/useTheme';
-import { deriveWorkshopCardState, type OperationalDisplay } from '../../utils/workshopOperationalStatus';
-import { getBatchProductionPillColors, isBatchDeliveryLate } from '../../utils/batchProductionStatusStyle';
+import { deriveWorkshopCardState } from '../../utils/workshopOperationalStatus';
+import { getBatchProductionPillColors } from '../../utils/batchProductionStatusStyle';
 import type { Batch } from '../../types/batch';
 import type { Workshop } from '../../types/workshop';
 import type { MonthlyPiecesPoint } from '../../services/receivePiecesService';
@@ -48,72 +48,8 @@ function formatMonthLabel(
   }).format(new Date(year, monthIndex, 1));
 }
 
-function statusLabel(t: (k: string) => string, s: OperationalDisplay): string {
-  switch (s) {
-    case 'ready_pickup':
-      return t('dashboard.owner.statusReadyPickup');
-    case 'pendencies':
-      return t('dashboard.owner.statusPendencies');
-    case 'sewing':
-      return t('dashboard.owner.statusSewing');
-    case 'producing_ok':
-      return t('dashboard.owner.statusProducingOk');
-    case 'delayed':
-      return t('dashboard.owner.statusDelayed');
-    default:
-      return '';
-  }
-}
-
-function statusPausedLabel(t: (k: string) => string): string {
-  return t('dashboard.owner.statusPaused');
-}
-
 function ownerBatchBadgeStyle(batch: Batch): { backgroundColor: string } {
   return { backgroundColor: getBatchProductionPillColors(batch).bg };
-}
-
-function ownerBatchStatusLabel(
-  t: (k: string) => string,
-  language: string,
-  batch: Batch,
-): string {
-  const late = isBatchDeliveryLate(batch);
-  const flow = batch.productionFlowStatus;
-  if (late) {
-    return t('dashboard.owner.statusDelayed');
-  }
-  if (batch.status === 'in_progress') {
-    if (flow === 'ready_for_pickup') {
-      return t('dashboard.owner.statusReadyPickup');
-    }
-    if (flow === 'in_production') {
-      return t('dashboard.owner.statusProducingOk');
-    }
-    if (flow === 'partial') {
-      return t('dashboard.owner.statusPendencies');
-    }
-    if (flow === 'paused') {
-      return statusPausedLabel(t);
-    }
-  }
-  return formatBatchStatus(t, language, batch.status);
-}
-
-function formatBatchStatus(
-  t: (k: string) => string,
-  language: string,
-  status: Batch['status'],
-): string {
-  const key = `batches.status.${status}`;
-  const label = t(key);
-  if (label === key) {
-    if (status === 'in_progress') {
-      return language === 'es' ? 'en producción' : 'em produção';
-    }
-    return status;
-  }
-  return label;
 }
 
 function formatDateShort(language: string, d: Date): string {
@@ -447,9 +383,7 @@ export default function DashboardOwner({
               </View>
               <View style={styles.batchRow}>
                 <View style={[styles.batchStatusBadge, ownerBatchBadgeStyle(batch)]}>
-                  <Text style={styles.batchStatusText}>
-                    {ownerBatchStatusLabel(t, language, batch)}
-                  </Text>
+                  <View style={[styles.batchStatusDot, { backgroundColor: getBatchProductionPillColors(batch).fg }]} />
                 </View>
                 {batch.workshopName ? (
                   <Text style={[styles.batchWorkshop, { color: theme.colors.textMuted }]} numberOfLines={1}>
@@ -813,14 +747,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   batchStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  batchStatusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1F2937',
+  batchStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   batchWorkshop: {
     flex: 1,

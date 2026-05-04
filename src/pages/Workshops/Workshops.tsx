@@ -375,19 +375,6 @@ export default function Workshops() {
                           size={16}
                           color={statusOption === workshop.status ? '#FFFFFF' : getStatusColor(statusOption)}
                         />
-                        <Text
-                          style={[
-                            styles.statusButtonText,
-                            {
-                              color:
-                                statusOption === workshop.status
-                                  ? '#FFFFFF'
-                                  : getStatusColor(statusOption),
-                            },
-                          ]}
-                        >
-                          {getStatusLabel(statusOption)}
-                        </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -502,16 +489,7 @@ export default function Workshops() {
                             name={getStatusIcon(statusOption)}
                             size={18}
                             color={getStatusColor(statusOption)}
-                            style={styles.statusOptionIcon}
                           />
-                          <Text
-                            style={[
-                              styles.statusOptionText,
-                              status === statusOption && styles.statusOptionTextActive,
-                            ]}
-                          >
-                            {getStatusLabel(statusOption)}
-                          </Text>
                         </TouchableOpacity>
                       )
                     )}
@@ -699,19 +677,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusButton: {
-    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    gap: 6,
+    width: 32,
+    height: 32,
     backgroundColor: '#FFFFFF',
-  },
-  statusButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -777,10 +750,9 @@ const styles = StyleSheet.create({
   },
   statusOption: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
+    paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: '#E5E7EB',
@@ -789,18 +761,6 @@ const styles = StyleSheet.create({
   statusOptionActive: {
     borderColor: '#6366F1',
     backgroundColor: '#F0F4FF',
-  },
-  statusOptionIcon: {
-    marginRight: 10,
-  },
-  statusOptionText: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  statusOptionTextActive: {
-    color: '#6366F1',
-    fontWeight: '600',
   },
   modalFooter: {
     flexDirection: 'row',

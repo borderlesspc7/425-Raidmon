@@ -101,10 +101,6 @@ export default function WorkshopStatus() {
     }
   };
 
-  const getStatusLabel = (status: WorkshopStatusType) => {
-    return t(`workshops.status.${status}`);
-  };
-
   const formatPhone = (phone: string) => {
     const numbers = phone.replace(/\D/g, "");
     if (numbers.length <= 2) {
@@ -204,15 +200,7 @@ export default function WorkshopStatus() {
               ]}
               onPress={() => setSelectedStatus("all")}
             >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  { color: theme.colors.textMuted },
-                  selectedStatus === "all" && styles.filterButtonTextActive,
-                ]}
-              >
-                {t("workshopStatus.all")}
-              </Text>
+              <View style={[styles.filterDot, { backgroundColor: theme.colors.textMuted }]} />
             </TouchableOpacity>
             {(["free", "busy"] as WorkshopStatusType[]).map((status) => (
               <TouchableOpacity
@@ -236,18 +224,6 @@ export default function WorkshopStatus() {
                     { backgroundColor: getStatusColor(status) },
                   ]}
                 />
-                <Text
-                  style={[
-                    styles.filterButtonText,
-                    { color: theme.colors.textMuted },
-                    selectedStatus === status && styles.filterButtonTextActive,
-                    selectedStatus === status && {
-                      color: getStatusColor(status),
-                    },
-                  ]}
-                >
-                  {getStatusLabel(status)}
-                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -312,9 +288,7 @@ export default function WorkshopStatus() {
                             { backgroundColor: getStatusColor(group.status) },
                           ]}
                         />
-                        <Text style={styles.statusGroupTitle}>
-                          {getStatusLabel(group.status)} ({group.workshops.length})
-                        </Text>
+                        <Text style={styles.statusGroupTitle}>{group.workshops.length}</Text>
                       </View>
                       {group.workshops.map((workshop) => (
                         <WorkshopCard
@@ -612,15 +586,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterButton: {
-    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    justifyContent: "center",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
-    gap: 6,
     marginRight: 8,
   },
   filterButtonActive: {
@@ -630,14 +603,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6B7280",
-  },
-  filterButtonTextActive: {
-    fontWeight: "600",
   },
   scrollView: {
     flex: 1,

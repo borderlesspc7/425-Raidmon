@@ -637,9 +637,6 @@ export default function Payments() {
     }
   };
 
-  const getStatusLabel = (s: PaymentStatus) =>
-    t(`payments.status.${s}` as any);
-
   const getStatusIcon = (s: PaymentStatus) => {
     switch (s) {
       case "paid":
@@ -864,14 +861,12 @@ export default function Payments() {
                           { backgroundColor: getStatusBg(displayStatus) },
                         ]}
                       >
-                        <Text
+                        <View
                           style={[
-                            styles.statusBadgeText,
-                            { color: getStatusColor(displayStatus) },
+                            styles.statusBadgeDot,
+                            { backgroundColor: getStatusColor(displayStatus) },
                           ]}
-                        >
-                          {getStatusLabel(displayStatus)}
-                        </Text>
+                        />
                       </View>
                     </View>
                   </View>
@@ -1555,14 +1550,17 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
   statusBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
     alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
   },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
+  statusBadgeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   amountText: {
     fontSize: 18,

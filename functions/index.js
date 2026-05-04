@@ -734,6 +734,13 @@ exports.createAsaasSubscription = onCall(
     const dueDateStr =
       parseIsoDateYYYYMMDD(nextDueDate) ||
       new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const adminWallet = getAdminWalletId();
+    if (!adminWallet) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Plataforma: configure ASAAS_ADMIN_WALLET_ID para repassar pagamentos da assinatura."
+      );
+    }
 
     const existingSubId =
       typeof userData.asaasSubscriptionId === "string"
@@ -765,6 +772,7 @@ exports.createAsaasSubscription = onCall(
       nextDueDate: dueDateStr,
       description: `Assinatura ${planId} - Costura Conectada`,
       externalReference: `${uid}:${planId}`,
+      split: [{ walletId: adminWallet, percentualValue: 100 }],
     };
 
     let createdSub;
