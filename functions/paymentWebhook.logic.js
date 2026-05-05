@@ -43,8 +43,9 @@ async function syncWorkshopDocStatusForBatchWh(db, FieldValue, batchId) {
 }
 
 function statusFromAsaasEvent(event, paymentStatus) {
-  if (event === "PAYMENT_REFUNDED") return "refunded";
-  if (event === "PAYMENT_FAILED") return "failed";
+  // Frontend trabalha com: pending | paid | overdue | cancelled
+  if (event === "PAYMENT_REFUNDED") return "cancelled";
+  if (event === "PAYMENT_FAILED") return "cancelled";
   if (event === "PAYMENT_DELETED") return "cancelled";
   if (event === "PAYMENT_OVERDUE" || paymentStatus === "OVERDUE") return "overdue";
   if (

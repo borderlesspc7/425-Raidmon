@@ -515,10 +515,17 @@ exports.createAsaasCharge = onCall(
       String(p.marketplaceWorkshopUserId).trim().length > 0
         ? String(p.marketplaceWorkshopUserId).trim()
         : null;
+    const isOwnerCheckoutInvite = p.ownerPaymentInviteKind === "owner_batch_checkout";
 
     const rawWorkshopId = p.workshopId;
     const hasWorkshopRow =
       rawWorkshopId != null && String(rawWorkshopId).trim().length > 0;
+    if (isOwnerCheckoutInvite && !mpWorkshopUserId && !hasWorkshopRow) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Pagamento de checkout sem oficina vinculada para split de marketplace."
+      );
+    }
 
     let workshopWalletId = null;
     let workshopAccountUserId = null;
@@ -591,6 +598,9 @@ exports.createAsaasCharge = onCall(
       useMarketplaceSplit = true;
     }
 
+    let splitApplied = false;
+    let splitWorkshopValue = null;
+    let splitPlatformValue = null;
     if (useMarketplaceSplit) {
       if (platformPct > 0 && !adminWallet) {
         throw new HttpsError(
@@ -600,33 +610,33 @@ exports.createAsaasCharge = onCall(
             "%)."
         );
       }
-      const workshopPercent = roundMoney(100 - platformPct);
-      if (workshopPercent <= 0) {
+      const workshopNet = roundMoney(gross - fee);
+      const platformCut = roundMoney(fee);
+      if (workshopNet <= 0) {
         throw new HttpsError(
           "failed-precondition",
           "A taxa da plataforma (PLATFORM_FEE_PERCENT) não pode ser 100% no fluxo de marketplace."
         );
       }
-      if (Math.abs(workshopPercent + platformPct - 100) > 0.02) {
-        throw new HttpsError("internal", "Soma de percentuais de split inválida.");
-      }
       const splitList = [];
-      if (workshopPercent > 0) {
-        splitList.push({ walletId: workshopWalletId, percentualValue: workshopPercent });
+      if (workshopNet > 0) {
+        splitList.push({ walletId: workshopWalletId, fixedValue: workshopNet });
+        splitWorkshopValue = workshopNet;
       }
-      if (platformPct > 0) {
-        splitList.push({ walletId: adminWallet, percentualValue: platformPct });
+      if (platformCut > 0) {
+        splitList.push({ walletId: adminWallet, fixedValue: platformCut });
+        splitPlatformValue = platformCut;
       }
       if (gross > 0 && splitList.length > 0) {
         payload.split = splitList;
+        splitApplied = true;
       }
       if (process.env.FUNCTIONS_EMULATOR === "true") {
         logger.debug(
-          "[createAsaasCharge] marketplace split: oficina " +
-            workshopPercent +
-            "% + plataforma " +
-            platformPct +
-            "%"
+          "[createAsaasCharge] marketplace split fixo: oficina=" +
+            workshopNet +
+            " plataforma=" +
+            platformCut
         );
       }
     } else {
@@ -635,6 +645,8 @@ exports.createAsaasCharge = onCall(
         adminWallet && gross > 0 && platformPct > 0 && fee > 0;
       if (shouldApplySplit) {
         payload.split = [{ walletId: adminWallet, percentualValue: platformPct }];
+        splitApplied = true;
+        splitPlatformValue = fee;
       }
       if (process.env.FUNCTIONS_EMULATOR === "true" && shouldApplySplit) {
         logger.debug(
@@ -685,6 +697,17 @@ exports.createAsaasCharge = onCall(
       firestorePaymentUpdate.marketplaceMode = false;
       firestorePaymentUpdate.marketplaceWorkshopUserId = FieldValue.delete();
       firestorePaymentUpdate.asaasMarketplaceWorkshopWalletId = FieldValue.delete();
+    }
+    firestorePaymentUpdate.asaasSplitApplied = splitApplied;
+    if (splitWorkshopValue != null) {
+      firestorePaymentUpdate.asaasSplitWorkshopAmount = splitWorkshopValue;
+    } else {
+      firestorePaymentUpdate.asaasSplitWorkshopAmount = FieldValue.delete();
+    }
+    if (splitPlatformValue != null) {
+      firestorePaymentUpdate.asaasSplitPlatformAmount = splitPlatformValue;
+    } else {
+      firestorePaymentUpdate.asaasSplitPlatformAmount = FieldValue.delete();
     }
 
     await payRef.update(firestorePaymentUpdate);
@@ -951,7 +974,9 @@ exports.asaasWebhook = onRequest(
         overdueDaysThreshold: getSubscriptionOverdueDowngradeDays(),
       });
     } catch (e) {
-      console.error("[asaasWebhook] erro ao processar (ainda assim 200 OK):", e);
+      console.error("[asaasWebhook] erro ao processar:", e);
+      res.status(500).send("Webhook processing failed");
+      return;
     }
 
     res.status(200).send("OK");

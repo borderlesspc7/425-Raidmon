@@ -48,10 +48,6 @@ function formatMonthLabel(
   }).format(new Date(year, monthIndex, 1));
 }
 
-function ownerBatchBadgeStyle(batch: Batch): { backgroundColor: string } {
-  return { backgroundColor: getBatchProductionPillColors(batch).bg };
-}
-
 function formatDateShort(language: string, d: Date): string {
   const locale = language === 'es' ? 'es-ES' : 'pt-BR';
   return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -70,6 +66,7 @@ function PiecesBarColumn({
   language: string;
   staggerIndex: number;
 }) {
+  const { theme } = useTheme();
   const heightAnim = useRef(new Animated.Value(0)).current;
 
   const targetHeight = useMemo(() => {
@@ -98,13 +95,14 @@ function PiecesBarColumn({
           style={[
             styles.chartBarFill,
             {
+              backgroundColor: theme.colors.primary,
               height: heightAnim,
             },
           ]}
         />
       </View>
-      <Text style={styles.chartValue}>{point.pieces}</Text>
-      <Text style={styles.chartMonth} numberOfLines={1}>
+      <Text style={[styles.chartValue, { color: theme.colors.text }]}>{point.pieces}</Text>
+      <Text style={[styles.chartMonth, { color: theme.colors.textMuted }]} numberOfLines={1}>
         {formatMonthLabel(language, point.year, point.monthIndex)}
       </Text>
     </View>
@@ -278,7 +276,7 @@ export default function DashboardOwner({
       <Text style={[styles.panelSubtitle, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesSubtitle')}</Text>
       {loading ? (
         <View style={styles.panelLoading}>
-          <ActivityIndicator color="#6366F1" />
+          <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : monthly.every((p) => p.pieces === 0) ? (
         <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesEmpty')}</Text>
@@ -304,7 +302,7 @@ export default function DashboardOwner({
       <Text style={[styles.hintText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.syncHint')}</Text>
       {loading ? (
         <View style={styles.panelLoading}>
-          <ActivityIndicator color="#6366F1" />
+          <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : workshopCards.length === 0 ? (
         <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.workshopsEmpty')}</Text>
@@ -357,7 +355,7 @@ export default function DashboardOwner({
       </View>
       {loading ? (
         <View style={styles.panelLoading}>
-          <ActivityIndicator color="#6366F1" />
+          <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : sortedBatches.length === 0 ? (
         <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.batchesEmpty')}</Text>
@@ -375,16 +373,14 @@ export default function DashboardOwner({
                   {batch.name}
                 </Text>
                 <View style={styles.batchMeta}>
-                  <MaterialIcons name="inventory-2" size={16} color="#6366F1" />
+                  <MaterialIcons name="inventory-2" size={16} color={theme.colors.primary} />
                   <Text style={[styles.batchPieces, { color: theme.colors.textMuted }]}>
                     {batch.totalPieces} {t('batches.pieces')}
                   </Text>
                 </View>
               </View>
               <View style={styles.batchRow}>
-                <View style={[styles.batchStatusBadge, ownerBatchBadgeStyle(batch)]}>
-                  <View style={[styles.batchStatusDot, { backgroundColor: getBatchProductionPillColors(batch).fg }]} />
-                </View>
+                <View style={[styles.batchStatusDot, { backgroundColor: getBatchProductionPillColors(batch).fg }]} />
                 {batch.workshopName ? (
                   <Text style={[styles.batchWorkshop, { color: theme.colors.textMuted }]} numberOfLines={1}>
                     {batch.workshopName}
@@ -446,7 +442,7 @@ export default function DashboardOwner({
           {showRanking ? (
             entLoading ? (
               <View style={styles.entLoadingBox}>
-                <ActivityIndicator color="#6366F1" />
+                <ActivityIndicator color={theme.colors.primary} />
               </View>
             ) : entRows.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.rankingEmpty')}</Text>
@@ -454,8 +450,8 @@ export default function DashboardOwner({
               <View style={styles.rankingList}>
                 {entRows.map((r, i) => (
                   <View key={`${r.name}-${i}`} style={[styles.rankingRow, { backgroundColor: theme.colors.surfaceSoft }]}>
-                    <View style={styles.rankingIndex}>
-                      <Text style={styles.rankingIndexText}>#{i + 1}</Text>
+                    <View style={[styles.rankingIndex, { backgroundColor: theme.colors.iconSoft }]}>
+                      <Text style={[styles.rankingIndexText, { color: theme.colors.primary }]}>#{i + 1}</Text>
                     </View>
                     <View style={styles.rankingBody}>
                       <Text style={[styles.rankingTitle, { color: theme.colors.text }]} numberOfLines={1}>
@@ -746,17 +742,10 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: 'wrap',
   },
-  batchStatusBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   batchStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   batchWorkshop: {
     flex: 1,
@@ -819,14 +808,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   rankingIndexText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#4F46E5',
   },
   rankingBody: {
     flex: 1,
