@@ -54,6 +54,31 @@ function roundMoney(n) {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Em marketplace, o `gross` já vem com taxa embutida (base + taxa).
+ * Este helper reconstrói os componentes para evitar taxa sobre taxa.
+ */
+function splitMarketplaceFromGross(grossAmount, feePercent) {
+  const gross = Number(grossAmount);
+  if (!Number.isFinite(gross) || gross <= 0) {
+    return { baseAmount: 0, feeAmount: 0, totalAmount: 0 };
+  }
+  const pct = Number(feePercent);
+  if (!Number.isFinite(pct) || pct <= 0) {
+    const total = roundMoney(gross);
+    return { baseAmount: total, feeAmount: 0, totalAmount: total };
+  }
+  const divisor = 1 + pct / 100;
+  const base = roundMoney(gross / divisor);
+  const total = roundMoney(gross);
+  const fee = roundMoney(total - base);
+  return {
+    baseAmount: Math.max(0, base),
+    feeAmount: Math.max(0, fee),
+    totalAmount: total,
+  };
+}
+
 function batchRemainingPiecesFromData(d) {
   const T =
     typeof d.totalPieces === "number" && Number.isFinite(d.totalPieces) ? d.totalPieces : 0;
@@ -485,8 +510,8 @@ exports.createAsaasCharge = onCall(
 
     const platformFeePercent = getPlatformFeePercent();
     const platformPct = roundMoney(Math.min(100, Math.max(0, platformFeePercent)));
-    const fee = roundMoney((gross * platformPct) / 100);
-    const net = roundMoney(gross - fee);
+    const standardFee = roundMoney((gross * platformPct) / 100);
+    const standardNet = roundMoney(gross - standardFee);
 
     const customerId = await ensureAsaasCustomer(apiKey, uid);
 
@@ -601,6 +626,8 @@ exports.createAsaasCharge = onCall(
     let splitApplied = false;
     let splitWorkshopValue = null;
     let splitPlatformValue = null;
+    let netAmountForFirestore = standardNet;
+    let feeAmountForFirestore = standardFee;
     if (useMarketplaceSplit) {
       if (platformPct > 0 && !adminWallet) {
         throw new HttpsError(
@@ -610,8 +637,12 @@ exports.createAsaasCharge = onCall(
             "%)."
         );
       }
-      const workshopNet = roundMoney(gross - fee);
-      const platformCut = roundMoney(fee);
+      // Importante: gross já inclui taxa (base + taxa); reconstruir base e taxa reais.
+      const marketplaceSplit = splitMarketplaceFromGross(gross, platformPct);
+      const workshopNet = marketplaceSplit.baseAmount;
+      const platformCut = marketplaceSplit.feeAmount;
+      netAmountForFirestore = workshopNet;
+      feeAmountForFirestore = platformCut;
       if (workshopNet <= 0) {
         throw new HttpsError(
           "failed-precondition",
@@ -642,11 +673,11 @@ exports.createAsaasCharge = onCall(
     } else {
       // Assinaturas e cobranças sem oficina: emissor = conta raiz; só taxa % para a carteira admin, restante na raiz
       const shouldApplySplit =
-        adminWallet && gross > 0 && platformPct > 0 && fee > 0;
+        adminWallet && gross > 0 && platformPct > 0 && standardFee > 0;
       if (shouldApplySplit) {
         payload.split = [{ walletId: adminWallet, percentualValue: platformPct }];
         splitApplied = true;
-        splitPlatformValue = fee;
+        splitPlatformValue = standardFee;
       }
       if (process.env.FUNCTIONS_EMULATOR === "true" && shouldApplySplit) {
         logger.debug(
@@ -680,8 +711,8 @@ exports.createAsaasCharge = onCall(
       provider: "asaas",
       asaasPaymentId,
       platformFeePercent: platformPct,
-      platformFeeAmount: fee,
-      netAmountAfterFee: net,
+      platformFeeAmount: feeAmountForFirestore,
+      netAmountAfterFee: netAmountForFirestore,
       asaasInvoiceUrl: charge.invoiceUrl || null,
       asaasBillingType: "PIX",
       pixCopyPaste: pixData?.payload || null,
@@ -719,7 +750,7 @@ exports.createAsaasCharge = onCall(
       pixEncodedImage: pixData?.encodedImage || null,
       pixExpirationDate: pixData?.expirationDate || null,
       platformFeePercent: platformPct,
-      platformFeeAmount: fee,
+      platformFeeAmount: feeAmountForFirestore,
       grossAmount: gross,
     };
   }
