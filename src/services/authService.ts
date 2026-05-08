@@ -24,6 +24,7 @@ import { createAsaasSubaccount } from './asaasSubaccount';
 const ADMIN_EMAIL = 'costuraconectada@gmail.com';
 
 const onlyDigits = (s: string) => String(s || '').replace(/\D/g, '');
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Converte data DD/MM/AAAA para AAAA-MM-DD */
 function brDateToIso(s: string): string | null {
@@ -62,10 +63,20 @@ const convertTimestampToDate = (timestamp: any): Date => {
   return new Date(timestamp);
 };
 
+// Evita corrida no cadastro: o Auth pode disparar antes do documento users/{uid} existir.
+const getUserDocWithRetry = async (uid: string, retries = 5, delayMs = 300) => {
+  let lastSnap = await getDoc(doc(db, 'users', uid));
+  for (let attempt = 0; attempt < retries && !lastSnap.exists(); attempt++) {
+    await wait(delayMs);
+    lastSnap = await getDoc(doc(db, 'users', uid));
+  }
+  return lastSnap;
+};
+
 // Função auxiliar para converter Firebase User para User do sistema
 const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<User | null> => {
   try {
-    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    const userDoc = await getUserDocWithRetry(firebaseUser.uid);
     
     if (!userDoc.exists()) {
       return null;
@@ -228,10 +239,19 @@ export const authService = {
         throw new Error('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido');
       }
 
-      const cpfQuery = query(collection(db, 'users'), where('cpf', '==', cpfDigits));
-      const cpfExists = await getDocs(cpfQuery);
-      if (!cpfExists.empty) {
-        throw new Error('Já existe uma conta cadastrada com este CPF/CNPJ');
+      // Em regras atuais, o cliente não pode listar/consultar toda coleção users.
+      // Então a checagem de duplicidade de CPF/CNPJ no client pode falhar por permissão.
+      // Quando isso acontecer, seguimos o fluxo de cadastro normalmente.
+      try {
+        const cpfQuery = query(collection(db, 'users'), where('cpf', '==', cpfDigits));
+        const cpfExists = await getDocs(cpfQuery);
+        if (!cpfExists.empty) {
+          throw new Error('Já existe uma conta cadastrada com este CPF/CNPJ');
+        }
+      } catch (e: any) {
+        if (e?.code !== 'permission-denied' && e?.code !== 'firestore/permission-denied') {
+          throw e;
+        }
       }
 
       // Cria o usuário no Firebase Auth
@@ -356,6 +376,13 @@ export const authService = {
         callback(null);
       }
     });
+  },
+
+  /** Recarrega perfil do Firestore para o usuário logado (ex.: após webhook de assinatura). */
+  async refreshCurrentUser(): Promise<User | null> {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return null;
+    return convertFirebaseUserToUser(firebaseUser);
   },
 
   // Buscar dados de um usuário por ID

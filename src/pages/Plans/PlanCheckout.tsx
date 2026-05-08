@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   View,
   Text,
@@ -25,6 +26,7 @@ import {
   isSubscriptionPlanId,
 } from "../../constants/planPricing";
 import { createAsaasSubscriptionForPlan } from "../../services/asaasPayments";
+import { db } from "../../lib/firebaseconfig";
 
 function planScreenName(planId: SubscriptionPlanId): (typeof paths)[keyof typeof paths] {
   switch (planId) {
@@ -42,7 +44,7 @@ function planScreenName(planId: SubscriptionPlanId): (typeof paths)[keyof typeof
 export default function PlanCheckout() {
   const { t } = useLanguage();
   const { navigate, navigationParams } = useNavigation();
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, refreshUser } = useAuth();
   const { theme } = useTheme();
 
   const planId = navigationParams.planId;
@@ -56,11 +58,20 @@ export default function PlanCheckout() {
     platformFeeAmount?: number;
   } | null>(null);
 
+  const baselinePlanAtCheckoutRef = useRef<string | null>(null);
+  const paymentConfirmShownRef = useRef(false);
+
   useEffect(() => {
     if (!planId || !isSubscriptionPlanId(planId)) {
       navigate(paths.plans);
     }
   }, [planId]);
+
+  useEffect(() => {
+    if (!pixModalVisible) {
+      paymentConfirmShownRef.current = false;
+    }
+  }, [pixModalVisible]);
 
   const validPlan = planId && isSubscriptionPlanId(planId) ? planId : null;
 
@@ -72,6 +83,44 @@ export default function PlanCheckout() {
     if (validPlan === "premium") return t("plans.premium.name");
     return t("plans.enterprise.name");
   }, [validPlan, t]);
+
+  useEffect(() => {
+    if (!pixModalVisible || !user?.id || !validPlan) return;
+    if (validPlan === "basic") return;
+
+    const userDocRef = doc(db, "users", user.id);
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (!snap.exists() || paymentConfirmShownRef.current) return;
+      const d = snap.data();
+      const currentPlan = typeof d.plan === "string" && d.plan ? d.plan : "basic";
+      const baseline = baselinePlanAtCheckoutRef.current ?? "basic";
+      if (
+        currentPlan === validPlan &&
+        currentPlan !== baseline &&
+        (validPlan === "premium" || validPlan === "enterprise")
+      ) {
+        paymentConfirmShownRef.current = true;
+        void refreshUser().then(() => {
+          setPixModalVisible(false);
+          setPixView(null);
+          Alert.alert(
+            t("plans.success"),
+            t("plans.checkout.paymentConfirmedBody").replace("{plan}", planName),
+            [{ text: "OK", onPress: () => navigate(paths.plans) }]
+          );
+        });
+      }
+    });
+    return () => unsub();
+  }, [
+    pixModalVisible,
+    user?.id,
+    validPlan,
+    planName,
+    t,
+    navigate,
+    refreshUser,
+  ]);
 
   const handleBack = () => {
     if (validPlan) navigate(planScreenName(validPlan));
@@ -118,6 +167,13 @@ export default function PlanCheckout() {
 
     try {
       setLoading(true);
+      const userPreSnap = await getDoc(doc(db, "users", user.id));
+      const prePlan =
+        typeof userPreSnap.data()?.plan === "string" && userPreSnap.data()?.plan
+          ? userPreSnap.data()?.plan!
+          : "basic";
+      baselinePlanAtCheckoutRef.current = prePlan;
+
       const description = t("plans.checkout.paymentDescription").replace("{plan}", planName);
       const nextDueDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
         .toISOString()
@@ -249,6 +305,12 @@ export default function PlanCheckout() {
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                 {pixView ? (
                   <>
+                    <View style={styles.waitingRow}>
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                      <Text style={[styles.waitingText, { color: theme.colors.textMuted }]}>
+                        {t("plans.checkout.waitingPaymentConfirm")}
+                      </Text>
+                    </View>
                     <Text style={[styles.pixDesc, { color: theme.colors.text }]}>{pixView.description}</Text>
                     {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0 ? (
                       <Text style={styles.pixFee}>
@@ -404,6 +466,18 @@ const styles = StyleSheet.create({
     width: "92%",
     maxWidth: 420,
   },
+  waitingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  waitingText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   pixDesc: {
     fontSize: 15,
     fontWeight: "600",
@@ -454,12 +528,14 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 20,
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     maxHeight: "90%",
   },
   modalHeader: {

@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useCallback, useEffect, useState } from "react";
 import { authService } from "../services/authService";
 import type {
   User,
@@ -17,6 +17,7 @@ interface AuthContextType {
     logout: () => Promise<void>;
     clearError: () => void;
     updateProfile: (data: Partial<User>) => Promise<void>;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,6 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null)
     }
 
+    const refreshUser = useCallback(async () => {
+        const next = await authService.refreshCurrentUser();
+        if (next) setUser(next);
+    }, []);
+
     const updateProfile = async (data: Partial<User>) => {
         if (!user) throw new Error('Usuário não autenticado');
         try {
@@ -109,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         clearError,
         updateProfile,
+        refreshUser,
     }
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

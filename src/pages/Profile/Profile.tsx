@@ -403,6 +403,30 @@ export default function Profile() {
                   </View>
                 );
               })()}
+
+              <View style={styles.planStatusCard}>
+                <Text style={styles.planStatusTitle}>{t("plans.currentPlan")}</Text>
+                {(["basic", "premium", "enterprise"] as const).map((pid) => {
+                  const isActive = (user.plan || "basic") === pid;
+                  const labels: Record<typeof pid, string> = {
+                    basic: t("plans.basic.name"),
+                    premium: t("plans.premium.name"),
+                    enterprise: t("plans.enterprise.name"),
+                  };
+                  return (
+                    <View key={pid} style={styles.planStatusRow}>
+                      <MaterialIcons
+                        name={isActive ? "check-circle" : "radio-button-unchecked"}
+                        size={16}
+                        color={isActive ? "#10B981" : "#9CA3AF"}
+                      />
+                      <Text style={[styles.planStatusText, isActive ? styles.planStatusTextActive : null]}>
+                        {labels[pid]}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
 
             {/* Info Section */}
@@ -914,6 +938,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  planStatusCard: {
+    width: "100%",
+    marginTop: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  planStatusTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  planStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  planStatusText: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  planStatusTextActive: {
+    color: "#111827",
+    fontWeight: "700",
   },
   currentPlanCardSmall: {
     marginTop: 12,

@@ -13,6 +13,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { useTheme } from "../../hooks/useTheme";
+import { PLAN_PRICES_BRL } from "../../constants/planPricing";
 
 type PlanType = "basic" | "premium" | "enterprise";
 
@@ -56,7 +57,7 @@ export default function Plans() {
     {
       id: "premium",
       name: t("plans.premium.name"),
-      price: 59,
+      price: PLAN_PRICES_BRL.premium,
       period: t("plans.monthly"),
       features: [
         t("plans.premium.feature1"),
@@ -74,7 +75,7 @@ export default function Plans() {
     {
       id: "enterprise",
       name: t("plans.enterprise.name"),
-      price: 149,
+      price: PLAN_PRICES_BRL.enterprise,
       period: t("plans.monthly"),
       features: [
         t("plans.enterprise.feature1"),

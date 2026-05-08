@@ -223,6 +223,14 @@ export default function Register() {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
+              onPress={() => navigate('RegisterSelection')}
+              style={styles.backButton}
+            >
+              <MaterialIcons name="arrow-back-ios" size={18} color="#6366F1" />
+              <Text style={styles.backText}>Voltar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={toggleLanguage}
               style={styles.languageButton}
             >
@@ -497,6 +505,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
     position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    gap: 2,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6366F1',
   },
   languageButton: {
     position: 'absolute',

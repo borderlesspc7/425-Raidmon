@@ -52,6 +52,15 @@ function formatCep(s: string) {
   return `${d.slice(0, 5)}-${d.slice(5)}`;
 }
 
+function buildAsaasErrorDetails(raw: string) {
+  const msg = String(raw || "").trim();
+  if (!msg) return "";
+  if (msg.includes("fetch is not a function")) {
+    return "Detalhe técnico: integração Asaas no backend desatualizada (fetch).\nAção sugerida: fazer deploy das Cloud Functions e tentar novamente.";
+  }
+  return `Detalhe técnico: ${msg}`;
+}
+
 export default function RegisterWorkshop() {
   const { navigate } = useNavigation();
   const { register, loading, error, clearError } = useAuth();
@@ -72,6 +81,7 @@ export default function RegisterWorkshop() {
   const [complement, setComplement] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [cepLoading, setCepLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,6 +108,39 @@ export default function RegisterWorkshop() {
     if (d.length <= 2) return d;
     if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+  };
+
+  const lookupCep = async (cep: string) => {
+    const digits = onlyDigits(cep);
+    if (digits.length !== 8) return;
+    try {
+      setCepLoading(true);
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (data?.erro) {
+        return;
+      }
+      if (typeof data?.logradouro === "string" && data.logradouro.trim()) {
+        setAddress(data.logradouro.trim());
+        setErrors((e) => {
+          const n = { ...e };
+          delete n.address;
+          return n;
+        });
+      }
+      if (typeof data?.bairro === "string" && data.bairro.trim()) {
+        setProvince(data.bairro.trim());
+        setErrors((e) => {
+          const n = { ...e };
+          delete n.province;
+          return n;
+        });
+      }
+    } catch {
+      // Em caso de falha de rede, o usuário pode preencher manualmente.
+    } finally {
+      setCepLoading(false);
+    }
   };
 
   const validateField = (field: string, value: string) => {
@@ -215,6 +258,7 @@ export default function RegisterWorkshop() {
       if (isPj && !companyType) {
         setErrors((e) => ({ ...e, companyType: "Selecione o tipo de empresa" }));
       }
+      Alert.alert("Campos pendentes", "Revise os campos destacados antes de criar a conta.");
       return;
     }
 
@@ -250,15 +294,20 @@ export default function RegisterWorkshop() {
         const d = await getDoc(doc(db, "users", u.uid));
         const emsg = d.data()?.asaasSubaccountError as string | undefined;
         if (emsg) {
+          const details = buildAsaasErrorDetails(emsg);
           Alert.alert(
             "Conta criada",
-            "Sua conta foi criada, mas a subconta de pagamento (Asaas) não pôde ser concluída. Entre em contato com o suporte ou tente novamente mais tarde.\n\n" +
-              emsg
+            "Sua conta foi criada, mas a subconta de pagamento (Asaas) não pôde ser concluída.\n\n" +
+              details
           );
         }
       }
-    } catch {
-      // erro no contexto de auth
+    } catch (e: any) {
+      const msg =
+        typeof e?.message === "string" && e.message.trim()
+          ? e.message
+          : "Não foi possível criar a conta agora. Tente novamente.";
+      Alert.alert("Erro no cadastro", msg);
     }
   };
 
@@ -279,6 +328,10 @@ export default function RegisterWorkshop() {
           ]}
         >
           <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigate(paths.registerSelection)} style={styles.backButton}>
+              <MaterialIcons name="arrow-back-ios" size={18} color="#6366F1" />
+              <Text style={styles.backText}>Voltar</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Cadastro da Oficina</Text>
             <Text style={styles.subtitle}>
               Crie sua conta. Os dados fiscais e endereço são necessários para a conta de pagamento (Asaas).
@@ -474,6 +527,35 @@ export default function RegisterWorkshop() {
             </View>
 
             <View style={styles.inputContainer}>
+              <Text style={styles.label}>CEP</Text>
+              <View style={[styles.inputWrapper, errors.postalCode ? styles.inputError : null]}>
+                <MaterialIcons name="place" size={20} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="00000-000"
+                  placeholderTextColor="#999"
+                  value={postalCode}
+                  onChangeText={(t) => {
+                    const f = formatCep(t);
+                    setPostalCode(f);
+                    if (errors.postalCode) validateField("postalCode", f);
+                    if (onlyDigits(f).length === 8) {
+                      void lookupCep(f);
+                    }
+                  }}
+                  onBlur={() => {
+                    validateField("postalCode", postalCode);
+                    void lookupCep(postalCode);
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={9}
+                />
+                {cepLoading ? <ActivityIndicator size="small" color="#6366F1" /> : null}
+              </View>
+              {errors.postalCode ? <Text style={styles.errorText}>{errors.postalCode}</Text> : null}
+            </View>
+
+            <View style={styles.inputContainer}>
               <Text style={styles.label}>Rua / logradouro</Text>
               <View style={[styles.inputWrapper, errors.address ? styles.inputError : null]}>
                 <MaterialIcons name="map" size={20} color="#6B7280" style={styles.inputIcon} />
@@ -545,28 +627,6 @@ export default function RegisterWorkshop() {
                 />
               </View>
               {errors.province ? <Text style={styles.errorText}>{errors.province}</Text> : null}
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>CEP</Text>
-              <View style={[styles.inputWrapper, errors.postalCode ? styles.inputError : null]}>
-                <MaterialIcons name="place" size={20} color="#6B7280" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="00000-000"
-                  placeholderTextColor="#999"
-                  value={postalCode}
-                  onChangeText={(t) => {
-                    const f = formatCep(t);
-                    setPostalCode(f);
-                    if (errors.postalCode) validateField("postalCode", f);
-                  }}
-                  onBlur={() => validateField("postalCode", postalCode)}
-                  keyboardType="number-pad"
-                  maxLength={9}
-                />
-              </View>
-              {errors.postalCode ? <Text style={styles.errorText}>{errors.postalCode}</Text> : null}
             </View>
 
             <View style={styles.inputContainer}>
@@ -642,6 +702,29 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 32, position: "relative" },
+  backButton: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    gap: 2,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6366F1",
+  },
   title: { fontSize: 28, fontWeight: "bold", color: "#1F2937", marginBottom: 8, textAlign: "center" },
   subtitle: { fontSize: 14, color: "#6B7280", textAlign: "center", paddingHorizontal: 8 },
   form: { width: "100%" },

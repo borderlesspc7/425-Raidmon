@@ -954,6 +954,10 @@ export const translations = {
         freeNote: "O plano Artesão não tem cobrança mensal neste app.",
         notAuthenticated: "Usuário não autenticado. Faça login novamente.",
         paymentDescription: "Assinatura {plan} - Costura Conectada",
+        waitingPaymentConfirm:
+          "Monitorando o pagamento: quando o banco confirmar, o app atualiza sozinho.",
+        paymentConfirmedBody:
+          "Pagamento confirmado! Seu plano agora é {plan}.",
       },
       faq: {
         title: "Perguntas Frequentes",
@@ -1923,6 +1927,10 @@ export const translations = {
         freeNote: "El plan Artesano no tiene costo mensual en esta app.",
         notAuthenticated: "Usuario no autenticado. Inicia sesión de nuevo.",
         paymentDescription: "Suscripción {plan} - Costura Conectada",
+        waitingPaymentConfirm:
+          "Monitoreando el pago: cuando el banco confirme, la app se actualizará sola.",
+        paymentConfirmedBody:
+          "¡Pago confirmado! Tu plan ahora es {plan}.",
       },
       faq: {
         title: "Preguntas Frecuentes",

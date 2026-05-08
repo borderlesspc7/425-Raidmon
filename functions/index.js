@@ -9,7 +9,6 @@
  * Parâmetros Firebase (recomendado) ou, no emulador, variáveis de ambiente com os mesmos nomes.
  */
 const admin = require("firebase-admin");
-const fetch = require("node-fetch");
 const { logger } = require("firebase-functions/logger");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -153,7 +152,19 @@ function getSubscriptionOverdueDowngradeDays() {
   return n;
 }
 
+function sanitizeAsciiHeaderValue(v) {
+  // Remove BOM/caracteres invisíveis que quebram headers (ex.: charCode 65279).
+  return String(v || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim();
+}
+
 async function asaasFetch(apiKey, path, options = {}) {
+  const safeApiKey = sanitizeAsciiHeaderValue(apiKey);
+  if (!safeApiKey) {
+    throw new Error("ASAAS_API_KEY ausente ou inválida.");
+  }
   const base = asaasApiUrl.value().replace(/\/$/, "");
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const res = await fetch(url, {
@@ -161,7 +172,7 @@ async function asaasFetch(apiKey, path, options = {}) {
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      access_token: apiKey,
+      access_token: safeApiKey,
       "User-Agent": "Raidmon/1.0",
       ...(options.headers || {}),
     },
@@ -788,13 +799,6 @@ exports.createAsaasSubscription = onCall(
     const dueDateStr =
       parseIsoDateYYYYMMDD(nextDueDate) ||
       new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const adminWallet = getAdminWalletId();
-    if (!adminWallet) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Plataforma: configure ASAAS_ADMIN_WALLET_ID para repassar pagamentos da assinatura."
-      );
-    }
 
     const existingSubId =
       typeof userData.asaasSubscriptionId === "string"
@@ -805,6 +809,19 @@ exports.createAsaasSubscription = onCall(
       const status = userData.subscriptionStatus || "ACTIVE";
       if (existingPlan === planId && status !== "CANCELLED" && status !== "INACTIVE") {
         const latestPayment = await getLatestSubscriptionPayment(apiKey, existingSubId);
+        let pixQr = null;
+        if (latestPayment?.id) {
+          try {
+            pixQr = await asaasFetch(apiKey, `/payments/${latestPayment.id}/pixQrCode`, {
+              method: "GET",
+            });
+          } catch (e) {
+            logger.warn(
+              "[createAsaasSubscription] Assinatura existente sem QR imediato",
+              e?.message
+            );
+          }
+        }
         return {
           alreadyExists: true,
           subscriptionId: existingSubId,
@@ -812,8 +829,8 @@ exports.createAsaasSubscription = onCall(
           subscriptionStatus: status,
           nextDueDate: userData.subscriptionNextDueDate || null,
           invoiceUrl: latestPayment?.invoiceUrl || null,
-          pixCopyPaste: null,
-          pixEncodedImage: null,
+          pixCopyPaste: pixQr?.payload || null,
+          pixEncodedImage: pixQr?.encodedImage || null,
         };
       }
     }
@@ -826,7 +843,6 @@ exports.createAsaasSubscription = onCall(
       nextDueDate: dueDateStr,
       description: `Assinatura ${planId} - Costura Conectada`,
       externalReference: `${uid}:${planId}`,
-      split: [{ walletId: adminWallet, percentualValue: 100 }],
     };
 
     let createdSub;
@@ -985,8 +1001,9 @@ exports.asaasWebhook = onRequest(
 
     console.log("[asaasWebhook] body recebido:", JSON.stringify(body));
 
-    const expected =
-      process.env.ASAAS_WEBHOOK_TOKEN || webhookToken.value();
+    const expected = sanitizeAsciiHeaderValue(
+      process.env.ASAAS_WEBHOOK_TOKEN || webhookToken.value()
+    );
     const incoming = extractWebhookToken(req);
 
     if (!tokensMatch(expected, incoming)) {
