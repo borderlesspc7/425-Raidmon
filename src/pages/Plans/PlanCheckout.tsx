@@ -27,6 +27,7 @@ import {
 } from "../../constants/planPricing";
 import { createAsaasSubscriptionForPlan } from "../../services/asaasPayments";
 import { db } from "../../lib/firebaseconfig";
+import { isUserOnPlan } from "../../utils/subscriptionStatus";
 
 function planScreenName(planId: SubscriptionPlanId): (typeof paths)[keyof typeof paths] {
   switch (planId) {
@@ -83,6 +84,8 @@ export default function PlanCheckout() {
     if (validPlan === "premium") return t("plans.premium.name");
     return t("plans.enterprise.name");
   }, [validPlan, t]);
+
+  const alreadyOnThisPlan = validPlan ? isUserOnPlan(user, validPlan) : false;
 
   useEffect(() => {
     if (!pixModalVisible || !user?.id || !validPlan) return;
@@ -164,6 +167,14 @@ export default function PlanCheckout() {
       return;
     }
     if (price <= 0) return;
+    if (alreadyOnThisPlan) {
+      Alert.alert(
+        t("plans.alreadyOnPlanTitle"),
+        t("plans.alreadyOnPlanBody").replace("{plan}", planName),
+        [{ text: "OK", onPress: () => navigate(paths.plans) }],
+      );
+      return;
+    }
 
     try {
       setLoading(true);
@@ -243,12 +254,22 @@ export default function PlanCheckout() {
 
           <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             <Text style={[styles.note, { color: theme.colors.textMuted }]}>
-              {price <= 0 ? t("plans.checkout.freeNote") : t("plans.checkout.pixNote")}
+              {alreadyOnThisPlan
+                ? t("plans.alreadyOnPlanBody").replace("{plan}", planName)
+                : price <= 0
+                  ? t("plans.checkout.freeNote")
+                  : t("plans.checkout.pixNote")}
             </Text>
           </View>
 
           <View style={styles.footer}>
-            {price <= 0 ? (
+            {alreadyOnThisPlan ? (
+              <View style={[styles.primaryButton, { backgroundColor: "#10B981" }]}>
+                <Text style={styles.primaryButtonText}>
+                  {t("plans.currentPlanBadge")}
+                </Text>
+              </View>
+            ) : price <= 0 ? (
               <TouchableOpacity
                 style={styles.primaryButton}
                 onPress={handleActivateFree}

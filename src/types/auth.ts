@@ -11,6 +11,14 @@
     companyType?: string;
   };
 
+  /** Status reportados pelo Asaas para uma assinatura. */
+  export type AsaasSubscriptionStatus =
+    | 'ACTIVE'
+    | 'OVERDUE'
+    | 'INACTIVE'
+    | 'CANCELLED'
+    | 'EXPIRED';
+
   export interface User {
     id: string;
     name: string;
@@ -33,6 +41,16 @@
     asaasSubaccountError?: string;
     /** Dados fiscais/endereço da oficina (sincronizados com a subconta Asaas) */
     workshopAsaas?: WorkshopAsaasStored;
+    /** Assinatura ativa no Asaas (Cloud Function `createAsaasSubscription`). */
+    asaasSubscriptionId?: string;
+    /** Plano contratado nessa assinatura (pode estar à frente de `plan` em estados transitórios). */
+    subscriptionPlan?: 'basic' | 'premium' | 'enterprise';
+    /** Status reportado pelos webhooks Asaas / reconciliação diária. */
+    subscriptionStatus?: AsaasSubscriptionStatus | string;
+    /** Próxima data de vencimento (YYYY-MM-DD) reportada pelo Asaas. */
+    subscriptionNextDueDate?: string;
+    /** Valor da assinatura em reais. */
+    subscriptionValue?: number;
     cpf: string;
     rg: string;
     createdAt: Date;

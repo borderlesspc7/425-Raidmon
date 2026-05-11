@@ -103,6 +103,12 @@ const convertFirebaseUserToUser = async (firebaseUser: FirebaseUser): Promise<Us
       asaasCustomerId: userData.asaasCustomerId,
       asaasSubaccountId: userData.asaasSubaccountId,
       asaasSubaccountError: userData.asaasSubaccountError,
+      asaasSubscriptionId: userData.asaasSubscriptionId,
+      subscriptionPlan: userData.subscriptionPlan,
+      subscriptionStatus: userData.subscriptionStatus,
+      subscriptionNextDueDate: userData.subscriptionNextDueDate,
+      subscriptionValue:
+        typeof userData.subscriptionValue === 'number' ? userData.subscriptionValue : undefined,
       cpf: userData.cpf || '',
       rg: userData.rg || '',
       createdAt: convertTimestampToDate(userData.createdAt),
@@ -154,6 +160,12 @@ export const authService = {
         asaasCustomerId: userData.asaasCustomerId,
         asaasSubaccountId: userData.asaasSubaccountId,
         asaasSubaccountError: userData.asaasSubaccountError,
+        asaasSubscriptionId: userData.asaasSubscriptionId,
+        subscriptionPlan: userData.subscriptionPlan,
+        subscriptionStatus: userData.subscriptionStatus,
+        subscriptionNextDueDate: userData.subscriptionNextDueDate,
+        subscriptionValue:
+          typeof userData.subscriptionValue === 'number' ? userData.subscriptionValue : undefined,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -418,6 +430,12 @@ export const authService = {
         asaasCustomerId: userData.asaasCustomerId,
         asaasSubaccountId: userData.asaasSubaccountId,
         asaasSubaccountError: userData.asaasSubaccountError,
+        asaasSubscriptionId: userData.asaasSubscriptionId,
+        subscriptionPlan: userData.subscriptionPlan,
+        subscriptionStatus: userData.subscriptionStatus,
+        subscriptionNextDueDate: userData.subscriptionNextDueDate,
+        subscriptionValue:
+          typeof userData.subscriptionValue === 'number' ? userData.subscriptionValue : undefined,
         cpf: userData.cpf || '',
         rg: userData.rg || '',
         createdAt: convertTimestampToDate(userData.createdAt),
@@ -445,6 +463,12 @@ export const authService = {
       delete updateData.asaasCustomerId;
       delete updateData.asaasSubaccountId;
       delete (updateData as { asaasSubaccountApiKey?: unknown }).asaasSubaccountApiKey;
+      // Campos da assinatura só são escritos pelas Cloud Functions / webhooks Asaas
+      delete updateData.asaasSubscriptionId;
+      delete updateData.subscriptionPlan;
+      delete updateData.subscriptionStatus;
+      delete updateData.subscriptionNextDueDate;
+      delete updateData.subscriptionValue;
       
       await updateDoc(userRef, updateData);
       console.log('Perfil atualizado com sucesso');

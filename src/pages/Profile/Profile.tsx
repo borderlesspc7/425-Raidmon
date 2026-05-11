@@ -334,7 +334,7 @@ export default function Profile() {
           {/* Profile Card */}
           <View style={[styles.profileCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
             {/* Avatar Section */}
-            <View style={styles.avatarSection}>
+            <View style={[styles.avatarSection, { borderBottomColor: theme.colors.border }]}>
               <View style={styles.avatarContainer}>
                 <TouchableOpacity
                   style={styles.avatarTouchable}
@@ -404,8 +404,18 @@ export default function Profile() {
                 );
               })()}
 
-              <View style={styles.planStatusCard}>
-                <Text style={styles.planStatusTitle}>{t("plans.currentPlan")}</Text>
+              <View
+                style={[
+                  styles.planStatusCard,
+                  {
+                    backgroundColor: theme.colors.surfaceSoft,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.planStatusTitle, { color: theme.colors.text }]}>
+                  {t("plans.currentPlan")}
+                </Text>
                 {(["basic", "premium", "enterprise"] as const).map((pid) => {
                   const isActive = (user.plan || "basic") === pid;
                   const labels: Record<typeof pid, string> = {
@@ -418,9 +428,17 @@ export default function Profile() {
                       <MaterialIcons
                         name={isActive ? "check-circle" : "radio-button-unchecked"}
                         size={16}
-                        color={isActive ? "#10B981" : "#9CA3AF"}
+                        color={isActive ? "#10B981" : theme.colors.textMuted}
                       />
-                      <Text style={[styles.planStatusText, isActive ? styles.planStatusTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.planStatusText,
+                          { color: theme.colors.textMuted },
+                          isActive
+                            ? { color: theme.colors.text, fontWeight: "700" }
+                            : null,
+                        ]}
+                      >
                         {labels[pid]}
                       </Text>
                     </View>
@@ -447,12 +465,12 @@ export default function Profile() {
               {/* Username */}
               {user.username && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="tag" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="tag" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.username")}</Text>
-                    <Text style={styles.infoValue}>{user.username}</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.username")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>{user.username}</Text>
                   </View>
                 </View>
               )}
@@ -460,12 +478,12 @@ export default function Profile() {
               {/* Phone */}
               {user.phone && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="phone" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="phone" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.phone")}</Text>
-                    <Text style={styles.infoValue}>{user.phone}</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.phone")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>{user.phone}</Text>
                   </View>
                 </View>
               )}
@@ -473,12 +491,12 @@ export default function Profile() {
               {/* Address */}
               {user.address && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="location-on" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="location-on" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.address")}</Text>
-                    <Text style={styles.infoValue}>{user.address}</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.address")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>{user.address}</Text>
                   </View>
                 </View>
               )}
@@ -486,12 +504,12 @@ export default function Profile() {
               {/* CPF */}
               {user.cpf && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="badge" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="badge" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.cpf")}</Text>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.cpf")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>
                       {user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
                     </Text>
                   </View>
@@ -501,12 +519,12 @@ export default function Profile() {
               {/* RG */}
               {user.rg && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="credit-card" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="credit-card" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.rg")}</Text>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.rg")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>
                       {user.rg.replace(/(\d{2})(\d{3})(\d{3})(\d{1})/, "$1.$2.$3-$4")}
                     </Text>
                   </View>
@@ -516,12 +534,12 @@ export default function Profile() {
               {/* About */}
               {user.about && (
                 <View style={styles.infoItem}>
-                  <View style={styles.infoIconContainer}>
-                    <MaterialIcons name="info-outline" size={20} color="#6366F1" />
+                  <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="info-outline" size={20} color={theme.colors.primary} />
                   </View>
                   <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>{t("profile.about")}</Text>
-                    <Text style={styles.infoValue}>{user.about}</Text>
+                    <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.about")}</Text>
+                    <Text style={[styles.infoValue, { color: theme.colors.text }]}>{user.about}</Text>
                   </View>
                 </View>
               )}
@@ -529,12 +547,12 @@ export default function Profile() {
               {/* Account Info */}
               <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
               <View style={styles.infoItem}>
-                <View style={styles.infoIconContainer}>
-                  <MaterialIcons name="calendar-today" size={20} color="#6B7280" />
+                <View style={[styles.infoIconContainer, { backgroundColor: theme.colors.iconSoft }]}>
+                  <MaterialIcons name="calendar-today" size={20} color={theme.colors.textMuted} />
                 </View>
                 <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>{t("profile.memberSince")}</Text>
-                  <Text style={styles.infoValue}>{formatDate(user.createdAt)}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("profile.memberSince")}</Text>
+                  <Text style={[styles.infoValue, { color: theme.colors.text }]}>{formatDate(user.createdAt)}</Text>
                 </View>
               </View>
 

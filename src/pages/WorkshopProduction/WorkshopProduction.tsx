@@ -97,11 +97,19 @@ function batchBaseAmount(batch: Batch): number | null {
 const SHARE_LINK_FONT =
   Platform.OS === "ios" ? "Menlo" : "monospace";
 
-function LegendRow({ color, label }: { color: string; label: string }) {
+function LegendRow({
+  color,
+  label,
+  textColor,
+}: {
+  color: string;
+  label: string;
+  textColor: string;
+}) {
   return (
     <View style={styles.legendRow}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={styles.legendText}>{label}</Text>
+      <Text style={[styles.legendText, { color: textColor }]}>{label}</Text>
     </View>
   );
 }
@@ -428,18 +436,22 @@ export default function WorkshopProduction() {
               <LegendRow
                 color={BATCH_PRODUCTION_COLORS.late.fg}
                 label={t("workshopProduction.legendRed")}
+                textColor={theme.colors.text}
               />
               <LegendRow
                 color={BATCH_PRODUCTION_COLORS.green.fg}
                 label={t("workshopProduction.legendGreen")}
+                textColor={theme.colors.text}
               />
               <LegendRow
                 color={BATCH_PRODUCTION_COLORS.yellow.fg}
                 label={t("workshopProduction.legendYellow")}
+                textColor={theme.colors.text}
               />
               <LegendRow
                 color={BATCH_PRODUCTION_COLORS.orange.fg}
                 label={t("workshopProduction.legendOrange")}
+                textColor={theme.colors.text}
               />
             </>
           ) : null}

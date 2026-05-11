@@ -6,11 +6,17 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { paths } from "../../routes/paths";
 import { useTheme } from "../../hooks/useTheme";
+import { useAuth } from "../../hooks/useAuth";
+import { canSubscribeTo, isUserOnPlan } from "../../utils/subscriptionStatus";
 
 export default function BasicPlan() {
   const { t } = useLanguage();
   const { navigate } = useNavigation();
   const { theme } = useTheme();
+  const { user } = useAuth();
+
+  const isCurrent = isUserOnPlan(user, "basic");
+  const canSubscribe = canSubscribeTo(user, "basic");
 
   const handleBack = () => {
     navigate("Plans");
@@ -80,12 +86,22 @@ export default function BasicPlan() {
 
           {/* CTA */}
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleSubscribeAction}
-            >
-              <Text style={styles.primaryButtonText}>{t("plans.basic.cta")}</Text>
-            </TouchableOpacity>
+            {isCurrent ? (
+              <View style={[styles.currentBadge, { borderColor: "#6366F1" }]}>
+                <MaterialIcons name="check-circle" size={18} color="#6366F1" />
+                <Text style={[styles.currentBadgeText, { color: "#6366F1" }]}>
+                  {t("plans.currentPlanBadge")}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.primaryButton, !canSubscribe && { opacity: 0.6 }]}
+                onPress={handleSubscribeAction}
+                disabled={!canSubscribe}
+              >
+                <Text style={styles.primaryButtonText}>{t("plans.basic.cta")}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </View>
@@ -195,6 +211,19 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "600",
+  },
+  currentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 2,
+    borderRadius: 10,
+    paddingVertical: 14,
+  },
+  currentBadgeText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 

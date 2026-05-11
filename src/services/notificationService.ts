@@ -2,7 +2,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   doc,
   updateDoc,
@@ -29,13 +28,13 @@ const convert = (id: string, data: any): InAppNotification => ({
 export async function getInAppNotificationsForUser(
   userId: string,
 ): Promise<InAppNotification[]> {
-  const q = query(
-    collection(db, COL),
-    where("userId", "==", userId),
-    orderBy("createdAt", "desc"),
-  );
+  // Sem `orderBy` para evitar índice composto (userId + createdAt). O volume por
+  // usuário é pequeno; ordena em memória após o fetch.
+  const q = query(collection(db, COL), where("userId", "==", userId));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => convert(d.id, d.data()));
+  const items = snap.docs.map((d) => convert(d.id, d.data()));
+  items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return items;
 }
 
 export async function markInAppNotificationRead(id: string): Promise<void> {

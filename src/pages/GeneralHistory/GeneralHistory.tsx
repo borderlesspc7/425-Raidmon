@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useTheme } from "../../hooks/useTheme";
 import { getPaymentsByUser } from "../../services/paymentService";
 import { getBatchesByUser, getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { getReceivePiecesByUser } from "../../services/receivePiecesService";
@@ -40,6 +41,7 @@ interface HistoryEvent {
 export default function GeneralHistory() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { theme, isDark } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<HistoryEvent[]>([]);
@@ -173,75 +175,79 @@ export default function GeneralHistory() {
   if (loading) {
     return (
       <Layout>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366F1" />
+        <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </Layout>
     );
   }
 
+  // Em dark mode usamos um fundo "soft" para o ícone (em vez do pastel claro)
+  // para evitar contraste pesado com o tema escuro.
+  const iconBg = (light: string) => (isDark ? theme.colors.surfaceSoft : light);
+
   return (
     <Layout>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.title}>{t("navigation.generalHistory")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{t("navigation.generalHistory")}</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {t("generalHistory.subtitle")} • {events.length}{" "}
               {t("generalHistory.events")}
             </Text>
           </View>
-          <View style={styles.headerIcon}>
-            <MaterialIcons name="timeline" size={28} color="#6366F1" />
+          <View style={[styles.headerIcon, { backgroundColor: theme.colors.iconSoft }]}>
+            <MaterialIcons name="timeline" size={28} color={theme.colors.primary} />
           </View>
         </View>
 
         {/* Summary cards */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { borderLeftColor: "#6366F1" }]}>
-            <View style={[styles.summaryIconWrap, { backgroundColor: "#EEF2FF" }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderLeftColor: "#6366F1", borderLeftWidth: 4 }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: iconBg("#EEF2FF") }]}>
               <MaterialIcons name="payment" size={20} color="#6366F1" />
             </View>
-            <Text style={styles.summaryValue}>{totalPayments}</Text>
-            <Text style={styles.summaryLabel}>{t("generalHistory.payments")}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{totalPayments}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>{t("generalHistory.payments")}</Text>
           </View>
-          <View style={[styles.summaryCard, { borderLeftColor: "#10B981" }]}>
-            <View style={[styles.summaryIconWrap, { backgroundColor: "#D1FAE5" }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderLeftColor: "#10B981", borderLeftWidth: 4 }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: iconBg("#D1FAE5") }]}>
               <MaterialIcons name="inventory" size={20} color="#10B981" />
             </View>
-            <Text style={styles.summaryValue}>{totalBatches}</Text>
-            <Text style={styles.summaryLabel}>{t("generalHistory.batches")}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{totalBatches}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>{t("generalHistory.batches")}</Text>
           </View>
         </View>
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { borderLeftColor: "#F59E0B" }]}>
-            <View style={[styles.summaryIconWrap, { backgroundColor: "#FEF3C7" }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderLeftColor: "#F59E0B", borderLeftWidth: 4 }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: iconBg("#FEF3C7") }]}>
               <MaterialIcons name="inbox" size={20} color="#F59E0B" />
             </View>
-            <Text style={styles.summaryValue}>{totalReceives}</Text>
-            <Text style={styles.summaryLabel}>{t("generalHistory.receives")}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{totalReceives}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>{t("generalHistory.receives")}</Text>
           </View>
-          <View style={[styles.summaryCard, { borderLeftColor: "#8B5CF6" }]}>
-            <View style={[styles.summaryIconWrap, { backgroundColor: "#EDE9FE" }]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderLeftColor: "#8B5CF6", borderLeftWidth: 4 }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: iconBg("#EDE9FE") }]}>
               <MaterialIcons name="notifications" size={20} color="#8B5CF6" />
             </View>
-            <Text style={styles.summaryValue}>{totalNotifications}</Text>
-            <Text style={styles.summaryLabel}>{t("generalHistory.notifications")}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{totalNotifications}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>{t("generalHistory.notifications")}</Text>
           </View>
         </View>
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { borderLeftColor: "#4B5563" }]}>
-            <View style={[styles.summaryIconWrap, { backgroundColor: "#E5E7EB" }]}>
-              <MaterialIcons name="history" size={20} color="#4B5563" />
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderLeftColor: "#4B5563", borderLeftWidth: 4 }]}>
+            <View style={[styles.summaryIconWrap, { backgroundColor: iconBg("#E5E7EB") }]}>
+              <MaterialIcons name="history" size={20} color={isDark ? theme.colors.textMuted : "#4B5563"} />
             </View>
-            <Text style={styles.summaryValue}>{events.length}</Text>
-            <Text style={styles.summaryLabel}>{t("generalHistory.totalEvents")}</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.text }]}>{events.length}</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textMuted }]}>{t("generalHistory.totalEvents")}</Text>
           </View>
         </View>
 
         {/* Filters */}
-        <View style={styles.filterBar}>
+        <View style={[styles.filterBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -251,32 +257,37 @@ export default function GeneralHistory() {
               label={t("generalHistory.filterAll")}
               active={typeFilter === "all"}
               onPress={() => setTypeFilter("all")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.filterPayments")}
               active={typeFilter === "payment"}
               onPress={() => setTypeFilter("payment")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.filterBatches")}
               active={typeFilter === "batch"}
               onPress={() => setTypeFilter("batch")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.filterReceives")}
               active={typeFilter === "receive"}
               onPress={() => setTypeFilter("receive")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.filterNotifications")}
               active={typeFilter === "notification"}
               onPress={() => setTypeFilter("notification")}
+              theme={theme}
             />
           </ScrollView>
         </View>
 
         {/* Period filters */}
-        <View style={[styles.filterBar, styles.periodBar]}>
+        <View style={[styles.filterBar, styles.periodBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -286,21 +297,25 @@ export default function GeneralHistory() {
               label={t("generalHistory.periodAll")}
               active={periodFilter === "all"}
               onPress={() => setPeriodFilter("all")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.periodLast30")}
               active={periodFilter === "last30"}
               onPress={() => setPeriodFilter("last30")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.periodLast90")}
               active={periodFilter === "last90"}
               onPress={() => setPeriodFilter("last90")}
+              theme={theme}
             />
             <FilterChip
               label={t("generalHistory.periodThisYear")}
               active={periodFilter === "thisYear"}
               onPress={() => setPeriodFilter("thisYear")}
+              theme={theme}
             />
           </ScrollView>
         </View>
@@ -313,8 +328,8 @@ export default function GeneralHistory() {
         >
           {filteredEvents.length === 0 ? (
             <View style={styles.emptyState}>
-              <MaterialIcons name="timeline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>
+              <MaterialIcons name="timeline" size={64} color={isDark ? theme.colors.border : "#D1D5DB"} />
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
                 {events.length === 0
                   ? t("generalHistory.empty")
                   : t("generalHistory.emptyFiltered")}
@@ -324,7 +339,7 @@ export default function GeneralHistory() {
             filteredEvents.map((event) => (
               <View key={`${event.type}-${event.id}`} style={styles.eventRow}>
                 <View style={styles.timelineColumn}>
-                  <View style={styles.timelineDotWrapper}>
+                  <View style={[styles.timelineDotWrapper, { backgroundColor: theme.colors.border }]}>
                     <View
                       style={[
                         styles.timelineDot,
@@ -332,15 +347,15 @@ export default function GeneralHistory() {
                       ]}
                     />
                   </View>
-                  <View style={styles.timelineLine} />
+                  <View style={[styles.timelineLine, { backgroundColor: theme.colors.border }]} />
                 </View>
-                <View style={styles.eventCard}>
+                <View style={[styles.eventCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
                   <View style={styles.eventHeader}>
                     <View style={styles.eventHeaderLeft}>
                       <View
                         style={[
                           styles.eventIcon,
-                          { backgroundColor: getEventBgColor(event.type) },
+                          { backgroundColor: iconBg(getEventBgColor(event.type)) },
                         ]}
                       >
                         <MaterialIcons
@@ -350,23 +365,23 @@ export default function GeneralHistory() {
                         />
                       </View>
                       <View style={styles.eventHeaderText}>
-                        <Text style={styles.eventTitle} numberOfLines={1}>
+                        <Text style={[styles.eventTitle, { color: theme.colors.text }]} numberOfLines={1}>
                           {event.title}
                         </Text>
-                        <Text style={styles.eventType}>
+                        <Text style={[styles.eventType, { color: theme.colors.textMuted }]}>
                           {getEventTypeLabel(event.type, t)}
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.eventDate}>{formatDateTime(event.date)}</Text>
+                    <Text style={[styles.eventDate, { color: theme.colors.textMuted }]}>{formatDateTime(event.date)}</Text>
                   </View>
                   {event.description ? (
-                    <Text style={styles.eventDescription} numberOfLines={3}>
+                    <Text style={[styles.eventDescription, { color: theme.colors.textMuted }]} numberOfLines={3}>
                       {event.description}
                     </Text>
                   ) : null}
                   {event.meta ? (
-                    <Text style={styles.eventMeta} numberOfLines={2}>
+                    <Text style={[styles.eventMeta, { color: theme.colors.textMuted }]} numberOfLines={2}>
                       {event.meta}
                     </Text>
                   ) : null}
@@ -384,19 +399,33 @@ const FilterChip = ({
   label,
   active,
   onPress,
+  theme,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  theme: ReturnType<typeof useTheme>["theme"];
 }) => {
   return (
     <TouchableOpacity
-      style={[styles.filterChip, active && styles.filterChipActive]}
+      style={[
+        styles.filterChip,
+        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+        active && {
+          borderColor: theme.colors.primary,
+          backgroundColor: theme.colors.iconSoft,
+          borderWidth: 2,
+        },
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <Text
-        style={[styles.filterChipText, active && styles.filterChipTextActive]}
+        style={[
+          styles.filterChipText,
+          { color: theme.colors.textMuted },
+          active && { color: theme.colors.primary, fontWeight: "600" },
+        ]}
       >
         {label}
       </Text>

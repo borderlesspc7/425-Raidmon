@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
@@ -14,6 +15,14 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { useTheme } from "../../hooks/useTheme";
 import { PLAN_PRICES_BRL } from "../../constants/planPricing";
+import { cancelAsaasSubscription } from "../../services/asaasPayments";
+import {
+  canSubscribeTo,
+  formatNextDueDate,
+  getCurrentPlan,
+  getSubscriptionState,
+  isUserOnPlan,
+} from "../../utils/subscriptionStatus";
 
 type PlanType = "basic" | "premium" | "enterprise";
 
@@ -30,12 +39,32 @@ interface Plan {
 }
 
 export default function Plans() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { t } = useLanguage();
   const { navigate } = useNavigation();
   const { theme, isDark } = useTheme();
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [faqExpanded, setFaqExpanded] = useState(false);
+
+  const currentPlanId = getCurrentPlan(user);
+  const subscriptionState = getSubscriptionState(user);
+  const nextDueFormatted = formatNextDueDate(user?.subscriptionNextDueDate);
+
+  const planLabelById: Record<PlanType, string> = {
+    basic: t("plans.basic.name"),
+    premium: t("plans.premium.name"),
+    enterprise: t("plans.enterprise.name"),
+  };
+
+  const statusLabel: Record<ReturnType<typeof getSubscriptionState>, string> = {
+    active: t("plans.statusActive"),
+    overdue: t("plans.statusOverdue"),
+    cancelled: t("plans.statusCancelled"),
+    inactive: t("plans.statusInactive"),
+    expired: t("plans.statusExpired"),
+  };
 
   const plans: Plan[] = [
     {
@@ -133,6 +162,33 @@ export default function Plans() {
     }, 1500);
   };
 
+  const handleCancelSubscription = () => {
+    if (currentPlanId === "basic") return;
+    Alert.alert(
+      t("plans.cancelConfirmTitle"),
+      t("plans.cancelConfirmBody").replace("{plan}", planLabelById[currentPlanId]),
+      [
+        { text: t("plans.cancelKeep"), style: "cancel" },
+        {
+          text: t("plans.cancelConfirmOk"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              await cancelAsaasSubscription({});
+              await refreshUser();
+              Alert.alert(t("common.success"), t("plans.cancelSuccess"));
+            } catch (e: any) {
+              Alert.alert(t("common.error"), e?.message || String(e));
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <Layout>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -154,41 +210,138 @@ export default function Plans() {
         >
           {/* Current Plan Info */}
           {user && (
-            <View style={[styles.currentPlanCard, { backgroundColor: theme.colors.iconSoft }]}>
+            <View
+              style={[
+                styles.currentPlanCard,
+                {
+                  backgroundColor: theme.colors.iconSoft,
+                  borderLeftColor:
+                    subscriptionState === "overdue"
+                      ? theme.colors.danger
+                      : theme.colors.primary,
+                },
+              ]}
+            >
               <View style={styles.currentPlanHeader}>
-                <MaterialIcons name="info" size={20} color={theme.colors.primary} />
-                <Text style={styles.currentPlanTitle}>
+                <MaterialIcons
+                  name={subscriptionState === "overdue" ? "warning" : "info"}
+                  size={20}
+                  color={
+                    subscriptionState === "overdue"
+                      ? theme.colors.danger
+                      : theme.colors.primary
+                  }
+                />
+                <Text style={[styles.currentPlanTitle, { color: theme.colors.text }]}>
                   {t("plans.currentPlan")}
                 </Text>
+                {currentPlanId !== "basic" ? (
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor:
+                          subscriptionState === "overdue"
+                            ? theme.colors.danger
+                            : subscriptionState === "active"
+                              ? "#10B981"
+                              : theme.colors.textMuted,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.statusPillText}>
+                      {statusLabel[subscriptionState]}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[styles.currentPlanText, { color: theme.colors.textMuted }]}>
-                {t("plans.currentPlanDescription")}
+                {currentPlanId === "basic"
+                  ? t("plans.currentPlanDescription")
+                  : t("plans.currentPlanCardActive").replace(
+                      "{plan}",
+                      planLabelById[currentPlanId],
+                    )}
               </Text>
+              {currentPlanId !== "basic" && nextDueFormatted ? (
+                <Text style={[styles.currentPlanMeta, { color: theme.colors.textMuted }]}>
+                  <MaterialIcons name="event" size={13} color={theme.colors.textMuted} />{" "}
+                  {t("plans.currentPlanNextDue").replace("{date}", nextDueFormatted)} ·{" "}
+                  {t("plans.renewSoon")}
+                </Text>
+              ) : null}
+              {subscriptionState === "overdue" ? (
+                <Text style={[styles.currentPlanMeta, { color: theme.colors.danger }]}>
+                  {t("plans.currentPlanOverdueNote")}
+                </Text>
+              ) : null}
+              {currentPlanId !== "basic" &&
+              (subscriptionState === "active" || subscriptionState === "overdue") ? (
+                <TouchableOpacity
+                  style={[styles.cancelButton, { borderColor: theme.colors.danger }]}
+                  onPress={handleCancelSubscription}
+                  disabled={cancelling}
+                  activeOpacity={0.8}
+                >
+                  {cancelling ? (
+                    <ActivityIndicator size="small" color={theme.colors.danger} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="cancel" size={16} color={theme.colors.danger} />
+                      <Text style={[styles.cancelButtonText, { color: theme.colors.danger }]}>
+                        {t("plans.cancelSubscription")}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
 
           {/* Plans Grid */}
           <View style={styles.plansContainer}>
-            {plans.map((plan) => (
+            {plans.map((plan) => {
+              const isCurrent = isUserOnPlan(user, plan.id);
+              const canSubscribe = canSubscribeTo(user, plan.id);
+              return (
               <View
                 key={plan.id}
                 style={[
                   styles.planCard,
                   plan.popular && styles.planCardPopular,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  isCurrent && {
+                    borderColor: plan.color,
+                    borderWidth: 2,
+                  },
+                  { backgroundColor: theme.colors.surface, borderColor: isCurrent ? plan.color : theme.colors.border },
                 ]}
               >
-                {/* Popular Badge */}
-                {plan.popular && (
+                {/* Popular / Current Badge */}
+                {isCurrent ? (
+                  <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
+                    <Text style={styles.popularBadgeText}>
+                      {t("plans.currentPlanBadge")}
+                    </Text>
+                  </View>
+                ) : plan.popular ? (
                   <View style={[styles.popularBadge, { backgroundColor: plan.color }]}>
                     <Text style={styles.popularBadgeText}>
                       {t("plans.popular")}
                     </Text>
                   </View>
-                )}
+                ) : null}
 
                 {/* Plan Header */}
-                <View style={[styles.planHeader, { backgroundColor: plan.bgColor }]}>
+                <View
+                  style={[
+                    styles.planHeader,
+                    {
+                      backgroundColor: isDark
+                        ? theme.colors.surfaceSoft
+                        : plan.bgColor,
+                    },
+                  ]}
+                >
                   <View style={[styles.planIconContainer, { backgroundColor: plan.color }]}>
                     <MaterialIcons name={plan.icon} size={32} color="#FFFFFF" />
                   </View>
@@ -230,65 +383,97 @@ export default function Plans() {
                 </View>
 
                 {/* CTA Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.selectButton,
-                    {
-                      backgroundColor: plan.color,
-                      opacity: loading && selectedPlan === plan.id ? 0.7 : 1,
-                    },
-                  ]}
-                  onPress={() => goToPlanDetails(plan.id)}
-                  disabled={loading}
-                >
-                  {loading && selectedPlan === plan.id ? (
-                    <Text style={styles.selectButtonText}>
-                      {t("plans.processing")}...
+                {isCurrent ? (
+                  <View
+                    style={[
+                      styles.selectButton,
+                      styles.currentBadgeButton,
+                      { borderColor: plan.color },
+                    ]}
+                  >
+                    <MaterialIcons name="check-circle" size={18} color={plan.color} />
+                    <Text style={[styles.currentBadgeButtonText, { color: plan.color }]}>
+                      {t("plans.currentPlanBadge")}
                     </Text>
-                  ) : (
-                    <Text style={styles.selectButtonText}>
-                      {plan.popular
-                        ? t("plans.selectPopular")
-                        : t("plans.select")}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.selectButton,
+                      {
+                        backgroundColor: plan.color,
+                        opacity:
+                          (loading && selectedPlan === plan.id) || !canSubscribe ? 0.7 : 1,
+                      },
+                    ]}
+                    onPress={() => goToPlanDetails(plan.id)}
+                    disabled={loading || !canSubscribe}
+                  >
+                    {loading && selectedPlan === plan.id ? (
+                      <Text style={styles.selectButtonText}>
+                        {t("plans.processing")}...
+                      </Text>
+                    ) : (
+                      <Text style={styles.selectButtonText}>
+                        {plan.popular
+                          ? t("plans.selectPopular")
+                          : t("plans.select")}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
-            ))}
+              );
+            })}
           </View>
 
-          {/* Additional Info */}
+          {/* Additional Info - FAQ accordion */}
           <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
-            <View style={styles.infoHeader}>
-              <MaterialIcons name="help-outline" size={20} color={theme.colors.primary} />
-              <Text style={[styles.infoTitle, { color: theme.colors.text }]}>{t("plans.faq.title")}</Text>
-            </View>
-            <View style={styles.faqContainer}>
-              <View style={styles.faqItem}>
-                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
-                  {t("plans.faq.question1")}
-                </Text>
-                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
-                  {t("plans.faq.answer1")}
-                </Text>
+            <TouchableOpacity
+              style={styles.faqHeader}
+              onPress={() => setFaqExpanded((v) => !v)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: faqExpanded }}
+            >
+              <View style={styles.infoHeader}>
+                <MaterialIcons name="help-outline" size={20} color={theme.colors.primary} />
+                <Text style={[styles.infoTitle, { color: theme.colors.text }]}>{t("plans.faq.title")}</Text>
               </View>
-              <View style={styles.faqItem}>
-                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
-                  {t("plans.faq.question2")}
-                </Text>
-                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
-                  {t("plans.faq.answer2")}
-                </Text>
+              <MaterialIcons
+                name={faqExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                size={26}
+                color={theme.colors.textMuted}
+              />
+            </TouchableOpacity>
+            {faqExpanded ? (
+              <View style={styles.faqContainer}>
+                <View style={styles.faqItem}>
+                  <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
+                    {t("plans.faq.question1")}
+                  </Text>
+                  <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
+                    {t("plans.faq.answer1")}
+                  </Text>
+                </View>
+                <View style={styles.faqItem}>
+                  <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
+                    {t("plans.faq.question2")}
+                  </Text>
+                  <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
+                    {t("plans.faq.answer2")}
+                  </Text>
+                </View>
+                <View style={styles.faqItem}>
+                  <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
+                    {t("plans.faq.question3")}
+                  </Text>
+                  <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
+                    {t("plans.faq.answer3")}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.faqItem}>
-                <Text style={[styles.faqQuestion, { color: theme.colors.text }]}>
-                  {t("plans.faq.question3")}
-                </Text>
-                <Text style={[styles.faqAnswer, { color: theme.colors.textMuted }]}>
-                  {t("plans.faq.answer3")}
-                </Text>
-              </View>
-            </View>
+            ) : null}
           </View>
         </ScrollView>
       </View>
@@ -358,6 +543,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7280",
     lineHeight: 20,
+  },
+  currentPlanMeta: {
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    marginLeft: "auto",
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  cancelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+  },
+  cancelButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  currentBadgeButton: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  currentBadgeButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
   plansContainer: {
     gap: 20,
@@ -473,7 +702,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 16,
+  },
+  faqHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   infoTitle: {
     fontSize: 18,
@@ -482,6 +715,7 @@ const styles = StyleSheet.create({
   },
   faqContainer: {
     gap: 16,
+    marginTop: 16,
   },
   faqItem: {
     gap: 6,
