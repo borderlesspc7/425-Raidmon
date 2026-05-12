@@ -11,6 +11,7 @@ import {
   TextInput,
   Share,
   Platform,
+  Image,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -141,6 +142,7 @@ export default function WorkshopProduction() {
   const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
   const [detailOwnerPhoto, setDetailOwnerPhoto] = useState<string | null>(null);
   const [detailWorkshopPhoto, setDetailWorkshopPhoto] = useState<string | null>(null);
+  const [completeConfirmBatch, setCompleteConfirmBatch] = useState<Batch | null>(null);
 
   const acceptedInviteBatches = batches.filter(
     (b) => b.acceptedFromOwnerInvite && b.linkedWorkshopUserId === user?.id,
@@ -319,21 +321,8 @@ export default function WorkshopProduction() {
   };
 
   const promptCompleteProduction = (batch: Batch) => {
-    const partialFlow = batch.productionFlowStatus === "partial";
-    Alert.alert(
-      t("workshopProduction.completeConfirmTitle"),
-      partialFlow
-        ? t("workshopProduction.completeConfirmBodyPartial")
-        : t("workshopProduction.completeConfirmBody"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("workshopProduction.completeConfirmOk"),
-          style: "default",
-          onPress: () => void runCompleteProduction(batch),
-        },
-      ],
-    );
+    setDetailBatch(null);
+    setCompleteConfirmBatch(batch);
   };
 
   const runCompleteProduction = async (batch: Batch) => {
@@ -349,7 +338,6 @@ export default function WorkshopProduction() {
         batch,
       });
       setDetailBatch(null);
-      Alert.alert(t("common.success"), t("workshopProduction.completeSuccess"));
       void load();
     } catch (e: unknown) {
       const err = e as { message?: string };
@@ -394,12 +382,12 @@ export default function WorkshopProduction() {
     return (
       <Layout>
         <View style={styles.center}>
-          <Text style={styles.muted}>{t("workshopProduction.workshopOnly")}</Text>
+          <Text style={[styles.muted, { color: theme.colors.textMuted }]}>{t("workshopProduction.workshopOnly")}</Text>
           <TouchableOpacity
-            style={styles.outline}
+            style={[styles.outline, { borderColor: theme.colors.primary }]}
             onPress={() => navigate(paths.dashboard)}
           >
-            <Text style={styles.outlineText}>{t("batchOffer.backHome")}</Text>
+            <Text style={[styles.outlineText, { color: theme.colors.primary }]}>{t("batchOffer.backHome")}</Text>
           </TouchableOpacity>
         </View>
       </Layout>
@@ -410,7 +398,7 @@ export default function WorkshopProduction() {
     return (
       <Layout>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6366F1" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </Layout>
     );
@@ -459,23 +447,29 @@ export default function WorkshopProduction() {
 
         {acceptedInviteInfoOnly.length > 0 ? (
           <View style={styles.acceptedSection}>
-            <Text style={styles.acceptedSectionTitle}>
+            <Text style={[styles.acceptedSectionTitle, { color: theme.colors.text }]}>
               {t("workshopProduction.acceptedInvitesTitle")}
             </Text>
             {acceptedInviteInfoOnly.map((batch) => (
-              <View key={`accepted-${batch.id}`} style={[styles.acceptedCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <View
+                key={`accepted-${batch.id}`}
+                style={[
+                  styles.acceptedCard,
+                  { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border },
+                ]}
+              >
                 <View style={styles.acceptedHeader}>
-                  <MaterialIcons name="chat" size={16} color="#4F46E5" />
-                  <Text style={styles.acceptedHeaderText}>
+                  <MaterialIcons name="chat" size={16} color={theme.colors.primary} />
+                  <Text style={[styles.acceptedHeaderText, { color: theme.colors.primary }]}>
                     {t("workshopProduction.acceptedFromWhatsapp")}
                   </Text>
                 </View>
-                <Text style={styles.acceptedBatchName}>{batch.name}</Text>
-                <Text style={styles.acceptedMeta}>
+                <Text style={[styles.acceptedBatchName, { color: theme.colors.text }]}>{batch.name}</Text>
+                <Text style={[styles.acceptedMeta, { color: theme.colors.textMuted }]}>
                   {t("workshopProduction.acceptedOwnerLabel")}{" "}
                   {batch.ownerName || "—"}
                 </Text>
-                <Text style={styles.acceptedMeta}>
+                <Text style={[styles.acceptedMeta, { color: theme.colors.textMuted }]}>
                   {t("workshopProduction.acceptedPiecesLabel")} {batch.totalPieces}
                 </Text>
               </View>
@@ -485,8 +479,8 @@ export default function WorkshopProduction() {
 
         {batches.length === 0 ? (
           <View style={styles.empty}>
-            <MaterialIcons name="inventory" size={48} color="#D1D5DB" />
-            <Text style={styles.muted}>{t("workshopProduction.empty")}</Text>
+            <MaterialIcons name="inventory" size={48} color={theme.colors.border} />
+            <Text style={[styles.muted, { color: theme.colors.textMuted }]}>{t("workshopProduction.empty")}</Text>
           </View>
         ) : (
           batches.map((batch) => {
@@ -521,7 +515,7 @@ export default function WorkshopProduction() {
                   <Text style={[styles.line, { color: theme.colors.textMuted }]}>
                     {t("batches.pieces")}: {batch.totalPieces}
                     {(batch.piecesDeliveredCumulative ?? 0) > 0 ? (
-                      <Text style={styles.lineMuted}>
+                    <Text style={[styles.lineMuted, { color: theme.colors.textMuted }]}>
                         {" "}
                         ({t("workshopProduction.piecesAlreadyDelivered")}:{" "}
                         {batch.piecesDeliveredCumulative})
@@ -529,12 +523,23 @@ export default function WorkshopProduction() {
                     ) : null}
                   </Text>
                   {batch.deliveryDate ? (
-                    <Text style={styles.line}>
+                    <Text style={[styles.line, { color: theme.colors.textMuted, marginTop: 6 }]}>
                       {t("batches.deliveryDate")}: {formatDateOnly(batch.deliveryDate)}
                     </Text>
                   ) : null}
                   {flow === "partial" || flow === "paused" ? (
-                    <Text style={styles.note} numberOfLines={4}>
+                    <Text
+                      style={[
+                        styles.note,
+                        {
+                          color: theme.colors.text,
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                      numberOfLines={4}
+                    >
                       {batch.productionNote}
                     </Text>
                   ) : null}
@@ -545,7 +550,9 @@ export default function WorkshopProduction() {
                   onPress={() => setDetailBatch(batch)}
                   disabled={busy}
                 >
-                  <Text style={styles.detailsBtnText}>{t("workshopProduction.details")}</Text>
+                  <Text style={[styles.detailsBtnText, { color: theme.colors.primary }]}>
+                    {t("workshopProduction.details")}
+                  </Text>
                 </TouchableOpacity>
               </View>
             );
@@ -560,62 +567,95 @@ export default function WorkshopProduction() {
               {detailBatch ? (
                 <>
                   <View style={styles.detailTop}>
-                    <Text style={styles.modalTitlePadded}>{detailBatch.name}</Text>
+                    <Text style={[styles.modalTitlePadded, { color: theme.colors.text }]}>
+                      {detailBatch.name}
+                    </Text>
                     <View style={styles.avatarStack}>
-                      <View style={[styles.overlapAvatar, styles.avatarBack]}>
+                      <View
+                        style={[
+                          styles.overlapAvatar,
+                          styles.avatarBack,
+                          { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.surface },
+                        ]}
+                      >
                         {detailOwnerPhoto ? (
                           <Image source={{ uri: detailOwnerPhoto }} style={styles.overlapAvatarImg} />
                         ) : (
-                          <MaterialIcons name="person" size={16} color="#6B7280" />
+                          <MaterialIcons name="person" size={16} color={theme.colors.textMuted} />
                         )}
                       </View>
-                      <View style={[styles.overlapAvatar, styles.avatarFront]}>
+                      <View
+                        style={[
+                          styles.overlapAvatar,
+                          styles.avatarFront,
+                          { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.surface },
+                        ]}
+                      >
                         {detailWorkshopPhoto ? (
                           <Image source={{ uri: detailWorkshopPhoto }} style={styles.overlapAvatarImg} />
                         ) : (
-                          <MaterialIcons name="business" size={16} color="#6B7280" />
+                          <MaterialIcons name="business" size={16} color={theme.colors.textMuted} />
                         )}
                       </View>
                     </View>
                   </View>
-                  <Text style={styles.detailMeta}>
+                  <Text style={[styles.detailMeta, { color: theme.colors.textMuted }]}>
                     {t("batches.pieces")}: {detailBatch.totalPieces}
                   </Text>
                   {batchBaseAmount(detailBatch) != null ? (
-                    <Text style={styles.detailMeta}>
+                    <Text style={[styles.detailMeta, { color: theme.colors.textMuted }]}>
                       {t("workshopProduction.detailBaseValue")}:{" "}
                       {formatMoney(batchBaseAmount(detailBatch)!)}
                     </Text>
                   ) : null}
-                  <Text style={styles.detailFeeNote}>
+                  <Text style={[styles.detailFeeNote, { color: theme.colors.textMuted }]}>
                     {t("workshopProduction.detailFeeNote")}
                   </Text>
                   {detailBatch.deliveryDate ? (
-                    <Text style={styles.detailMeta}>
+                    <Text style={[styles.detailMeta, { color: theme.colors.textMuted }]}>
                       {t("batches.deliveryDate")}:{" "}
                       {formatDateOnly(detailBatch.deliveryDate)}
                     </Text>
                   ) : null}
                   {detailBatch.observations ? (
                     <View style={styles.detailObs}>
-                      <Text style={styles.detailObsLabel}>
+                      <Text style={[styles.detailObsLabel, { color: theme.colors.textMuted }]}>
                         {t("workshopProduction.detailBatchObs")}
                       </Text>
-                      <Text style={styles.detailObsText}>{detailBatch.observations}</Text>
+                      <Text style={[styles.detailObsText, { color: theme.colors.text }]}>
+                        {detailBatch.observations}
+                      </Text>
                     </View>
                   ) : null}
                   {(detailBatch.productionFlowStatus === "partial" ||
                     detailBatch.productionFlowStatus === "paused") &&
                   detailBatch.productionNote ? (
-                    <Text style={styles.note}>{detailBatch.productionNote}</Text>
+                    <Text
+                      style={[
+                        styles.note,
+                        {
+                          color: theme.colors.text,
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      {detailBatch.productionNote}
+                    </Text>
                   ) : null}
                   {detailBatch.defectPhotoUrlsLatest && detailBatch.defectPhotoUrlsLatest.length > 0 ? (
                     <View style={styles.detailObs}>
-                      <Text style={styles.detailObsLabel}>Fotos de defeitos enviadas pelo dono</Text>
+                      <Text style={[styles.detailObsLabel, { color: theme.colors.textMuted }]}>
+                        Fotos de defeitos enviadas pelo dono
+                      </Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.defectPhotoRow}>
                         {detailBatch.defectPhotoUrlsLatest.map((u) => (
                           <TouchableOpacity key={u} onPress={() => setPhotoPreviewUri(u)}>
-                            <Image source={{ uri: u }} style={styles.defectPhotoThumb} />
+                            <Image
+                              source={{ uri: u }}
+                              style={[styles.defectPhotoThumb, { backgroundColor: theme.colors.border }]}
+                            />
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
@@ -653,43 +693,61 @@ export default function WorkshopProduction() {
                       color={
                         !!detailBatch.deliveryDate &&
                         (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1
-                          ? "#9CA3AF"
-                          : "#6366F1"
+                          ? theme.colors.textMuted
+                          : theme.colors.primary
                       }
                     />
-                    <Text style={styles.deliveryLink}>
+                    <Text style={[styles.deliveryLink, { color: theme.colors.primary }]}>
                       {t("workshopProduction.editDelivery")}
                     </Text>
                   </TouchableOpacity>
                   {!!detailBatch.deliveryDate &&
                   (detailBatch.workshopDeliveryDateEditCount ?? 0) >= 1 ? (
-                    <Text style={styles.deliveryLockText}>
+                    <Text style={[styles.deliveryLockText, { color: theme.colors.textMuted }]}>
                       Voce ja usou a unica edicao permitida da data de entrega.
                     </Text>
                   ) : null}
 
                   <View style={styles.detailActions}>
                     <TouchableOpacity
-                      style={styles.btnOutline}
+                      style={[
+                        styles.btnOutline,
+                        {
+                          borderColor: theme.colors.primary,
+                          justifyContent: "center",
+                          minHeight: 48,
+                        },
+                      ]}
                       onPress={() => {
                         const id = detailBatch.id;
                         setDetailBatch(null);
                         openNoteModal("partial", id);
                       }}
                     >
-                      <Text style={styles.btnOutlineText}>
+                      <Text
+                        style={[styles.btnOutlineText, { color: theme.colors.primary, textAlign: "center" }]}
+                      >
                         {t("workshopProduction.btnPartial")}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.btnOutline}
+                      style={[
+                        styles.btnOutline,
+                        {
+                          borderColor: theme.colors.primary,
+                          justifyContent: "center",
+                          minHeight: 48,
+                        },
+                      ]}
                       onPress={() => {
                         const id = detailBatch.id;
                         setDetailBatch(null);
                         openNoteModal("pause", id);
                       }}
                     >
-                      <Text style={styles.btnOutlineText}>
+                      <Text
+                        style={[styles.btnOutlineText, { color: theme.colors.primary, textAlign: "center" }]}
+                      >
                         {t("workshopProduction.btnPause")}
                       </Text>
                     </TouchableOpacity>
@@ -698,6 +756,7 @@ export default function WorkshopProduction() {
                   <TouchableOpacity
                     style={[
                       styles.btnPrimary,
+                      { backgroundColor: theme.colors.primary },
                       acting === detailBatch.id && styles.btnDis,
                     ]}
                     disabled={acting === detailBatch.id}
@@ -706,7 +765,7 @@ export default function WorkshopProduction() {
                     {acting === detailBatch.id ? (
                       <ActivityIndicator color="#FFF" size="small" />
                     ) : (
-                      <Text style={styles.btnPrimaryText}>
+                      <Text style={[styles.btnPrimaryText, { textAlign: "center" }]}>
                         {t("workshopProduction.btnCompleteProduction")}
                       </Text>
                     )}
@@ -716,7 +775,9 @@ export default function WorkshopProduction() {
                     style={styles.modalClose}
                     onPress={() => setDetailBatch(null)}
                   >
-                    <Text style={styles.modalCloseText}>{t("common.back")}</Text>
+                    <Text style={[styles.modalCloseText, { color: theme.colors.textMuted }]}>
+                      {t("common.back")}
+                    </Text>
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -725,64 +786,141 @@ export default function WorkshopProduction() {
         </View>
       </Modal>
 
+      <Modal visible={!!completeConfirmBatch} transparent animationType="fade">
+        <View style={[styles.modalBg, { backgroundColor: theme.colors.overlay }]}>
+          <View
+            style={[
+              styles.modalBox,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {t("workshopProduction.completeConfirmTitle")}
+            </Text>
+            <Text style={[styles.modalSubText, { color: theme.colors.textMuted }]}>
+              {completeConfirmBatch?.productionFlowStatus === "partial"
+                ? t("workshopProduction.completeConfirmBodyPartial")
+                : t("workshopProduction.completeConfirmBody")}
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.formBtnOutline,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.surfaceSoft,
+                  },
+                ]}
+                onPress={() => setCompleteConfirmBatch(null)}
+              >
+                <Text style={[styles.formBtnOutlineText, { color: theme.colors.text }]}>
+                  {t("common.cancel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.formBtnPrimary, { backgroundColor: theme.colors.primary }]}
+                onPress={() => {
+                  const b = completeConfirmBatch;
+                  if (!b) return;
+                  setCompleteConfirmBatch(null);
+                  void runCompleteProduction(b);
+                }}
+              >
+                <Text style={styles.formBtnPrimaryText}>{t("workshopProduction.completeConfirmOk")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!noteModal} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={[styles.modalBox, styles.formModalBox]}>
+        <View style={[styles.modalBg, { backgroundColor: theme.colors.overlay }]}>
+          <View
+            style={[
+              styles.modalBox,
+              styles.formModalBox,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <View style={styles.formModalHeader}>
-              <View style={styles.formModalIcon}>
+              <View style={[styles.formModalIcon, { backgroundColor: theme.colors.iconSoft }]}>
                 <MaterialIcons
                   name={noteModal === "partial" ? "inventory-2" : "pause-circle-outline"}
                   size={20}
-                  color="#4F46E5"
+                  color={theme.colors.primary}
                 />
               </View>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                 {noteModal === "partial"
                   ? t("workshopProduction.partialTitle")
                   : t("workshopProduction.pauseTitle")}
               </Text>
             </View>
-            <Text style={styles.modalSubText}>
+            <Text style={[styles.modalSubText, { color: theme.colors.textMuted }]}>
               {noteModal === "partial"
                 ? "Informe a quantidade e uma observacao para o dono."
                 : "Descreva o motivo da pausa e a previsao de retorno."}
             </Text>
             {noteModal === "partial" ? (
               <View style={styles.formFieldBlock}>
-                <Text style={styles.formFieldLabel}>Quantidade da entrega parcial</Text>
+                <Text style={[styles.formFieldLabel, { color: theme.colors.textMuted }]}>
+                  Quantidade da entrega parcial
+                </Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.surfaceSoft,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   value={partialPieces}
                   onChangeText={setPartialPieces}
                   placeholder={t("workshopProduction.partialQtyPlaceholder")}
                   keyboardType="numeric"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
             ) : null}
             <View style={styles.formFieldBlock}>
-              <Text style={styles.formFieldLabel}>Mensagem para o dono</Text>
+              <Text style={[styles.formFieldLabel, { color: theme.colors.textMuted }]}>
+                Mensagem para o dono
+              </Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.surfaceSoft,
+                    color: theme.colors.text,
+                  },
+                ]}
                 value={noteText}
                 onChangeText={setNoteText}
                 multiline
                 placeholder={t("workshopProduction.notePlaceholder")}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.colors.textMuted}
               />
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.formBtnOutline}
+                style={[
+                  styles.formBtnOutline,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                ]}
                 onPress={() => {
                   setNoteModal(null);
                   setNoteBatchId(null);
                 }}
               >
-                <Text style={styles.formBtnOutlineText}>{t("common.cancel")}</Text>
+                <Text style={[styles.formBtnOutlineText, { color: theme.colors.text }]}>
+                  {t("common.cancel")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.formBtnPrimary}
+                style={[styles.formBtnPrimary, { backgroundColor: theme.colors.primary }]}
                 onPress={() => void submitNote()}
               >
                 <Text style={styles.formBtnPrimaryText}>{t("common.send")}</Text>
@@ -793,36 +931,60 @@ export default function WorkshopProduction() {
       </Modal>
 
       <Modal visible={!!deliveryModal} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <View style={[styles.modalBox, styles.formModalBox]}>
+        <View style={[styles.modalBg, { backgroundColor: theme.colors.overlay }]}>
+          <View
+            style={[
+              styles.modalBox,
+              styles.formModalBox,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <View style={styles.formModalHeader}>
-              <View style={styles.formModalIcon}>
-                <MaterialIcons name="event" size={20} color="#4F46E5" />
+              <View style={[styles.formModalIcon, { backgroundColor: theme.colors.iconSoft }]}>
+                <MaterialIcons name="event" size={20} color={theme.colors.primary} />
               </View>
-              <Text style={styles.modalTitle}>{t("workshopProduction.deliveryTitle")}</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                {t("workshopProduction.deliveryTitle")}
+              </Text>
             </View>
-            <Text style={styles.modalSubText}>
+            <Text style={[styles.modalSubText, { color: theme.colors.textMuted }]}>
               Informe uma data igual ou posterior a hoje.
             </Text>
             <View style={styles.formFieldBlock}>
-              <Text style={styles.formFieldLabel}>Data de entrega</Text>
+              <Text style={[styles.formFieldLabel, { color: theme.colors.textMuted }]}>Data de entrega</Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.surfaceSoft,
+                    color: theme.colors.text,
+                  },
+                ]}
                 value={deliveryInput}
                 onChangeText={(x) => setDeliveryInput(formatDateInput(x))}
                 placeholder="DD/MM/AAAA"
                 keyboardType="numeric"
                 maxLength={10}
+                placeholderTextColor={theme.colors.textMuted}
               />
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.formBtnOutline}
+                style={[
+                  styles.formBtnOutline,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                ]}
                 onPress={() => setDeliveryModal(null)}
               >
-                <Text style={styles.formBtnOutlineText}>{t("common.cancel")}</Text>
+                <Text style={[styles.formBtnOutlineText, { color: theme.colors.text }]}>
+                  {t("common.cancel")}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.formBtnPrimary} onPress={onSaveDelivery}>
+              <TouchableOpacity
+                style={[styles.formBtnPrimary, { backgroundColor: theme.colors.primary }]}
+                onPress={onSaveDelivery}
+              >
                 <Text style={styles.formBtnPrimaryText}>{t("common.save")}</Text>
               </TouchableOpacity>
             </View>
@@ -837,12 +999,19 @@ export default function WorkshopProduction() {
         onRequestClose={closeShareModal}
       >
         <TouchableOpacity
-          style={styles.shareModalOverlay}
+          style={[styles.shareModalOverlay, { backgroundColor: theme.colors.overlay }]}
           activeOpacity={1}
           onPress={closeShareModal}
         >
           <TouchableOpacity
-            style={styles.shareModalCard}
+            style={[
+              styles.shareModalCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              },
+            ]}
             activeOpacity={1}
             onPress={() => {}}
           >
@@ -851,11 +1020,11 @@ export default function WorkshopProduction() {
               return (
               <>
                 <View style={styles.shareModalHeader}>
-                  <View style={styles.shareModalIconWrap}>
-                    <MaterialIcons name="payments" size={24} color="#4F46E5" />
+                  <View style={[styles.shareModalIconWrap, { backgroundColor: theme.colors.iconSoft }]}>
+                    <MaterialIcons name="payments" size={24} color={theme.colors.primary} />
                   </View>
                   <View style={styles.shareModalHeaderText}>
-                    <Text style={styles.shareModalTitleText} numberOfLines={2}>
+                    <Text style={[styles.shareModalTitleText, { color: theme.colors.text }]} numberOfLines={2}>
                       {t("workshopProduction.shareModalTitle")}
                     </Text>
                   </View>
@@ -866,53 +1035,81 @@ export default function WorkshopProduction() {
                     accessibilityRole="button"
                     accessibilityLabel={t("common.close")}
                   >
-                    <MaterialIcons name="close" size={22} color="#6B7280" />
+                    <MaterialIcons name="close" size={22} color={theme.colors.textMuted} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.shareModalMeta}>
-                  <Text style={styles.shareModalMetaLine} numberOfLines={2}>
-                    <Text style={styles.shareModalMetaLabel}>{t("ownerWorkshopPay.batch")}: </Text>
+                  <Text style={[styles.shareModalMetaLine, { color: theme.colors.text }]} numberOfLines={2}>
+                    <Text style={[styles.shareModalMetaLabel, { color: theme.colors.textMuted }]}>
+                      {t("ownerWorkshopPay.batch")}:{" "}
+                    </Text>
                     {shareInfo.batch.name}
                   </Text>
-                  <Text style={styles.shareModalMetaSub}>
+                  <Text style={[styles.shareModalMetaSub, { color: theme.colors.textMuted }]}>
                     {t("batches.pieces")}: {shareInfo.batch.totalPieces}
                     {payBase != null
                       ? ` · ${t("workshopProduction.detailBaseValue")}: ${formatMoney(payBase)}`
                       : ""}
                   </Text>
                 </View>
-                <Text style={styles.shareHint}>{t("workshopProduction.shareAfterReportHint")}</Text>
-                <View style={styles.shareLinkBox}>
+                <Text style={[styles.shareHint, { color: theme.colors.textMuted }]}>
+                  {t("workshopProduction.shareAfterReportHint")}
+                </Text>
+                <View
+                  style={[
+                    styles.shareLinkBox,
+                    {
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.surfaceSoft,
+                    },
+                  ]}
+                >
                   <View style={styles.shareLinkBoxHeader}>
-                    <MaterialIcons name="insert-link" size={18} color="#4338CA" />
-                    <Text style={styles.shareLinkBoxTitle}>
+                    <MaterialIcons name="insert-link" size={18} color={theme.colors.primary} />
+                    <Text style={[styles.shareLinkBoxTitle, { color: theme.colors.text }]}>
                       {t("workshopProduction.sharePaymentLinkLabel")}
                     </Text>
                   </View>
-                  <Text style={styles.shareLinkUrl} selectable numberOfLines={6}>
+                  <Text style={[styles.shareLinkUrl, { color: theme.colors.text }]} selectable numberOfLines={6}>
                     {shareInfo.url}
                   </Text>
                   {shareLinkJustCopied ? (
-                    <View style={styles.shareCopiedPill}>
-                      <MaterialIcons name="check-circle" size={16} color="#059669" />
-                      <Text style={styles.shareCopiedPillText}>{t("common.linkCopied")}</Text>
+                    <View style={[styles.shareCopiedPill, { backgroundColor: theme.colors.iconSoft }]}>
+                      <MaterialIcons name="check-circle" size={16} color="#22C55E" />
+                      <Text style={[styles.shareCopiedPillText, { color: theme.colors.text }]}>
+                        {t("common.linkCopied")}
+                      </Text>
                     </View>
                   ) : null}
                 </View>
                 <View style={styles.shareActionsRow}>
-                  <TouchableOpacity style={styles.shareBtnOutline} onPress={copySharePaymentLink}>
-                    <MaterialIcons name="content-copy" size={18} color="#4F46E5" />
-                    <Text style={styles.shareBtnOutlineText}>
+                  <TouchableOpacity
+                    style={[
+                      styles.shareBtnOutline,
+                      {
+                        borderColor: theme.colors.primary,
+                        backgroundColor: theme.colors.surface,
+                      },
+                    ]}
+                    onPress={copySharePaymentLink}
+                  >
+                    <MaterialIcons name="content-copy" size={18} color={theme.colors.primary} />
+                    <Text style={[styles.shareBtnOutlineText, { color: theme.colors.primary }]}>
                       {t("batches.offerCopyLink")}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.shareBtnPrimary} onPress={openSharePaymentSheet}>
+                  <TouchableOpacity
+                    style={[styles.shareBtnPrimary, { backgroundColor: theme.colors.primary }]}
+                    onPress={openSharePaymentSheet}
+                  >
                     <MaterialIcons name="share" size={20} color="#FFF" />
                     <Text style={styles.shareBtnPrimaryText}>{t("common.share")}</Text>
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity style={styles.shareModalBack} onPress={closeShareModal}>
-                  <Text style={styles.modalCloseText}>{t("common.back")}</Text>
+                  <Text style={[styles.modalCloseText, { color: theme.colors.textMuted }]}>
+                    {t("common.back")}
+                  </Text>
                 </TouchableOpacity>
               </>
               );

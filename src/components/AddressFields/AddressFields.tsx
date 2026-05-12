@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, StyleSheet, ActivityIndicator } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTheme } from "../../hooks/useTheme";
 
 export type AddressValue = {
   cep: string;
@@ -47,6 +48,7 @@ export default function AddressFields({
   title,
   cepOptionalLabel = "(opcional)",
 }: Props) {
+  const { theme } = useTheme();
   const [locked, setLocked] = useState<LockedFields>({
     street: false,
     neighborhood: false,
@@ -135,23 +137,31 @@ export default function AddressFields({
 
   return (
     <View style={styles.block}>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
 
       <View style={styles.row}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
-          <Text style={styles.label}>CEP {cepOptionalLabel}</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="local-post-office" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>CEP {cepOptionalLabel}</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="local-post-office" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={formatCep(cep)}
               onChangeText={(text) => setField({ cep: formatCep(text) })}
               placeholder="00000-000"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               keyboardType="number-pad"
               maxLength={9}
             />
-            {loadingCep ? <ActivityIndicator size="small" color="#6366F1" /> : null}
+            {loadingCep ? <ActivityIndicator size="small" color={theme.colors.primary} /> : null}
           </View>
           {cepError ? <Text style={styles.errorText}>{cepError}</Text> : null}
         </View>
@@ -159,30 +169,46 @@ export default function AddressFields({
 
       <View style={styles.row}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
-          <Text style={styles.label}>Rua</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="place" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>Rua</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="place" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={value.street}
               onChangeText={(text) => setField({ street: text })}
               placeholder="Rua / Avenida"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               editable={!locked.street}
             />
           </View>
         </View>
 
         <View style={[styles.inputGroup, { width: 110 }]}>
-          <Text style={styles.label}>Número</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="home" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>Número</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="home" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={value.number}
               onChangeText={(text) => setField({ number: text })}
               placeholder="123"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               keyboardType="default"
             />
           </View>
@@ -191,15 +217,23 @@ export default function AddressFields({
 
       <View style={styles.row}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
-          <Text style={styles.label}>Bairro</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="my-location" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>Bairro</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="my-location" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={value.neighborhood}
               onChangeText={(text) => setField({ neighborhood: text })}
               placeholder="Bairro"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               editable={!locked.neighborhood}
             />
           </View>
@@ -208,32 +242,48 @@ export default function AddressFields({
 
       <View style={styles.row}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
-          <Text style={styles.label}>Cidade</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="location-city" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>Cidade</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="location-city" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={value.city}
               onChangeText={(text) => setField({ city: text })}
               placeholder="Cidade"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               editable={!locked.city}
             />
           </View>
         </View>
 
         <View style={[styles.inputGroup, { width: 90 }]}>
-          <Text style={styles.label}>UF</Text>
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="map" size={20} color="#6B7280" />
+          <Text style={[styles.label, { color: theme.colors.text }]}>UF</Text>
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                backgroundColor: theme.colors.surfaceSoft,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <MaterialIcons name="map" size={20} color={theme.colors.textMuted} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.colors.text }]}
               value={value.uf}
               onChangeText={(text) =>
                 setField({ uf: text.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, UF_MAX_LEN) })
               }
               placeholder="SP"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
               editable={!locked.uf}
               autoCapitalize="characters"
               maxLength={2}
@@ -266,7 +316,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#374151",
   },
   row: {
     flexDirection: "row",
@@ -278,15 +327,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
@@ -294,7 +340,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: "#1F2937",
   },
   errorText: {
     fontSize: 12,

@@ -9,13 +9,17 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Layout from '../../components/Layout/Layout';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../hooks/useTheme';
 import AddressFields, { composeAddressString, type AddressValue } from '../../components/AddressFields/AddressFields';
+import ThemedNoticeModal from '../../components/ThemedNoticeModal/ThemedNoticeModal';
 import {
   createWorkshop,
   getWorkshopsByUser,
@@ -30,6 +34,7 @@ export default function Workshops() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +58,10 @@ export default function Workshops() {
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [successNotice, setSuccessNotice] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     loadWorkshops();
@@ -160,7 +169,10 @@ export default function Workshops() {
 
       if (editingWorkshop) {
         await updateWorkshop(editingWorkshop.id, workshopData);
-        Alert.alert(t('common.success'), t('workshops.updateSuccess'));
+        setSuccessNotice({
+          title: t('common.success'),
+          message: t('workshops.updateSuccess'),
+        });
       } else {
         const ent = getEffectiveUserPlan(user?.plan);
         if (!canCreateAnotherWorkshop(ent, workshops.length)) {
@@ -168,7 +180,10 @@ export default function Workshops() {
           return;
         }
         await createWorkshop(user.id, workshopData);
-        Alert.alert(t('common.success'), t('workshops.createSuccess'));
+        setSuccessNotice({
+          title: t('common.success'),
+          message: t('workshops.createSuccess'),
+        });
       }
 
       await loadWorkshops();
@@ -353,7 +368,7 @@ export default function Workshops() {
                 <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                   <View style={styles.piecesInfo}>
                     <MaterialIcons name="inventory" size={18} color="#6366F1" />
-                    <Text style={styles.piecesText}>
+                    <Text style={[styles.piecesText, { color: theme.colors.primary }]}>
                       {workshop.totalPieces} {t('workshops.pieces')}
                     </Text>
                   </View>
@@ -384,14 +399,27 @@ export default function Workshops() {
           )}
         </ScrollView>
 
+        <ThemedNoticeModal
+          visible={successNotice != null}
+          title={successNotice?.title ?? ''}
+          message={successNotice?.message ?? ''}
+          onDismiss={() => setSuccessNotice(null)}
+        />
+
         {/* Modal de Cadastro/Edição */}
         <Modal
           visible={modalVisible}
           animationType="slide"
           transparent={true}
           onRequestClose={closeModal}
+          statusBarTranslucent
         >
-          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalOverlay}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 8 : 0}
+          >
+          <View style={[styles.modalOverlayInner, { backgroundColor: theme.colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
               <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
                 <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
@@ -404,19 +432,29 @@ export default function Workshops() {
 
               <ScrollView
                 style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
               >
                 {/* Nome */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t('workshops.name')}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="business" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t('workshops.name')}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="business" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={name}
                       onChangeText={setName}
                       placeholder={t('workshops.namePlaceholder')}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                     />
                   </View>
                   {errors.name && (
@@ -438,15 +476,23 @@ export default function Workshops() {
 
                 {/* Contato 1 (WhatsApp) */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t('workshops.contact1')}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="phone" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t('workshops.contact1')}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="phone" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={contact1}
                       onChangeText={(text) => setContact1(formatPhoneInput(text))}
                       placeholder={t('workshops.contact1Placeholder')}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -457,15 +503,23 @@ export default function Workshops() {
 
                 {/* Contato 2 */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t('workshops.contact2')}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="phone" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t('workshops.contact2')}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="phone" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={contact2}
                       onChangeText={(text) => setContact2(formatPhoneInput(text))}
                       placeholder={t('workshops.contact2Placeholder')}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -473,7 +527,7 @@ export default function Workshops() {
 
                 {/* Status */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t('workshops.statusLabel')}</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t('workshops.statusLabel')}</Text>
                   <View style={styles.statusSelector}>
                     {(['free', 'busy'] as WorkshopStatus[]).map(
                       (statusOption) => (
@@ -481,7 +535,14 @@ export default function Workshops() {
                           key={statusOption}
                           style={[
                             styles.statusOption,
-                            status === statusOption && styles.statusOptionActive,
+                            {
+                              borderColor: theme.colors.border,
+                              backgroundColor: theme.colors.surfaceSoft,
+                            },
+                            status === statusOption && {
+                              borderColor: theme.colors.primary,
+                              backgroundColor: theme.colors.iconSoft,
+                            },
                           ]}
                           onPress={() => setStatus(statusOption)}
                         >
@@ -498,16 +559,21 @@ export default function Workshops() {
               </ScrollView>
 
               {/* Botões */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { borderTopColor: theme.colors.border }]}>
                 <TouchableOpacity
-                  style={styles.cancelButton}
+                  style={[
+                    styles.cancelButton,
+                    { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                  ]}
                   onPress={closeModal}
                   disabled={submitting}
                 >
-                  <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.textMuted }]}>
+                    {t('common.cancel')}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
                   onPress={handleSubmit}
                   disabled={submitting}
                 >
@@ -520,6 +586,7 @@ export default function Workshops() {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </Layout>
@@ -670,7 +737,6 @@ const styles = StyleSheet.create({
   piecesText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6366F1',
   },
   statusButtons: {
     flexDirection: 'row',
@@ -688,14 +754,18 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    width: '100%',
+  },
+  modalOverlayInner: {
+    flex: 1,
     justifyContent: 'flex-end',
+    width: '100%',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '94%',
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -713,6 +783,9 @@ const styles = StyleSheet.create({
   modalScroll: {
     maxHeight: 400,
   },
+  modalScrollContent: {
+    paddingBottom: 28,
+  },
   inputGroup: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -720,16 +793,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
@@ -737,7 +807,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#1F2937',
   },
   errorText: {
     fontSize: 12,
@@ -755,38 +824,28 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-  },
-  statusOptionActive: {
-    borderColor: '#6366F1',
-    backgroundColor: '#F0F4FF',
   },
   modalFooter: {
     flexDirection: 'row',
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
   },
   saveButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: '#6366F1',
     alignItems: 'center',
   },
   saveButtonText: {

@@ -21,6 +21,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNavigation } from "../../routes/NavigationContext";
 import { useTheme } from "../../hooks/useTheme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ThemedNoticeModal from "../../components/ThemedNoticeModal/ThemedNoticeModal";
 import { buildBatchOfferShareUrl } from "../../utils/appDeepLink";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -118,7 +120,8 @@ export default function Batches() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
   const { navigate } = useNavigation();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +187,10 @@ export default function Batches() {
 
   const [romaneioLoadingId, setRomaneioLoadingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [successNotice, setSuccessNotice] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   const isOwner = user?.userType === "owner";
 
@@ -518,7 +525,10 @@ export default function Batches() {
           updatePayload.guaranteedTotal = guaranteedTotalField;
         }
         await updateBatch(editingBatch.id, updatePayload);
-        Alert.alert(t("common.success"), t("batches.updateSuccess"));
+        setSuccessNotice({
+          title: t("common.success"),
+          message: t("batches.updateSuccess"),
+        });
         await loadBatches();
         closeModal();
       } else {
@@ -554,7 +564,10 @@ export default function Batches() {
             cutObservations: cutObsText,
           });
         } else {
-          Alert.alert(t("common.success"), t("batches.createSuccess"));
+          setSuccessNotice({
+            title: t("common.success"),
+            message: t("batches.createSuccess"),
+          });
         }
       }
     } catch (error: any) {
@@ -632,7 +645,10 @@ export default function Batches() {
           onPress: async () => {
             try {
               await deleteBatch(batch.id);
-              Alert.alert(t("common.success"), t("batches.deleteSuccess"));
+              setSuccessNotice({
+                title: t("common.success"),
+                message: t("batches.deleteSuccess"),
+              });
               await loadBatches();
             } catch (error: any) {
               Alert.alert(t("common.error"), error.message);
@@ -764,8 +780,8 @@ export default function Batches() {
             </Text>
             {!canExportRomaneioPdf(getEffectiveUserPlan(user?.plan)) ? (
               <View style={styles.planNoticeRow}>
-                <MaterialIcons name="info-outline" size={16} color="#4F46E5" />
-                <Text style={styles.planNoticeText} numberOfLines={3}>
+                <MaterialIcons name="info-outline" size={16} color={theme.colors.primary} />
+                <Text style={[styles.planNoticeText, { color: theme.colors.textMuted }]} numberOfLines={3}>
                   {t("batches.romaneioScreenOnlyBanner")}
                 </Text>
               </View>
@@ -793,7 +809,7 @@ export default function Batches() {
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Buscar por nome ou #id"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.colors.textMuted}
               />
             </View>
           </View>
@@ -903,35 +919,46 @@ export default function Batches() {
                   </View>
                 </View>
 
-                {/* Status: mesmas cores de produção dono + oficina (atraso / verde / laranja / amarelo) */}
+                {/* Indicador de fluxo de produção: um ponto na cor do estado */}
                 <View style={styles.statusContainer}>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: productionPill.bg, borderColor: productionPill.fg, borderWidth: 1 },
-                      ]}
-                    >
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: productionPill.fg },
-                      ]}
-                    />
-                  </View>
+                  <View
+                    style={[
+                      styles.productionStatusDot,
+                      { backgroundColor: productionPill.fg },
+                    ]}
+                  />
                 </View>
 
                 {/* Info */}
                 <View style={styles.cardInfo}>
-                  <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
-                    <MaterialIcons name="inventory" size={18} color="#6366F1" />
+                  <View
+                    style={[
+                      styles.infoItem,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="inventory" size={18} color={theme.colors.primary} />
                     <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("batches.quantity")}:</Text>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoValue, { color: theme.colors.primary }]}>
                       {batch.totalPieces} {t("batches.pieces")}
                     </Text>
                   </View>
                   {batch.workshopName && (
-                    <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
-                      <MaterialIcons name="business" size={18} color="#6366F1" />
+                    <View
+                      style={[
+                        styles.infoItem,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="business" size={18} color={theme.colors.primary} />
                       <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.workshop")}:
                       </Text>
@@ -939,8 +966,17 @@ export default function Batches() {
                     </View>
                   )}
                   {batch.deliveryDate && (
-                    <View style={[styles.infoItem, { backgroundColor: theme.colors.surfaceSoft }]}>
-                      <MaterialIcons name="event" size={18} color="#6366F1" />
+                    <View
+                      style={[
+                        styles.infoItem,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="event" size={18} color={theme.colors.primary} />
                       <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.deliveryDate")}:
                       </Text>
@@ -950,7 +986,21 @@ export default function Batches() {
                     </View>
                   )}
                   {batch.observations && (
-                    <View style={[styles.observationsContainer, { backgroundColor: theme.colors.surfaceSoft, borderLeftColor: theme.colors.primary }]}>
+                    <View
+                      style={[
+                        styles.observationsContainer,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderLeftColor: theme.colors.primary,
+                          borderTopColor: theme.colors.border,
+                          borderRightColor: theme.colors.border,
+                          borderBottomColor: theme.colors.border,
+                          borderTopWidth: 1,
+                          borderRightWidth: 1,
+                          borderBottomWidth: 1,
+                        },
+                      ]}
+                    >
                       <MaterialIcons name="notes" size={18} color={theme.colors.textMuted} />
                       <Text style={[styles.observationsLabel, { color: theme.colors.textMuted }]}>
                         {t("batches.observations")}:
@@ -967,18 +1017,27 @@ export default function Batches() {
           )}
         </ScrollView>
 
+        <ThemedNoticeModal
+          visible={successNotice != null}
+          title={successNotice?.title ?? ""}
+          message={successNotice?.message ?? ""}
+          onDismiss={() => setSuccessNotice(null)}
+        />
+
         {/* Modal de Cadastro/Edição */}
         <Modal
           visible={modalVisible}
           animationType="slide"
           transparent={true}
           onRequestClose={closeModal}
+          statusBarTranslucent
         >
-          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.modalKeyboard}
-            >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalOverlay}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 8 : 0}
+          >
+          <View style={[styles.modalOverlayInner, { backgroundColor: theme.colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
               <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
                 <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
@@ -991,25 +1050,34 @@ export default function Batches() {
 
               <ScrollView
                 style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="always"
               >
                 {/* Nome */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("batches.name")}</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.name")}</Text>
                   <View style={styles.nameFieldWrap}>
-                    <View style={styles.inputContainer}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
                       <MaterialIcons
                         name="content-cut"
                         size={20}
-                        color="#6B7280"
+                        color={theme.colors.textMuted}
                       />
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, { color: theme.colors.text }]}
                         value={name}
                         onChangeText={handleBatchNameChange}
                         placeholder={t("batches.namePlaceholder")}
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={theme.colors.textMuted}
                         onFocus={() => {
                           clearBlurCloseTimer();
                           setCutsDropdownOpen(true);
@@ -1024,22 +1092,30 @@ export default function Batches() {
                         <MaterialIcons
                           name={cutsDropdownOpen ? "expand-less" : "expand-more"}
                           size={22}
-                          color="#6B7280"
+                          color={theme.colors.textMuted}
                         />
                       </TouchableOpacity>
                     </View>
                     {cutsDropdownOpen ? (
-                      <View style={styles.cutsDropdown}>
+                      <View
+                        style={[
+                          styles.cutsDropdown,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                      >
                         {cutsLoading ? (
                           <View style={styles.cutsDropdownLoading}>
-                            <ActivityIndicator color="#6366F1" />
+                            <ActivityIndicator color={theme.colors.primary} />
                           </View>
                         ) : cuts.length === 0 ? (
-                          <Text style={styles.cutsDropdownEmpty}>
+                          <Text style={[styles.cutsDropdownEmpty, { color: theme.colors.textMuted }]}>
                             {t("batches.cutsDropdownEmpty")}
                           </Text>
                         ) : filteredCuts.length === 0 ? (
-                          <Text style={styles.cutsDropdownEmpty}>
+                          <Text style={[styles.cutsDropdownEmpty, { color: theme.colors.textMuted }]}>
                             {t("batches.cutsDropdownNoResults")}
                           </Text>
                         ) : (
@@ -1059,7 +1135,14 @@ export default function Batches() {
                                   key={cut.id}
                                   style={({ pressed }) => [
                                     styles.cutsDropdownItem,
-                                    cutTaken && styles.cutsDropdownItemDisabled,
+                                    {
+                                      borderBottomColor: theme.colors.border,
+                                      backgroundColor: theme.colors.surface,
+                                    },
+                                    cutTaken && {
+                                      opacity: 0.55,
+                                      backgroundColor: theme.colors.surfaceSoft,
+                                    },
                                     pressed && !cutTaken && { opacity: 0.75 },
                                   ]}
                                   disabled={cutTaken}
@@ -1071,7 +1154,8 @@ export default function Batches() {
                                   <Text
                                     style={[
                                       styles.cutsDropdownItemTitle,
-                                      cutTaken && styles.cutsDropdownItemTitleDisabled,
+                                      { color: theme.colors.text },
+                                      cutTaken && { color: theme.colors.textMuted },
                                     ]}
                                     numberOfLines={2}
                                   >
@@ -1080,7 +1164,8 @@ export default function Batches() {
                                   <Text
                                     style={[
                                       styles.cutsDropdownItemMeta,
-                                      cutTaken && styles.cutsDropdownItemMetaDisabled,
+                                      { color: theme.colors.textMuted },
+                                      cutTaken && { color: theme.colors.textMuted },
                                     ]}
                                   >
                                     {`#${getCutListNumber(cuts, cut.id) ?? "—"} · ${cut.totalPieces} ${t("batches.pieces")}${
@@ -1098,7 +1183,9 @@ export default function Batches() {
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.cutsHint}>{t("batches.cutsFromCutsHint")}</Text>
+                  <Text style={[styles.cutsHint, { color: theme.colors.textMuted }]}>
+                    {t("batches.cutsFromCutsHint")}
+                  </Text>
                   {errors.cutId && (
                     <Text style={styles.errorText}>{errors.cutId}</Text>
                   )}
@@ -1109,15 +1196,23 @@ export default function Batches() {
 
                 {/* Quantidade de Peças */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("batches.quantity")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="inventory" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.quantity")}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="inventory" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={totalPiecesInput}
                       onChangeText={setTotalPiecesInput}
                       placeholder={t("batches.quantityPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="number-pad"
                     />
                   </View>
@@ -1129,10 +1224,18 @@ export default function Batches() {
                 {isOwner && selectedCutId ? (
                   <>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>{t("batches.unitPriceLabel")}</Text>
-                      <View style={styles.inputContainer}>
-                        <MaterialIcons name="payments" size={20} color="#6B7280" />
-                        <Text style={[styles.input, { paddingVertical: 12 }]}>
+                      <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.unitPriceLabel")}</Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          {
+                            backgroundColor: theme.colors.surfaceSoft,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="payments" size={20} color={theme.colors.textMuted} />
+                        <Text style={[styles.input, { paddingVertical: 12, color: theme.colors.text }]}>
                           {(() => {
                             const c = cuts.find((x) => x.id === selectedCutId);
                             return c?.pricePerPiece != null &&
@@ -1144,15 +1247,23 @@ export default function Batches() {
                       </View>
                     </View>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.label}>{t("batches.calculatedTotal")}</Text>
-                      <View style={styles.inputContainer}>
-                        <MaterialIcons name="calculate" size={20} color="#6B7280" />
+                      <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.calculatedTotal")}</Text>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          {
+                            backgroundColor: theme.colors.surfaceSoft,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons name="calculate" size={20} color={theme.colors.textMuted} />
                         <TextInput
-                          style={styles.input}
+                          style={[styles.input, { color: theme.colors.text }]}
                           value={guaranteedTotalDisplay}
                           editable={false}
                           placeholder="—"
-                          placeholderTextColor="#9CA3AF"
+                          placeholderTextColor={theme.colors.textMuted}
                         />
                       </View>
                     </View>
@@ -1162,7 +1273,7 @@ export default function Batches() {
                 {/* Status (não exibido para dono — fluxo WhatsApp / oficina) */}
                 {!isOwner ? (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{t("batches.statusLabel")}</Text>
+                    <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.statusLabel")}</Text>
                     <View style={styles.statusButtonsContainer}>
                       {(
                         ["pending", "in_progress", "completed", "cancelled"] as BatchStatus[]
@@ -1177,7 +1288,7 @@ export default function Batches() {
                               backgroundColor:
                                 status === statusOption
                                   ? `${getFormStatusColor(statusOption)}20`
-                                  : "#FFFFFF",
+                                  : theme.colors.surface,
                             },
                           ]}
                           onPress={() => setStatus(statusOption)}
@@ -1189,7 +1300,7 @@ export default function Batches() {
                                 backgroundColor:
                                   status === statusOption
                                     ? getFormStatusColor(statusOption)
-                                    : "#E5E7EB",
+                                    : theme.colors.border,
                               },
                             ]}
                           />
@@ -1202,9 +1313,17 @@ export default function Batches() {
                 {/* Oficina */}
                 {workshops.length > 0 && (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{t("batches.workshop")}</Text>
-                    <View style={styles.inputContainer}>
-                      <MaterialIcons name="business" size={20} color="#6B7280" />
+                    <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.workshop")}</Text>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="business" size={20} color={theme.colors.textMuted} />
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -1213,14 +1332,22 @@ export default function Batches() {
                         <TouchableOpacity
                           style={[
                             styles.workshopOption,
-                            !selectedWorkshopId && styles.workshopOptionActive,
+                            {
+                              borderColor: !selectedWorkshopId ? theme.colors.primary : theme.colors.border,
+                              backgroundColor: !selectedWorkshopId
+                                ? theme.colors.iconSoft
+                                : theme.colors.surfaceSoft,
+                            },
                           ]}
                           onPress={() => setSelectedWorkshopId("")}
                         >
                           <Text
                             style={[
                               styles.workshopOptionText,
-                              !selectedWorkshopId && styles.workshopOptionTextActive,
+                              {
+                                color: !selectedWorkshopId ? theme.colors.primary : theme.colors.textMuted,
+                                fontWeight: !selectedWorkshopId ? "700" : "500",
+                              },
                             ]}
                           >
                             {t("batches.noWorkshop")}
@@ -1229,15 +1356,31 @@ export default function Batches() {
                         {workshops.map((workshop) => {
                           const selectable = workshop.status === "free";
                           const isSelected = selectedWorkshopId === workshop.id;
+                          const freeChipIdleBorder = isDark ? "#166534" : "#16A34A";
+                          const freeChipIdleBg = isDark ? "#0F1F14" : "#ECFDF5";
+                          const freeChipIdleText = isDark ? "#86EFAC" : "#166534";
                           return (
                           <TouchableOpacity
                             key={workshop.id}
                             style={[
                               styles.workshopOption,
-                              selectable && styles.workshopOptionFree,
-                              selectable && isSelected && styles.workshopOptionFreeActive,
-                              isSelected && !selectable && styles.workshopOptionActive,
-                              !selectable && styles.workshopOptionDisabled,
+                              selectable && isSelected && {
+                                borderColor: "#16A34A",
+                                backgroundColor: "#16A34A",
+                              },
+                              selectable && !isSelected && {
+                                borderColor: freeChipIdleBorder,
+                                backgroundColor: freeChipIdleBg,
+                              },
+                              isSelected && !selectable && {
+                                borderColor: theme.colors.primary,
+                                backgroundColor: theme.colors.iconSoft,
+                              },
+                              !selectable && {
+                                borderColor: theme.colors.border,
+                                backgroundColor: theme.colors.surface,
+                                opacity: 0.65,
+                              },
                             ]}
                             onPress={() => {
                               if (!selectable) return;
@@ -1248,10 +1391,22 @@ export default function Batches() {
                             <Text
                               style={[
                                 styles.workshopOptionText,
-                                selectable && styles.workshopOptionTextFree,
-                                selectable && isSelected && styles.workshopOptionTextFreeActive,
-                                isSelected && !selectable && styles.workshopOptionTextActive,
-                                !selectable && styles.workshopOptionTextDisabled,
+                                selectable &&
+                                  isSelected && { color: "#FFFFFF", fontWeight: "700" },
+                                selectable &&
+                                  !isSelected && {
+                                    color: freeChipIdleText,
+                                    fontWeight: "600",
+                                  },
+                                isSelected &&
+                                  !selectable && {
+                                    color: theme.colors.primary,
+                                    fontWeight: "700",
+                                  },
+                                !selectable && {
+                                  color: theme.colors.textMuted,
+                                  fontWeight: "500",
+                                },
                               ]}
                             >
                               {workshop.name} • {workshopStatusLabel(workshop.status)}
@@ -1267,17 +1422,25 @@ export default function Batches() {
                 {/* Data de Entrega (somente perfil não-owner) */}
                 {!isOwner ? (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>
+                    <Text style={[styles.label, { color: theme.colors.text }]}>
                       {t("batches.deliveryDate")}
                     </Text>
-                    <View style={styles.inputContainer}>
-                      <MaterialIcons name="event" size={20} color="#6B7280" />
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="event" size={20} color={theme.colors.textMuted} />
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, { color: theme.colors.text }]}
                         value={deliveryDate}
                         onChangeText={(text) => setDeliveryDate(formatDeliveryDateInput(text))}
                         placeholder={t("batches.deliveryDatePlaceholder")}
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={theme.colors.textMuted}
                         keyboardType="number-pad"
                         maxLength={10}
                       />
@@ -1290,22 +1453,29 @@ export default function Batches() {
 
                 {/* Observações */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("batches.observations")}</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("batches.observations")}</Text>
                   <View
-                    style={[styles.inputContainer, styles.textAreaContainer]}
+                    style={[
+                      styles.inputContainer,
+                      styles.textAreaContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
                   >
                     <MaterialIcons
                       name="notes"
                       size={20}
-                      color="#6B7280"
+                      color={theme.colors.textMuted}
                       style={styles.textAreaIcon}
                     />
                     <TextInput
-                      style={[styles.input, styles.textArea]}
+                      style={[styles.input, styles.textArea, { color: theme.colors.text }]}
                       value={observations}
                       onChangeText={setObservations}
                       placeholder={t("batches.observationsPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       multiline
                       numberOfLines={4}
                       textAlignVertical="top"
@@ -1315,18 +1485,21 @@ export default function Batches() {
               </ScrollView>
 
               {/* Botões */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { borderTopColor: theme.colors.border }]}>
                 <TouchableOpacity
-                  style={styles.cancelButton}
+                  style={[
+                    styles.cancelButton,
+                    { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                  ]}
                   onPress={closeModal}
                   disabled={submitting}
                 >
-                  <Text style={styles.cancelButtonText}>
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.textMuted }]}>
                     {t("common.cancel")}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
                   onPress={handleSubmit}
                   disabled={submitting}
                 >
@@ -1340,8 +1513,8 @@ export default function Batches() {
                 </TouchableOpacity>
               </View>
             </View>
-            </KeyboardAvoidingView>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         <OwnerBatchPreInviteModal
@@ -1421,7 +1594,6 @@ const styles = StyleSheet.create({
   },
   planNoticeText: {
     fontSize: 12,
-    color: "#4B5563",
     flex: 1,
     lineHeight: 16,
   },
@@ -1589,23 +1761,10 @@ const styles = StyleSheet.create({
   statusContainer: {
     marginBottom: 12,
   },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
+  productionStatusDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   cardInfo: {
     gap: 12,
@@ -1616,18 +1775,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: "#F0F4FF",
     borderRadius: 8,
   },
   infoLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
   },
   infoValue: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#6366F1",
     flex: 1,
     textAlign: "right",
   },
@@ -1635,35 +1791,32 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: "#F9FAFB",
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#6366F1",
   },
   observationsLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
     marginLeft: 26,
   },
   observationsText: {
     fontSize: 14,
-    color: "#374151",
     marginLeft: 26,
     lineHeight: 20,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: "100%",
+  },
+  modalOverlayInner: {
+    flex: 1,
     justifyContent: "flex-end",
+    width: "100%",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "94%",
-  },
-  modalKeyboard: {
     width: "100%",
   },
   modalHeader: {
@@ -1672,15 +1825,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#1F2937",
   },
   modalScroll: {
     maxHeight: 520,
+  },
+  modalScrollContent: {
+    paddingBottom: 28,
   },
   inputGroup: {
     paddingHorizontal: 20,
@@ -1693,9 +1847,7 @@ const styles = StyleSheet.create({
   },
   cutsDropdown: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     borderRadius: 10,
-    backgroundColor: "#FFFFFF",
     marginTop: 6,
     overflow: "hidden",
     shadowColor: "#000",
@@ -1712,7 +1864,6 @@ const styles = StyleSheet.create({
   cutsDropdownEmpty: {
     padding: 14,
     fontSize: 13,
-    color: "#6B7280",
     textAlign: "center",
   },
   cutsDropdownList: {
@@ -1722,46 +1873,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
   },
   cutsDropdownItemTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1F2937",
   },
   cutsDropdownItemMeta: {
     marginTop: 4,
     fontSize: 12,
-    color: "#6B7280",
-  },
-  cutsDropdownItemDisabled: {
-    opacity: 0.55,
-    backgroundColor: "#F9FAFB",
-  },
-  cutsDropdownItemTitleDisabled: {
-    color: "#9CA3AF",
-  },
-  cutsDropdownItemMetaDisabled: {
-    color: "#9CA3AF",
   },
   cutsHint: {
     marginTop: 6,
     fontSize: 11,
-    color: "#9CA3AF",
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
@@ -1775,7 +1909,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: "#1F2937",
   },
   textArea: {
     minHeight: 80,
@@ -1860,26 +1993,22 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#6B7280",
   },
   saveButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: "#6366F1",
     alignItems: "center",
   },
   saveButtonText: {

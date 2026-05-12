@@ -12,7 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { getPaymentsByUser } from "../../services/paymentService";
+import { getPaymentsForHistory } from "../../services/paymentService";
 import { Payment, PaymentStatus } from "../../types/payment";
 import {
   getEffectiveUserPlan,
@@ -56,7 +56,7 @@ export default function FinancialHistory() {
     if (!user?.id) return;
     try {
       setLoading(true);
-      const data = await getPaymentsByUser(user.id);
+      const data = await getPaymentsForHistory(user.id, user.userType);
       setPayments(data);
 
       let paid = 0, pending = 0, overdue = 0;

@@ -153,7 +153,7 @@ export default function OwnerWorkshopPayment() {
         setCharging(true);
         try {
           try {
-            await createAsaasChargeForPayment(pid);
+            await createAsaasChargeForPayment(pid, ptok);
           } catch (e: unknown) {
             const err = e as { code?: string };
             const code = String(err?.code || "").replace(/^functions\//, "");
@@ -162,8 +162,13 @@ export default function OwnerWorkshopPayment() {
           data = await getOwnerPaymentInvitePreview(pid, ptok);
           setPixPreview(data);
         } catch (e: unknown) {
-          const err = e as { message?: string };
-          Alert.alert(t("common.error"), err?.message || t("ownerWorkshopPay.chargeError"));
+          const err = e as { message?: string; code?: string };
+          const code = String(err?.code || "").replace(/^functions\//, "");
+          const msg =
+            code === "unauthenticated"
+              ? t("ownerWorkshopPay.loginRequired")
+              : err?.message || t("ownerWorkshopPay.chargeError");
+          Alert.alert(t("common.error"), msg);
         } finally {
           setCharging(false);
         }
@@ -260,19 +265,20 @@ export default function OwnerWorkshopPayment() {
       let defectPhotoUrls: string[] = [];
       if (defectPhotoUris.length > 0) {
         const uploads = defectPhotoUris.slice(0, 8).map(async (uri, idx) => {
-          const blob = await new Promise<Blob>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.onload = () => resolve(xhr.response as Blob);
-            xhr.onerror = () => reject(new Error("Falha ao ler foto."));
-            xhr.responseType = "blob";
-            xhr.open("GET", uri, true);
-            xhr.send();
-          });
+          const response = await fetch(uri);
+          if (!response.ok) {
+            throw new Error("Falha ao ler foto.");
+          }
+          const blob = await response.blob();
+          const extFromType = (blob.type || "").split("/")[1]?.replace(/\W/g, "") || "jpeg";
+          const safeExt = extFromType === "png" ? "png" : "jpg";
+          const contentType =
+            blob.type && blob.type.startsWith("image/") ? blob.type : "image/jpeg";
           const photoRef = ref(
             storage,
-            `owner-defect-photos/${batchNav.batchId}/${Date.now()}_${idx}.jpg`,
+            `owner-defect-photos/${batchNav.batchId}/${Date.now()}_${idx}.${safeExt}`,
           );
-          await uploadBytes(photoRef, blob, { contentType: "image/jpeg" });
+          await uploadBytes(photoRef, blob, { contentType });
           return getDownloadURL(photoRef);
         });
         defectPhotoUrls = await Promise.all(uploads);
@@ -289,8 +295,13 @@ export default function OwnerWorkshopPayment() {
       setPayTok(res.token);
       setPhase("pix");
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      Alert.alert(t("common.error"), err?.message || t("ownerWorkshopPay.submitReportError"));
+      const err = e as { message?: string; code?: string };
+      const code = String(err?.code || "").replace(/^functions\//, "");
+      const msg =
+        code === "unauthenticated"
+          ? t("ownerWorkshopPay.loginRequired")
+          : err?.message || t("ownerWorkshopPay.submitReportError");
+      Alert.alert(t("common.error"), msg);
     } finally {
       setSubmittingReport(false);
     }
@@ -299,8 +310,14 @@ export default function OwnerWorkshopPayment() {
   if (!user) {
     return (
       <Layout>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6366F1" />
+        <View style={styles.centerPadded}>
+          <MaterialIcons name="lock-outline" size={48} color="#6366F1" />
+          <Text style={[styles.err, { marginTop: 12, color: "#374151" }]}>
+            {t("ownerWorkshopPay.loginRequired")}
+          </Text>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigate(paths.login)}>
+            <Text style={styles.secondaryBtnText}>{t("ownerWorkshopPay.goToLogin")}</Text>
+          </TouchableOpacity>
         </View>
       </Layout>
     );

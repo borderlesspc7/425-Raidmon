@@ -488,11 +488,7 @@ exports.createAsaasCharge = onCall(
     cors: true,
   },
   async (request) => {
-    if (!request.auth?.uid) {
-      throw new HttpsError("unauthenticated", "Faça login para gerar cobrança.");
-    }
-    const uid = request.auth.uid;
-    const { paymentId } = request.data || {};
+    const { paymentId, ownerPaymentInviteToken } = request.data || {};
     if (!paymentId || typeof paymentId !== "string") {
       throw new HttpsError("invalid-argument", "paymentId é obrigatório.");
     }
@@ -504,6 +500,30 @@ exports.createAsaasCharge = onCall(
       throw new HttpsError("not-found", "Pagamento não encontrado.");
     }
     const p = paySnap.data();
+
+    let uid = request.auth?.uid || null;
+    if (!uid) {
+      const tok =
+        ownerPaymentInviteToken != null && typeof ownerPaymentInviteToken === "string"
+          ? ownerPaymentInviteToken.trim()
+          : "";
+      const payTok =
+        p.ownerPaymentInviteToken != null && typeof p.ownerPaymentInviteToken === "string"
+          ? String(p.ownerPaymentInviteToken).trim()
+          : "";
+      if (
+        tok &&
+        payTok &&
+        tok === payTok &&
+        p.ownerPaymentInviteKind === "owner_batch_checkout" &&
+        (p.status === "pending" || p.status === "overdue")
+      ) {
+        uid = p.userId;
+      }
+    }
+    if (!uid || typeof uid !== "string") {
+      throw new HttpsError("unauthenticated", "Faça login para gerar cobrança.");
+    }
     if (p.userId !== uid) {
       throw new HttpsError("permission-denied", "Este pagamento não é seu.");
     }
@@ -1742,25 +1762,25 @@ exports.submitOwnerBatchCheckoutAndCreatePayment = onCall(async (request) => {
  * Dono: valida token do link e obtém resumo + dados PIX se a cobrança já existir.
  */
 exports.getOwnerPaymentInvitePreview = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  }
   const { paymentId, token } = request.data || {};
   if (!paymentId || typeof paymentId !== "string" || !token || typeof token !== "string") {
     throw new HttpsError("invalid-argument", "Dados inválidos.");
   }
-  const uid = request.auth.uid;
   const payRef = db.collection("payments").doc(paymentId);
   const paySnap = await payRef.get();
   if (!paySnap.exists) {
     throw new HttpsError("not-found", "Pagamento não encontrado.");
   }
   const p = paySnap.data();
-  if (p.userId !== uid) {
-    throw new HttpsError("permission-denied", "Este link não é para sua conta.");
-  }
   if (!p.ownerPaymentInviteToken || p.ownerPaymentInviteToken !== token) {
     throw new HttpsError("permission-denied", "Link inválido ou expirado.");
+  }
+  if (request.auth?.uid) {
+    if (p.userId !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "Este link não é para sua conta.");
+    }
+  } else if (p.ownerPaymentInviteKind !== "owner_batch_checkout") {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
 
   let batchName = p.batchName || null;

@@ -26,6 +26,7 @@ import {
   isSubscriptionPlanId,
 } from "../../constants/planPricing";
 import { createAsaasSubscriptionForPlan } from "../../services/asaasPayments";
+import { createPayment } from "../../services/paymentService";
 import { db } from "../../lib/firebaseconfig";
 import { isUserOnPlan } from "../../utils/subscriptionStatus";
 
@@ -103,15 +104,34 @@ export default function PlanCheckout() {
         (validPlan === "premium" || validPlan === "enterprise")
       ) {
         paymentConfirmShownRef.current = true;
-        void refreshUser().then(() => {
+        void (async () => {
+          try {
+            if (user?.id && price > 0) {
+              const paidAt = new Date();
+              await createPayment(user.id, {
+                amount: price,
+                dueDate: paidAt,
+                paidDate: paidAt,
+                description: t("generalHistory.subscriptionPaymentTitle").replace(
+                  "{plan}",
+                  planName,
+                ),
+                status: "paid",
+                subscriptionPlan: validPlan,
+              });
+            }
+          } catch (e) {
+            console.warn("Plan checkout: falha ao registrar pagamento no histórico", e);
+          }
+          await refreshUser();
           setPixModalVisible(false);
           setPixView(null);
           Alert.alert(
             t("plans.success"),
             t("plans.checkout.paymentConfirmedBody").replace("{plan}", planName),
-            [{ text: "OK", onPress: () => navigate(paths.plans) }]
+            [{ text: "OK", onPress: () => navigate(paths.plans) }],
           );
-        });
+        })();
       }
     });
     return () => unsub();
@@ -123,6 +143,7 @@ export default function PlanCheckout() {
     t,
     navigate,
     refreshUser,
+    price,
   ]);
 
   const handleBack = () => {

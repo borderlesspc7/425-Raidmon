@@ -362,7 +362,7 @@ export const translations = {
         "* Este valor alimentará a barra dourada da oficina após o aceite do convite.*",
       preInviteCta: "CONFIRMAR ACORDO E ENVIAR CORTE",
       preInviteInvalidUnit: "Informe um valor por peça válido (maior que zero).",
-      preInviteShareHead: "Acordo confirmado",
+      preInviteShareHead: "Link gerado",
       preInviteShareSub: "Envie o link para a oficina aceitar a produção deste lote.",
       offerLinkCopied: "Link copiado. Cole no WhatsApp para a oficina.",
       offerLinkCopyError: "Não foi possível copiar o link.",
@@ -653,6 +653,9 @@ export const translations = {
       unreadHint: "Não lida",
       batchFromOwnerInvite: "Lote do confeccionista (convite aceito)",
       batchInviteAcceptedTitle: "Convite aceito: {name}",
+      subscriptionPaymentTitle: "Assinatura: {plan}",
+      subscriptionPaymentNote: "Pagamento confirmado",
+      workshopMarketplacePaymentTitle: "Pagamento recebido (confeccionista)",
     },
     // Batch offer (oficina — link)
     batchOffer: {
@@ -704,6 +707,9 @@ export const translations = {
         "*Aceite este acordo para iniciar a produção e ativar o Ganho Garantido.*",
       acceptCtaCaps: "ACEITAR E INICIAR PRODUÇÃO",
       negotiateCtaCaps: "SOLICITAR AJUSTE NO VALOR",
+      feedbackProductionLegend:
+        "No app: amarelo = em produção; verde = lote pronto para o próximo passo.",
+      goToProduction: "Ir para Sua produção",
     },
     workshopProduction: {
       title: "Sua produção",
@@ -825,6 +831,9 @@ export const translations = {
       openInvoice: "Abrir fatura",
       seePayments: "Ver em Pagamentos",
       pixUnavailable: "PIX indisponível. Tente novamente ou abra a fatura.",
+      loginRequired:
+        "Entre na sua conta do app (mesmo e-mail do dono do lote) para conferir e gerar o PIX. O link sozinho não basta na etapa de conferência.",
+      goToLogin: "Ir para o login",
     },
     receiveCheckout: {
       title: "Check-list de recebimento",
@@ -1358,7 +1367,7 @@ export const translations = {
         "* Este valor alimentará la barra dorada del taller tras aceptar la invitación.*",
       preInviteCta: "CONFIRMAR ACUERDO Y ENVIAR CORTE",
       preInviteInvalidUnit: "Indica un valor por prenda válido (mayor que cero).",
-      preInviteShareHead: "Acuerdo confirmado",
+      preInviteShareHead: "Enlace generado",
       preInviteShareSub: "Envía el enlace para que el taller acepte la producción de este lote.",
       offerLinkCopied: "Enlace copiado. Pégalo en WhatsApp para la oficina.",
       offerLinkCopyError: "No se pudo copiar el enlace.",
@@ -1649,6 +1658,9 @@ export const translations = {
       unreadHint: "Sin leer",
       batchFromOwnerInvite: "Lote del confeccionista (invitación aceptada)",
       batchInviteAcceptedTitle: "Invitación aceptada: {name}",
+      subscriptionPaymentTitle: "Suscripción: {plan}",
+      subscriptionPaymentNote: "Pago confirmado",
+      workshopMarketplacePaymentTitle: "Pago recibido (confeccionista)",
     },
     batchOffer: {
       welcome: "Bienvenido, {name}",
@@ -1699,6 +1711,9 @@ export const translations = {
         "*Acepta este acuerdo para iniciar la producción y activar la Ganancia Garantizada.*",
       acceptCtaCaps: "ACEPTAR E INICIAR PRODUCCIÓN",
       negotiateCtaCaps: "SOLICITAR AJUSTE EN EL VALOR",
+      feedbackProductionLegend:
+        "En la app: amarillo = en producción; verde = lote listo para el siguiente paso.",
+      goToProduction: "Ir a Tu producción",
     },
     workshopProduction: {
       title: "Tu producción",
@@ -1821,6 +1836,9 @@ export const translations = {
       openInvoice: "Abrir factura",
       seePayments: "Ver en Pagos",
       pixUnavailable: "PIX no disponible. Intenta de nuevo o abre la factura.",
+      loginRequired:
+        "Inicia sesión en la app (misma cuenta del dueño del lote) para revisar y generar el PIX. El enlace solo no alcanza en la etapa de conferencia.",
+      goToLogin: "Ir al inicio de sesión",
     },
     receiveCheckout: {
       title: "Check-list de recepción",

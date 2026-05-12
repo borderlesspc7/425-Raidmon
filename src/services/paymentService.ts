@@ -148,6 +148,43 @@ export async function getPaymentsByUser(userId: string): Promise<Payment[]> {
   }
 }
 
+/**
+ * Pagamentos visíveis no histórico: do próprio usuário e, para oficina,
+ * cobranças em que ela é destinatária no marketplace (`marketplaceWorkshopUserId`).
+ */
+export async function getPaymentsForHistory(
+  userId: string,
+  userType?: string | null,
+): Promise<Payment[]> {
+  if (!userId) {
+    throw new Error("User ID is required");
+  }
+
+  const own = await getPaymentsByUser(userId);
+  if (userType !== "workshop") {
+    return own;
+  }
+
+  const qMarket = query(
+    collection(db, PAYMENTS_COLLECTION),
+    where("marketplaceWorkshopUserId", "==", userId),
+  );
+  const snap = await getDocs(qMarket);
+  const fromMarket = snap.docs.map((d) =>
+    convertFirestoreToPayment(d.id, d.data()),
+  );
+
+  const byId = new Map<string, Payment>();
+  for (const p of own) byId.set(p.id, p);
+  for (const p of fromMarket) {
+    if (!byId.has(p.id)) byId.set(p.id, p);
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => b.dueDate.getTime() - a.dueDate.getTime(),
+  );
+}
+
 export async function getPaymentById(
   paymentId: string
 ): Promise<Payment | null> {

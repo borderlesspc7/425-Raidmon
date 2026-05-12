@@ -40,11 +40,16 @@ export type CancelAsaasSubscriptionResult = {
  * Após `firebase deploy --only functions` e secrets Asaas, o app já usa isso.
  */
 export async function createAsaasChargeForPayment(
-  paymentId: string
+  paymentId: string,
+  ownerPaymentInviteToken?: string | null,
 ): Promise<CreateAsaasChargeResult> {
   const functions = getFunctions(app, REGION);
   const callable = httpsCallable(functions, "createAsaasCharge");
-  const res: HttpsCallableResult = await callable({ paymentId });
+  const payload: { paymentId: string; ownerPaymentInviteToken?: string } = { paymentId };
+  if (ownerPaymentInviteToken && String(ownerPaymentInviteToken).trim()) {
+    payload.ownerPaymentInviteToken = String(ownerPaymentInviteToken).trim();
+  }
+  const res: HttpsCallableResult = await callable(payload);
   return res.data as CreateAsaasChargeResult;
 }
 

@@ -13,10 +13,12 @@ import {
   Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../hooks/useTheme";
+import ThemedNoticeModal from "../../components/ThemedNoticeModal/ThemedNoticeModal";
 import {
   createCut,
   getCutsByUser,
@@ -42,6 +44,7 @@ export default function Cuts() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,10 @@ export default function Cuts() {
 
   // Validation errors
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [successNotice, setSuccessNotice] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     loadCuts();
@@ -174,10 +181,16 @@ export default function Cuts() {
 
       if (editingCut) {
         await updateCut(editingCut.id, cutData);
-        Alert.alert(t("common.success"), t("cuts.updateSuccess"));
+        setSuccessNotice({
+          title: t("common.success"),
+          message: t("cuts.updateSuccess"),
+        });
       } else {
         await createCut(user.id, cutData);
-        Alert.alert(t("common.success"), t("cuts.createSuccess"));
+        setSuccessNotice({
+          title: t("common.success"),
+          message: t("cuts.createSuccess"),
+        });
       }
 
       await loadCuts();
@@ -201,7 +214,10 @@ export default function Cuts() {
           onPress: async () => {
             try {
               await deleteCut(cut.id);
-              Alert.alert(t("common.success"), t("cuts.deleteSuccess"));
+              setSuccessNotice({
+                title: t("common.success"),
+                message: t("cuts.deleteSuccess"),
+              });
               await loadCuts();
             } catch (error: any) {
               Alert.alert(t("common.error"), error.message);
@@ -305,7 +321,7 @@ export default function Cuts() {
               value={search}
               onChangeText={setSearch}
               placeholder="Buscar por nome ou #id"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme.colors.textMuted}
             />
           </View>
         </View>
@@ -334,8 +350,8 @@ export default function Cuts() {
                 {/* Header do Card */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
-                    <View style={styles.cutNumber}>
-                      <Text style={styles.cutNumberText}>
+                    <View style={[styles.cutNumber, { backgroundColor: theme.colors.iconSoft }]}>
+                      <Text style={[styles.cutNumberText, { color: theme.colors.primary }]}>
                         {getCutCode(cut.id)}
                       </Text>
                     </View>
@@ -366,30 +382,59 @@ export default function Cuts() {
 
                 {/* Info */}
                 <View style={styles.cardInfo}>
-                  <View style={styles.infoItem}>
-                    <MaterialIcons name="inventory" size={18} color="#6366F1" />
+                  <View
+                    style={[
+                      styles.infoItem,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="inventory" size={18} color={theme.colors.primary} />
                     <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("cuts.quantity")}:</Text>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoValue, { color: theme.colors.primary }]}>
                       {cut.totalPieces} {t("cuts.pieces")}
                     </Text>
                   </View>
                   {cut.pricePerPiece != null && Number.isFinite(cut.pricePerPiece) ? (
-                    <View style={styles.infoItem}>
+                    <View
+                      style={[
+                        styles.infoItem,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderWidth: 1,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
                       <MaterialIcons
                         name="payments"
                         size={18}
-                        color="#6366F1"
+                        color={theme.colors.primary}
                       />
                     <Text style={[styles.infoLabel, { color: theme.colors.textMuted }]}>{t("cuts.pricePerPiece")}:</Text>
-                      <Text style={styles.infoValue}>
+                      <Text style={[styles.infoValue, { color: theme.colors.primary }]}>
                         {formatMoneyBRL(cut.pricePerPiece)}
                       </Text>
                     </View>
                   ) : null}
                   {cut.observations && (
-                    <View style={styles.observationsContainer}>
-                      <MaterialIcons name="notes" size={18} color="#6B7280" />
-                      <Text style={styles.observationsLabel}>
+                    <View
+                      style={[
+                        styles.observationsContainer,
+                        {
+                          backgroundColor: theme.colors.surfaceSoft,
+                          borderLeftColor: theme.colors.primary,
+                          borderTopColor: theme.colors.border,
+                          borderRightColor: theme.colors.border,
+                          borderBottomColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="notes" size={18} color={theme.colors.textMuted} />
+                      <Text style={[styles.observationsLabel, { color: theme.colors.textMuted }]}>
                         {t("cuts.observations")}:
                       </Text>
                       <Text style={[styles.observationsText, { color: theme.colors.text }]} numberOfLines={3}>
@@ -403,18 +448,27 @@ export default function Cuts() {
           )}
         </ScrollView>
 
+        <ThemedNoticeModal
+          visible={successNotice != null}
+          title={successNotice?.title ?? ""}
+          message={successNotice?.message ?? ""}
+          onDismiss={() => setSuccessNotice(null)}
+        />
+
         {/* Modal de Cadastro/Edição */}
         <Modal
           visible={modalVisible}
           animationType="slide"
           transparent={true}
           onRequestClose={closeModal}
+          statusBarTranslucent
         >
-          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.modalKeyboard}
-            >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalOverlay}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 8 : 0}
+          >
+          <View style={[styles.modalOverlayInner, { backgroundColor: theme.colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
               <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
                 <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
@@ -427,24 +481,33 @@ export default function Cuts() {
 
               <ScrollView
                 style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
                 {/* Tipo/Modelo */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("cuts.type")}</Text>
-                  <View style={styles.inputContainer}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("cuts.type")}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
                     <MaterialIcons
                       name="content-cut"
                       size={20}
-                      color="#6B7280"
+                      color={theme.colors.textMuted}
                     />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={type}
                       onChangeText={setType}
                       placeholder={t("cuts.typePlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                     />
                   </View>
                   {errors.type && (
@@ -454,15 +517,23 @@ export default function Cuts() {
 
                 {/* Quantidade de Peças */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("cuts.quantity")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="inventory" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("cuts.quantity")}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="inventory" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={totalPiecesInput}
                       onChangeText={setTotalPiecesInput}
                       placeholder={t("cuts.quantityPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="number-pad"
                     />
                   </View>
@@ -473,15 +544,23 @@ export default function Cuts() {
 
                 {/* Preço por peça */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("cuts.pricePerPiece")}</Text>
-                  <View style={styles.inputContainer}>
-                    <MaterialIcons name="payments" size={20} color="#6B7280" />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("cuts.pricePerPiece")}</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="payments" size={20} color={theme.colors.textMuted} />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: theme.colors.text }]}
                       value={pricePerPieceInput}
                       onChangeText={handlePricePerPieceChange}
                       placeholder={t("cuts.pricePerPiecePlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="number-pad"
                     />
                   </View>
@@ -492,22 +571,29 @@ export default function Cuts() {
 
                 {/* Observações */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>{t("cuts.observations")}</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{t("cuts.observations")}</Text>
                   <View
-                    style={[styles.inputContainer, styles.textAreaContainer]}
+                    style={[
+                      styles.inputContainer,
+                      styles.textAreaContainer,
+                      {
+                        backgroundColor: theme.colors.surfaceSoft,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
                   >
                     <MaterialIcons
                       name="notes"
                       size={20}
-                      color="#6B7280"
+                      color={theme.colors.textMuted}
                       style={styles.textAreaIcon}
                     />
                     <TextInput
-                      style={[styles.input, styles.textArea]}
+                      style={[styles.input, styles.textArea, { color: theme.colors.text }]}
                       value={observations}
                       onChangeText={setObservations}
                       placeholder={t("cuts.observationsPlaceholder")}
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={theme.colors.textMuted}
                       multiline
                       numberOfLines={4}
                       textAlignVertical="top"
@@ -517,18 +603,21 @@ export default function Cuts() {
               </ScrollView>
 
               {/* Botões */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { borderTopColor: theme.colors.border }]}>
                 <TouchableOpacity
-                  style={styles.cancelButton}
+                  style={[
+                    styles.cancelButton,
+                    { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                  ]}
                   onPress={closeModal}
                   disabled={submitting}
                 >
-                  <Text style={styles.cancelButtonText}>
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.textMuted }]}>
                     {t("common.cancel")}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
                   onPress={handleSubmit}
                   disabled={submitting}
                 >
@@ -542,8 +631,8 @@ export default function Cuts() {
                 </TouchableOpacity>
               </View>
             </View>
-            </KeyboardAvoidingView>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </Layout>
@@ -706,7 +795,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F0F4FF",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -714,7 +802,6 @@ const styles = StyleSheet.create({
   cutNumberText: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#6366F1",
   },
   cardHeaderInfo: {
     flex: 1,
@@ -745,18 +832,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: "#F0F4FF",
     borderRadius: 8,
   },
   infoLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
   },
   infoValue: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#6366F1",
     flex: 1,
     textAlign: "right",
   },
@@ -764,35 +848,35 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: "#F9FAFB",
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#6366F1",
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
   },
   observationsLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
     marginLeft: 26,
   },
   observationsText: {
     fontSize: 14,
-    color: "#374151",
     marginLeft: 26,
     lineHeight: 20,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: "100%",
+  },
+  modalOverlayInner: {
+    flex: 1,
     justifyContent: "flex-end",
+    width: "100%",
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "94%",
-  },
-  modalKeyboard: {
     width: "100%",
   },
   modalHeader: {
@@ -801,15 +885,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#1F2937",
   },
   modalScroll: {
     maxHeight: 520,
+  },
+  modalScrollContent: {
+    paddingBottom: 28,
   },
   inputGroup: {
     paddingHorizontal: 20,
@@ -818,16 +903,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
@@ -841,7 +923,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: "#1F2937",
   },
   textArea: {
     minHeight: 80,
@@ -857,26 +938,22 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
   },
   cancelButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
     alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#6B7280",
   },
   saveButton: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
-    backgroundColor: "#6366F1",
     alignItems: "center",
   },
   saveButtonText: {

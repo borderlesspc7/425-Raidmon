@@ -14,7 +14,7 @@ import Layout from "../../components/Layout/Layout";
 import { useAuth } from "../../hooks/useAuth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../hooks/useTheme";
-import { getPaymentsByUser } from "../../services/paymentService";
+import { getPaymentsForHistory } from "../../services/paymentService";
 import { getBatchesByUser, getBatchesLinkedToWorkshop } from "../../services/batchService";
 import { getReceivePiecesByUser } from "../../services/receivePiecesService";
 import { getInAppNotificationsForUser } from "../../services/notificationService";
@@ -55,7 +55,7 @@ export default function GeneralHistory() {
         if (!opts?.silent) setLoading(true);
 
         const [payments, batchesOwn, receives, notifications] = await Promise.all([
-          getPaymentsByUser(user.id),
+          getPaymentsForHistory(user.id, user.userType),
           getBatchesByUser(user.id),
           getReceivePiecesByUser(user.id),
           getInAppNotificationsForUser(user.id),
@@ -73,7 +73,10 @@ export default function GeneralHistory() {
           }
         }
 
-        const paymentEvents = mapPaymentsToEvents(payments, t);
+        const paymentEvents = mapPaymentsToEvents(payments, t, {
+          viewerId: user.id,
+          userType: user.userType,
+        });
         const batchEvents = mapBatchesToEvents(
           batchesMerged,
           t,
@@ -129,6 +132,23 @@ export default function GeneralHistory() {
         void loadHistory({ silent: true });
       }),
     );
+    const qPay = query(collection(db, "payments"), where("userId", "==", user.id));
+    unsubs.push(
+      onSnapshot(qPay, () => {
+        void loadHistory({ silent: true });
+      }),
+    );
+    if (user.userType === "workshop") {
+      const qPayMarket = query(
+        collection(db, "payments"),
+        where("marketplaceWorkshopUserId", "==", user.id),
+      );
+      unsubs.push(
+        onSnapshot(qPayMarket, () => {
+          void loadHistory({ silent: true });
+        }),
+      );
+    }
     return () => unsubs.forEach((u) => u());
   }, [user?.id, user?.userType, loadHistory]);
 
@@ -433,21 +453,66 @@ const FilterChip = ({
   );
 };
 
-function mapPaymentsToEvents(payments: Payment[], t: (key: string) => string): HistoryEvent[] {
-  return payments.map((p) => {
-    const date = p.paidDate || p.dueDate || p.createdAt;
-    return {
-      id: p.id,
-      type: "payment",
-      date,
-      title: p.description || t("payments.title"),
-      description: p.workshopName || p.batchName || "",
-      meta: new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }).format(p.amount),
-    };
-  });
+function subscriptionPlanLabel(
+  plan: NonNullable<Payment["subscriptionPlan"]>,
+  t: (key: string) => string,
+): string {
+  if (plan === "basic") return t("plans.basic.name");
+  if (plan === "premium") return t("plans.premium.name");
+  return t("plans.enterprise.name");
+}
+
+function mapPaymentsToEvents(
+  payments: Payment[],
+  t: (key: string) => string,
+  ctx: { viewerId: string; userType?: string | null },
+): HistoryEvent[] {
+  const fmt = (amount: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(amount);
+
+  return payments
+    .filter((p) => p.status === "paid")
+    .map((p) => {
+      const date = p.paidDate || p.dueDate || p.createdAt;
+      const isWorkshopMarketplace =
+        ctx.userType === "workshop" &&
+        p.marketplaceWorkshopUserId === ctx.viewerId &&
+        p.userId !== ctx.viewerId;
+
+      let title = p.description || t("payments.title");
+      let description = p.workshopName || p.batchName || "";
+
+      if (p.subscriptionPlan) {
+        title = t("generalHistory.subscriptionPaymentTitle").replace(
+          "{plan}",
+          subscriptionPlanLabel(p.subscriptionPlan, t),
+        );
+        description = t("generalHistory.subscriptionPaymentNote");
+      } else if (isWorkshopMarketplace) {
+        title = t("generalHistory.workshopMarketplacePaymentTitle");
+        description =
+          [p.batchName, p.description].filter(Boolean).join(" · ") || "";
+      }
+
+      const displayAmount =
+        isWorkshopMarketplace &&
+        typeof p.netAmountAfterFee === "number" &&
+        Number.isFinite(p.netAmountAfterFee)
+          ? p.netAmountAfterFee
+          : p.amount;
+
+      return {
+        id: p.id,
+        type: "payment" as const,
+        date,
+        title,
+        description,
+        meta: fmt(displayAmount),
+      };
+    });
 }
 
 function mapBatchesToEvents(

@@ -10,5 +10,16 @@ service firebase.storage {
         && request.resource.size < 6 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+
+    // Fotos de defeito na conferência dono → oficina (só o dono do lote pode enviar)
+    match /owner-defect-photos/{batchId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && firestore.exists(/databases/(default)/documents/batches/$(batchId))
+        && firestore.get(/databases/(default)/documents/batches/$(batchId)).data.userId
+          == request.auth.uid;
+    }
   }
 }
