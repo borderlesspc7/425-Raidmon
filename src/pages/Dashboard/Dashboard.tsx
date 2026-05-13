@@ -137,13 +137,9 @@ export default function Dashboard() {
 
         if (!mounted) return;
 
-        const workshopsBusy = workshops.filter(
-          (workshop) => workshop.status === 'yellow' || workshop.status === 'orange'
-        ).length;
+        const workshopsBusy = workshops.filter((workshop) => workshop.status === 'busy').length;
 
-        const workshopsCritical = workshops.filter(
-          (workshop) => workshop.status === 'red'
-        ).length;
+        const workshopsCritical = 0;
 
         setStats({
           totalCuts: cutsStats.totalCuts,

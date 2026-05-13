@@ -64,7 +64,7 @@ export function deriveWorkshopCardState(
     status = 'delayed';
   } else if (anyReadyForPickup) {
     status = 'ready_pickup';
-  } else if (workshop.status === 'orange' || anyPartial) {
+  } else if (anyPartial) {
     status = 'pendencies';
   } else if (anyProducingOk) {
     status = 'producing_ok';
@@ -100,4 +100,35 @@ export function deriveWorkshopCardState(
     productLine,
     moreActiveCount,
   };
+}
+
+/** Lotes em aberto na oficina (painel dono): pendente ou em produção. */
+export function workshopHasOwnerDashboardProduction(
+  workshop: Workshop,
+  allBatches: Batch[],
+): boolean {
+  return allBatches.some(
+    (b) =>
+      b.workshopId === workshop.id &&
+      b.status !== 'cancelled' &&
+      (b.status === 'pending' || b.status === 'in_progress'),
+  );
+}
+
+/** Lote principal exibido no detalhe (mais recente entre os em aberto). */
+export function getPrimaryDashboardBatch(
+  workshop: Workshop,
+  allBatches: Batch[],
+): Batch | null {
+  const rel = allBatches.filter(
+    (b) =>
+      b.workshopId === workshop.id &&
+      b.status !== 'cancelled' &&
+      (b.status === 'pending' || b.status === 'in_progress'),
+  );
+  if (rel.length === 0) return null;
+  const sorted = [...rel].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+  return sorted[0] ?? null;
 }

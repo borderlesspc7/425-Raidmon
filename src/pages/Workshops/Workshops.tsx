@@ -20,6 +20,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../hooks/useTheme';
 import AddressFields, { composeAddressString, type AddressValue } from '../../components/AddressFields/AddressFields';
 import ThemedNoticeModal from '../../components/ThemedNoticeModal/ThemedNoticeModal';
+import { useNavigation } from '../../routes/NavigationContext';
+import { paths } from '../../routes/paths';
 import {
   createWorkshop,
   getWorkshopsByUser,
@@ -32,6 +34,7 @@ import { canCreateAnotherWorkshop, getEffectiveUserPlan } from '../../utils/plan
 
 export default function Workshops() {
   const { user } = useAuth();
+  const { navigate } = useNavigation();
   const { t } = useLanguage();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -62,6 +65,7 @@ export default function Workshops() {
     title: string;
     message: string;
   } | null>(null);
+  const [limitNoticeOpen, setLimitNoticeOpen] = useState(false);
 
   useEffect(() => {
     loadWorkshops();
@@ -176,7 +180,7 @@ export default function Workshops() {
       } else {
         const ent = getEffectiveUserPlan(user?.plan);
         if (!canCreateAnotherWorkshop(ent, workshops.length)) {
-          Alert.alert(t('workshops.limitTitle'), t('workshops.limitMessage'));
+          setLimitNoticeOpen(true);
           return;
         }
         await createWorkshop(user.id, workshopData);
@@ -230,11 +234,11 @@ export default function Workshops() {
   const getStatusColor = (status: WorkshopStatus) => {
     switch (status) {
       case 'free':
-        return '#22C55E';
+        return '#2563EB';
       case 'busy':
-        return '#F97316';
+        return '#9CA3AF';
       default:
-        return '#6B7280';
+        return '#9CA3AF';
     }
   };
 
@@ -404,6 +408,20 @@ export default function Workshops() {
           title={successNotice?.title ?? ''}
           message={successNotice?.message ?? ''}
           onDismiss={() => setSuccessNotice(null)}
+        />
+
+        <ThemedNoticeModal
+          visible={limitNoticeOpen}
+          variant="info"
+          title={t('workshops.limitTitle')}
+          message={t('workshops.limitMessage')}
+          actionLabel={t('common.ok')}
+          secondaryActionLabel={t('workshops.viewPlans')}
+          onDismiss={() => setLimitNoticeOpen(false)}
+          onSecondaryPress={() => {
+            setLimitNoticeOpen(false);
+            navigate(paths.plans);
+          }}
         />
 
         {/* Modal de Cadastro/Edição */}

@@ -11,20 +11,24 @@ import {
   Easing,
   Share,
   Alert,
+  Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNavigation } from '../../routes/NavigationContext';
 import { useTheme } from '../../hooks/useTheme';
-import { deriveWorkshopCardState } from '../../utils/workshopOperationalStatus';
+import {
+  deriveWorkshopCardState,
+  getPrimaryDashboardBatch,
+  workshopHasOwnerDashboardProduction,
+  type OperationalDisplay,
+  type WorkshopCardModel,
+} from '../../utils/workshopOperationalStatus';
 import { getBatchProductionPillColors } from '../../utils/batchProductionStatusStyle';
-import type { Batch } from '../../types/batch';
+import type { Batch, ProductionFlowStatus } from '../../types/batch';
 import type { Workshop } from '../../types/workshop';
 import type { MonthlyPiecesPoint } from '../../services/receivePiecesService';
-import {
-  getMonthlyPiecesReceived,
-  getReceivePiecesByUser,
-} from '../../services/receivePiecesService';
+import { getReceivePiecesByUser } from '../../services/receivePiecesService';
 import { getWorkshopsByUser } from '../../services/workshopService';
 import { getBatchesByUser } from '../../services/batchService';
 import {
@@ -51,6 +55,48 @@ function formatMonthLabel(
 function formatDateShort(language: string, d: Date): string {
   const locale = language === 'es' ? 'es-ES' : 'pt-BR';
   return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** Dados ilustrativos só para o gráfico do painel do dono (pré-visualização do layout). */
+function buildDemoMonthlyPiecesReceived(months: number): MonthlyPiecesPoint[] {
+  const DEMO_SEQUENCE = [320, 180, 440, 290, 510];
+  const now = new Date();
+  const points: MonthlyPiecesPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const seqIdx = months - 1 - i;
+    points.push({
+      year: d.getFullYear(),
+      monthIndex: d.getMonth(),
+      pieces: DEMO_SEQUENCE[seqIdx % DEMO_SEQUENCE.length],
+    });
+  }
+  return points;
+}
+
+function operationalSituationLabel(t: (key: string) => string, status: OperationalDisplay): string {
+  const map: Record<OperationalDisplay, string> = {
+    ready_pickup: 'dashboard.owner.statusReadyPickup',
+    pendencies: 'dashboard.owner.statusPendencies',
+    sewing: 'dashboard.owner.statusSewing',
+    producing_ok: 'dashboard.owner.statusProducingOk',
+    delayed: 'dashboard.owner.statusDelayed',
+  };
+  return t(map[status]);
+}
+
+function productionFlowLabel(
+  t: (key: string) => string,
+  flow: ProductionFlowStatus | undefined,
+): string {
+  if (!flow) return t('dashboard.owner.flowNotReported');
+  const keys: Record<ProductionFlowStatus, string> = {
+    in_production: 'dashboard.owner.flowInProduction',
+    ready_for_pickup: 'dashboard.owner.flowReadyPickup',
+    partial: 'dashboard.owner.flowPartial',
+    paused: 'dashboard.owner.flowPaused',
+  };
+  return t(keys[flow]);
 }
 
 const BAR_STAGGER_MS = 130;
@@ -139,28 +185,31 @@ export default function DashboardOwner({
   const [entRows, setEntRows] = useState<EntRankRow[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [monthly, setMonthly] = useState<MonthlyPiecesPoint[]>([]);
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [workshopDetail, setWorkshopDetail] = useState<{
+    workshop: Workshop;
+    card: WorkshopCardModel;
+    batch: Batch | null;
+  } | null>(null);
+
+  const monthlyDemo = useMemo(() => buildDemoMonthlyPiecesReceived(5), []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     (async () => {
       try {
-        const [monthlyData, wList, bList] = await Promise.all([
-          getMonthlyPiecesReceived(userId, 5),
+        const [wList, bList] = await Promise.all([
           getWorkshopsByUser(userId),
           getBatchesByUser(userId),
         ]);
         if (cancelled) return;
-        setMonthly(monthlyData);
         setWorkshops(wList);
         setBatches(bList);
       } catch (e) {
         console.error(e);
         if (!cancelled) {
-          setMonthly([]);
           setWorkshops([]);
           setBatches([]);
         }
@@ -200,10 +249,8 @@ export default function DashboardOwner({
           }
         }
         const statusWeight: Record<Workshop['status'], number> = {
-          red: 0,
-          orange: 1,
-          yellow: 2,
-          green: 3,
+          busy: 0,
+          free: 1,
         };
         const rows: EntRankRow[] = wList.map((w) => ({
           name: w.name,
@@ -262,37 +309,31 @@ export default function DashboardOwner({
   );
 
   const workshopCards = useMemo(() => {
-    return workshops.map((w) => deriveWorkshopCardState(w, batches));
+    return workshops
+      .filter((w) => workshopHasOwnerDashboardProduction(w, batches))
+      .map((w) => deriveWorkshopCardState(w, batches));
   }, [workshops, batches]);
 
   const maxPieces = useMemo(
-    () => Math.max(...monthly.map((p) => p.pieces), 1),
-    [monthly],
+    () => Math.max(...monthlyDemo.map((p) => p.pieces), 1),
+    [monthlyDemo],
   );
 
   const piecesPanel = (
     <View style={[styles.panel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
       <Text style={[styles.panelTitle, { color: theme.colors.text }]}>{t('dashboard.owner.piecesTitle')}</Text>
       <Text style={[styles.panelSubtitle, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesSubtitle')}</Text>
-      {loading ? (
-        <View style={styles.panelLoading}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      ) : monthly.every((p) => p.pieces === 0) ? (
-        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.piecesEmpty')}</Text>
-      ) : (
-        <View style={styles.chartRow}>
-          {monthly.map((point, index) => (
-            <PiecesBarColumn
-              key={`${point.year}-${point.monthIndex}`}
-              point={point}
-              maxPieces={maxPieces}
-              language={language}
-              staggerIndex={index}
-            />
-          ))}
-        </View>
-      )}
+      <View style={styles.chartRow}>
+        {monthlyDemo.map((point, index) => (
+          <PiecesBarColumn
+            key={`${point.year}-${point.monthIndex}`}
+            point={point}
+            maxPieces={maxPieces}
+            language={language}
+            staggerIndex={index}
+          />
+        ))}
+      </View>
     </View>
   );
 
@@ -305,7 +346,7 @@ export default function DashboardOwner({
           <ActivityIndicator color={theme.colors.primary} />
         </View>
       ) : workshopCards.length === 0 ? (
-        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.workshopsEmpty')}</Text>
+        <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{t('dashboard.owner.workshopsEmptyProduction')}</Text>
       ) : (
         <ScrollView
           style={styles.workshopScroll}
@@ -313,32 +354,45 @@ export default function DashboardOwner({
           showsVerticalScrollIndicator={false}
         >
           {workshopCards.map((card) => (
-            <View
+            <TouchableOpacity
               key={card.workshopId}
-              style={[styles.workshopCard, { borderLeftColor: card.color, backgroundColor: theme.colors.surfaceSoft }]}
+              activeOpacity={0.88}
+              onPress={() => {
+                const w = workshops.find((x) => x.id === card.workshopId);
+                if (!w) return;
+                setWorkshopDetail({
+                  workshop: w,
+                  card,
+                  batch: getPrimaryDashboardBatch(w, batches),
+                });
+              }}
             >
-              <View style={styles.workshopBody}>
-                <View style={styles.workshopHeaderRow}>
-                  <Text style={[styles.workshopTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                    {card.title}
-                  </Text>
-                  <View style={styles.statusPill}>
-                    <View style={[styles.statusDot, { backgroundColor: card.color }]} />
+              <View
+                style={[styles.workshopCard, { borderLeftColor: card.color, backgroundColor: theme.colors.surfaceSoft }]}
+              >
+                <View style={styles.workshopBody}>
+                  <View style={styles.workshopHeaderRow}>
+                    <Text style={[styles.workshopTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                      {card.title}
+                    </Text>
+                    <View style={styles.statusPill}>
+                      <View style={[styles.statusDot, { backgroundColor: card.color }]} />
+                    </View>
                   </View>
-                </View>
-                {card.subtitle ? (
-                  <Text style={[styles.workshopSubtitle, { color: theme.colors.textMuted }]} numberOfLines={1}>
-                    {card.subtitle}
+                  {card.subtitle ? (
+                    <Text style={[styles.workshopSubtitle, { color: theme.colors.textMuted }]} numberOfLines={1}>
+                      {card.subtitle}
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.workshopProduct, { color: theme.colors.text }]} numberOfLines={2}>
+                    {card.productLine || '—'}
+                    {card.moreActiveCount > 0
+                      ? `  ${t('dashboard.owner.moreBatches').replace('{n}', String(card.moreActiveCount))}`
+                      : ''}
                   </Text>
-                ) : null}
-                <Text style={[styles.workshopProduct, { color: theme.colors.text }]} numberOfLines={2}>
-                  {card.productLine || '—'}
-                  {card.moreActiveCount > 0
-                    ? `  ${t('dashboard.owner.moreBatches').replace('{n}', String(card.moreActiveCount))}`
-                    : ''}
-                </Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
       )}
@@ -403,7 +457,8 @@ export default function DashboardOwner({
   );
 
   return (
-    <View style={[styles.scrollContent, { backgroundColor: theme.colors.background }]}>
+    <>
+      <View style={[styles.scrollContent, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.headerCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }]}>
         <View style={styles.headerTextBlock}>
           <Text style={[styles.title, { color: theme.colors.text }]}>{t('navigation.dashboard')}</Text>
@@ -475,20 +530,118 @@ export default function DashboardOwner({
           ) : null}
         </View>
       ) : null}
-    </View>
+      </View>
+
+      <Modal
+        visible={workshopDetail != null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setWorkshopDetail(null)}
+      >
+        <View style={[styles.detailOverlay, { backgroundColor: theme.colors.overlay }]}>
+          <View
+            style={[
+              styles.detailSheet,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
+            {workshopDetail ? (
+              <>
+                <View style={[styles.detailHeader, { borderBottomColor: theme.colors.border }]}>
+                  <Text style={[styles.detailTitle, { color: theme.colors.text }]} numberOfLines={2}>
+                    {workshopDetail.workshop.name}
+                  </Text>
+                  <TouchableOpacity onPress={() => setWorkshopDetail(null)} hitSlop={12}>
+                    <MaterialIcons name="close" size={24} color={theme.colors.text} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView
+                  style={styles.detailScroll}
+                  contentContainerStyle={styles.detailScrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={[styles.detailSection, { color: theme.colors.text }]}>
+                    {t('dashboard.owner.detailOperational')}
+                  </Text>
+                  <View style={styles.detailPillRow}>
+                    <View style={[styles.detailColorDot, { backgroundColor: workshopDetail.card.color }]} />
+                    <Text style={[styles.detailBody, { color: theme.colors.text }]}>
+                      {operationalSituationLabel(t, workshopDetail.card.status)}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.detailSection, { color: theme.colors.text, marginTop: 18 }]}>
+                    {t('dashboard.owner.detailWorkshopSection')}
+                  </Text>
+                  <Text style={[styles.detailMeta, { color: theme.colors.textMuted }]}>
+                    {t('dashboard.owner.detailAddress')}
+                  </Text>
+                  <Text style={[styles.detailBody, { color: theme.colors.text }]}>{workshopDetail.workshop.address}</Text>
+                  <Text style={[styles.detailMeta, { color: theme.colors.textMuted, marginTop: 10 }]}>
+                    {t('dashboard.owner.detailWhatsApp')}
+                  </Text>
+                  <Text style={[styles.detailBody, { color: theme.colors.text }]}>{workshopDetail.workshop.contact1}</Text>
+
+                  <Text style={[styles.detailSection, { color: theme.colors.text, marginTop: 18 }]}>
+                    {t('dashboard.owner.detailBatchSection')}
+                  </Text>
+                  {workshopDetail.batch ? (
+                    <View style={styles.detailBatchBlock}>
+                      <Text style={[styles.detailBatchName, { color: theme.colors.text }]}>
+                        {workshopDetail.batch.name}
+                      </Text>
+                      <Text style={[styles.detailBody, { color: theme.colors.textMuted }]}>
+                        {workshopDetail.batch.totalPieces} {t('batches.pieces')}
+                      </Text>
+                      <Text style={[styles.detailBody, { color: theme.colors.textMuted }]}>
+                        {t('dashboard.owner.detailBatchStatus')}:{' '}
+                        {t(`batches.status.${workshopDetail.batch.status}` as any)}
+                      </Text>
+                      <Text style={[styles.detailBody, { color: theme.colors.textMuted }]}>
+                        {t('dashboard.owner.detailProductionStage')}:{' '}
+                        {productionFlowLabel(t, workshopDetail.batch.productionFlowStatus)}
+                      </Text>
+                      {workshopDetail.batch.deliveryDate ? (
+                        <Text style={[styles.detailBody, { color: theme.colors.textMuted }]}>
+                          {t('batches.deliveryDate')}: {formatDateShort(language, workshopDetail.batch.deliveryDate)}
+                        </Text>
+                      ) : null}
+                      {workshopDetail.batch.productionNote ? (
+                        <Text style={[styles.detailNote, { color: theme.colors.textMuted }]}>
+                          {workshopDetail.batch.productionNote}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <Text style={[styles.detailBody, { color: theme.colors.textMuted }]}>
+                      {t('dashboard.owner.detailNoBatch')}
+                    </Text>
+                  )}
+                </ScrollView>
+                <View style={[styles.detailFooter, { borderTopColor: theme.colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.detailCloseBtn, { backgroundColor: theme.colors.primary }]}
+                    onPress={() => setWorkshopDetail(null)}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.detailCloseBtnText}>{t('dashboard.owner.detailClose')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 function rankStatusColor(s: Workshop['status']): string {
   switch (s) {
-    case 'green':
+    case 'free':
       return '#10B981';
-    case 'yellow':
-      return '#EAB308';
-    case 'orange':
+    case 'busy':
       return '#F97316';
-    case 'red':
-      return '#EF4444';
     default:
       return '#9CA3AF';
   }
@@ -833,5 +986,99 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  detailOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 24,
+  },
+  detailSheet: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '88%',
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  detailTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '800',
+    lineHeight: 26,
+  },
+  detailScroll: {
+    maxHeight: 420,
+  },
+  detailScrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 20,
+  },
+  detailSection: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  detailMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  detailBody: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  detailPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detailColorDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  detailBatchBlock: {
+    gap: 6,
+  },
+  detailBatchName: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  detailNote: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  detailFooter: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+  },
+  detailCloseBtn: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  detailCloseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

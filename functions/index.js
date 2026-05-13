@@ -285,6 +285,34 @@ async function getLatestSubscriptionPayment(apiKey, subscriptionId) {
   return null;
 }
 
+/** PIX: QR copia-e-cola; BOLETO: linha digitável / PDF quando o Asaas já retorna na cobrança. */
+async function enrichSubscriptionPaymentForClient(apiKey, latestPayment, billingType) {
+  const out = {
+    invoiceUrl: latestPayment?.invoiceUrl || null,
+    pixCopyPaste: null,
+    pixEncodedImage: null,
+    bankSlipUrl: null,
+    identificationField: null,
+  };
+  if (!latestPayment?.id) return out;
+  const bt = billingType === "BOLETO" ? "BOLETO" : "PIX";
+  if (bt === "BOLETO") {
+    out.bankSlipUrl = latestPayment.bankSlipUrl || null;
+    out.identificationField = latestPayment.identificationField || null;
+    return out;
+  }
+  try {
+    const pixQr = await asaasFetch(apiKey, `/payments/${latestPayment.id}/pixQrCode`, {
+      method: "GET",
+    });
+    out.pixCopyPaste = pixQr?.payload || null;
+    out.pixEncodedImage = pixQr?.encodedImage || null;
+  } catch (e) {
+    logger.warn("[enrichSubscriptionPaymentForClient] Cobrança sem QR PIX imediato", e?.message);
+  }
+  return out;
+}
+
 const ASAAS_COMPANY_TYPES = new Set(["MEI", "LIMITED", "INDIVIDUAL", "ASSOCIATION"]);
 
 function onlyDigits(s) {
@@ -300,6 +328,19 @@ function formatBrCep(d) {
 function isValidCpfCnpjLength(cpfCnpj) {
   return cpfCnpj.length === 11 || cpfCnpj.length === 14;
 }
+
+/**
+ * Verifica se CPF/CNPJ já está em uso (coleção `users`, campo `cpf` só dígitos).
+ * Chamável sem login — usada antes do cadastro no Auth.
+ */
+exports.checkCpfCnpjAvailable = onCall({ cors: true }, async (request) => {
+  const digits = onlyDigits(request.data?.cpfCnpj);
+  if (!isValidCpfCnpjLength(digits)) {
+    throw new HttpsError("invalid-argument", "CPF ou CNPJ inválido.");
+  }
+  const snap = await db.collection("users").where("cpf", "==", digits).limit(1).get();
+  return { available: snap.empty };
+});
 
 /**
  * Cria subconta Asaas (POST /v3/accounts) para oficina (userType workshop).
@@ -797,7 +838,17 @@ exports.createAsaasSubscription = onCall(
       throw new HttpsError("unauthenticated", "Faça login para assinar um plano.");
     }
     const uid = request.auth.uid;
-    const { planId, value, nextDueDate } = request.data || {};
+    const { planId, value, nextDueDate, billingType: billingTypeRaw } = request.data || {};
+    const billingTypeNorm = String(billingTypeRaw || "PIX")
+      .trim()
+      .toUpperCase();
+    const billingType = billingTypeNorm === "BOLETO" ? "BOLETO" : "PIX";
+    if (billingTypeNorm !== "PIX" && billingTypeNorm !== "BOLETO") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Forma de pagamento inválida. Use PIX ou BOLETO."
+      );
+    }
     const validPlan = planId === "premium" || planId === "enterprise";
     if (!validPlan) {
       throw new HttpsError("invalid-argument", "Plano inválido para assinatura.");
@@ -829,35 +880,32 @@ exports.createAsaasSubscription = onCall(
       const status = userData.subscriptionStatus || "ACTIVE";
       if (existingPlan === planId && status !== "CANCELLED" && status !== "INACTIVE") {
         const latestPayment = await getLatestSubscriptionPayment(apiKey, existingSubId);
-        let pixQr = null;
-        if (latestPayment?.id) {
-          try {
-            pixQr = await asaasFetch(apiKey, `/payments/${latestPayment.id}/pixQrCode`, {
-              method: "GET",
-            });
-          } catch (e) {
-            logger.warn(
-              "[createAsaasSubscription] Assinatura existente sem QR imediato",
-              e?.message
-            );
-          }
-        }
+        const existingBt =
+          latestPayment?.billingType === "BOLETO" ? "BOLETO" : "PIX";
+        const enriched = await enrichSubscriptionPaymentForClient(
+          apiKey,
+          latestPayment,
+          existingBt
+        );
         return {
           alreadyExists: true,
           subscriptionId: existingSubId,
           planId,
           subscriptionStatus: status,
           nextDueDate: userData.subscriptionNextDueDate || null,
-          invoiceUrl: latestPayment?.invoiceUrl || null,
-          pixCopyPaste: pixQr?.payload || null,
-          pixEncodedImage: pixQr?.encodedImage || null,
+          billingType: existingBt,
+          invoiceUrl: enriched.invoiceUrl,
+          pixCopyPaste: enriched.pixCopyPaste,
+          pixEncodedImage: enriched.pixEncodedImage,
+          bankSlipUrl: enriched.bankSlipUrl,
+          identificationField: enriched.identificationField,
         };
       }
     }
 
     const subPayload = {
       customer: customerId,
-      billingType: "PIX",
+      billingType,
       value: roundMoney(amount),
       cycle: "MONTHLY",
       nextDueDate: dueDateStr,
@@ -896,7 +944,7 @@ exports.createAsaasSubscription = onCall(
         asaasSubscriptionId: subscriptionId,
         asaasPaymentId: latestPayment.id,
         asaasInvoiceUrl: latestPayment.invoiceUrl || null,
-        asaasBillingType: "PIX",
+        asaasBillingType: billingType,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -911,25 +959,23 @@ exports.createAsaasSubscription = onCall(
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    let pixQr = null;
-    if (latestPayment?.id) {
-      try {
-        pixQr = await asaasFetch(apiKey, `/payments/${latestPayment.id}/pixQrCode`, {
-          method: "GET",
-        });
-      } catch (e) {
-        logger.warn("[createAsaasSubscription] Cobrança criada sem QR imediato", e?.message);
-      }
-    }
+    const enriched = await enrichSubscriptionPaymentForClient(
+      apiKey,
+      latestPayment,
+      billingType
+    );
 
     return {
       subscriptionId,
       planId,
       subscriptionStatus: createdSub.status || "ACTIVE",
       nextDueDate: createdSub.nextDueDate || dueDateStr,
-      invoiceUrl: latestPayment?.invoiceUrl || null,
-      pixCopyPaste: pixQr?.payload || null,
-      pixEncodedImage: pixQr?.encodedImage || null,
+      billingType,
+      invoiceUrl: enriched.invoiceUrl,
+      pixCopyPaste: enriched.pixCopyPaste,
+      pixEncodedImage: enriched.pixEncodedImage,
+      bankSlipUrl: enriched.bankSlipUrl,
+      identificationField: enriched.identificationField,
     };
   }
 );

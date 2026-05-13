@@ -1,13 +1,9 @@
 import {
-  collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
@@ -20,6 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../lib/firebaseconfig';
 import { User, LoginCredentials, RegisterCredentials, type WorkshopAsaasSubaccountInput } from '../types/auth';
 import { createAsaasSubaccount } from './asaasSubaccount';
+import { assertCpfCnpjAvailableForRegistration } from './cpfCnpjAvailability';
 
 const ADMIN_EMAIL = 'costuraconectada@gmail.com';
 
@@ -251,20 +248,7 @@ export const authService = {
         throw new Error('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido');
       }
 
-      // Em regras atuais, o cliente não pode listar/consultar toda coleção users.
-      // Então a checagem de duplicidade de CPF/CNPJ no client pode falhar por permissão.
-      // Quando isso acontecer, seguimos o fluxo de cadastro normalmente.
-      try {
-        const cpfQuery = query(collection(db, 'users'), where('cpf', '==', cpfDigits));
-        const cpfExists = await getDocs(cpfQuery);
-        if (!cpfExists.empty) {
-          throw new Error('Já existe uma conta cadastrada com este CPF/CNPJ');
-        }
-      } catch (e: any) {
-        if (e?.code !== 'permission-denied' && e?.code !== 'firestore/permission-denied') {
-          throw e;
-        }
-      }
+      await assertCpfCnpjAvailableForRegistration(cpfDigits);
 
       // Cria o usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(

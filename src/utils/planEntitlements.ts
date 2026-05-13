@@ -36,6 +36,7 @@ export function isPaymentInPlanHistoryWindow(
 }
 
 export function getMaxWorkshopsForPlan(plan: UserPlan): number | null {
+  /** Artesão = basic (1), Conectado = premium (3), Indústria = enterprise (ilimitado). */
   if (plan === "basic") return 1;
   if (plan === "premium") return 3;
   return null;

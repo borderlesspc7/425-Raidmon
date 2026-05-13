@@ -70,6 +70,7 @@ export const translations = {
       success: "Sucesso",
       info: "Informação",
       cancel: "Cancelar",
+      ok: "OK",
       save: "Salvar",
       pay: "Pagar",
       back: "Voltar",
@@ -124,7 +125,7 @@ export const translations = {
       owner: {
         piecesTitle: "Peças recebidas por mês",
         piecesSubtitle:
-          "Soma de peças registradas em recebimentos (últimos 5 meses).",
+          "Gráfico ilustrativo com dados de exemplo (últimos 5 meses) — só para visualização do painel.",
         workshopsTitle: "Oficinas",
         batchesTitle: "Lotes",
         statusReadyPickup: "Pronto para retirada",
@@ -136,9 +137,25 @@ export const translations = {
         moreBatches: "+{n} lotes",
         piecesEmpty: "Nenhum recebimento neste período.",
         workshopsEmpty: "Nenhuma oficina cadastrada.",
+        workshopsEmptyProduction:
+          "Nenhuma oficina com produção em andamento (lote pendente ou em produção).",
         batchesEmpty: "Nenhum lote ainda.",
         syncHint:
           "Estado derivado dos lotes; a sincronização em tempo real com o app da oficina virá em breve.",
+        detailOperational: "Situação na oficina",
+        detailWorkshopSection: "Dados da oficina",
+        detailBatchSection: "Lote em andamento",
+        detailAddress: "Endereço",
+        detailWhatsApp: "WhatsApp",
+        detailBatchStatus: "Status do lote",
+        detailProductionStage: "Etapa na oficina",
+        detailNoBatch: "Nenhum lote em aberto vinculado a esta oficina.",
+        detailClose: "Fechar",
+        flowNotReported: "Não informado",
+        flowInProduction: "Em produção",
+        flowReadyPickup: "Pronto para retirada",
+        flowPartial: "Entrega parcial",
+        flowPaused: "Pausado",
         industryPanelTitle: "Indústria — ranking e exportação",
         industryPanelSubtitle:
           "Ordenado por risco (status) e volume baixo de peças no mês; use para achar oficina em atraso ou com pouca entrega.",
@@ -230,7 +247,8 @@ export const translations = {
       },
       limitTitle: "Limite de oficinas",
       limitMessage:
-        "Seu plano atingiu o limite de oficinas. Faça upgrade no menu Planos para adicionar mais.",
+        "No plano Artesão você pode cadastrar apenas uma oficina. Os planos Conectado e Indústria permitem cadastrar mais oficinas.",
+      viewPlans: "Ver planos",
     },
     // Cuts
     cuts: {
@@ -980,9 +998,27 @@ export const translations = {
         title: "Assinatura",
         amountLabel: "Valor",
         payWithPix: "Gerar PIX (Asaas)",
+        payWithBoleto: "Gerar boleto (Asaas)",
+        paymentOptionsHint:
+          "Cobrança mensal via Asaas. Assim que o banco confirmar o pagamento, seu plano atualiza sozinho.",
+        paymentMethodTitle: "Como deseja pagar?",
+        paymentMethodSubtitle: "Escolha uma opção abaixo e toque em gerar cobrança.",
+        pixOptionTitle: "PIX",
+        pixOptionDesc: "QR Code ou copia e cola — confirmação em minutos.",
+        boletoOptionTitle: "Boleto",
+        boletoOptionDesc: "Linha digitável ou PDF — pode levar alguns dias úteis.",
+        generateChargePix: "Gerar cobrança no PIX",
+        generateChargeBoleto: "Gerar cobrança no boleto",
+        generatingCharge: "Gerando cobrança…",
         activateFree: "Ativar plano gratuito",
         pixNote:
           "Após a confirmação do pagamento pelo banco, seu plano será atualizado automaticamente.",
+        boletoModalTitle: "Pagar com boleto",
+        copyBankSlipLine: "Copiar linha digitável",
+        bankSlipLineCopied: "Linha digitável copiada!",
+        openBankSlipPdf: "Abrir boleto (PDF)",
+        boletoWaitingHint:
+          "O boleto pode levar até alguns dias úteis para compensar; o app atualiza seu plano quando o Asaas confirmar o recebimento.",
         freeNote: "O plano Artesão não tem cobrança mensal neste app.",
         notAuthenticated: "Usuário não autenticado. Faça login novamente.",
         paymentDescription: "Assinatura {plan} - Costura Conectada",
@@ -990,6 +1026,10 @@ export const translations = {
           "Monitorando o pagamento: quando o banco confirmar, o app atualiza sozinho.",
         paymentConfirmedBody:
           "Pagamento confirmado! Seu plano agora é {plan}.",
+        paymentSuccessTitle: "Pagamento realizado",
+        paymentSuccessBody:
+          "Seu pagamento foi confirmado com sucesso. O app se adapta ao plano {plan}: os recursos e limites desta assinatura já passam a valer para sua conta.",
+        paymentSuccessOk: "Entendi",
       },
       faq: {
         title: "Perguntas Frequentes",
@@ -1074,6 +1114,7 @@ export const translations = {
       success: "Éxito",
       info: "Información",
       cancel: "Cancelar",
+      ok: "OK",
       save: "Guardar",
       pay: "Pagar",
       back: "Volver",
@@ -1128,7 +1169,7 @@ export const translations = {
       owner: {
         piecesTitle: "Piezas recibidas por mes",
         piecesSubtitle:
-          "Suma de piezas registradas en recepciones (últimos 5 meses).",
+          "Gráfico ilustrativo con datos de ejemplo (últimos 5 meses) — solo para previsualizar el panel.",
         workshopsTitle: "Talleres",
         batchesTitle: "Lotes",
         statusReadyPickup: "Listo para retirar",
@@ -1140,9 +1181,25 @@ export const translations = {
         moreBatches: "+{n} lotes",
         piecesEmpty: "Ninguna recepción en este período.",
         workshopsEmpty: "Ningún taller registrado.",
+        workshopsEmptyProduction:
+          "Ningún taller con producción en curso (lote pendiente o en producción).",
         batchesEmpty: "Ningún lote todavía.",
         syncHint:
           "Estado derivado de los lotes; la sincronización en tiempo real con la app del taller llegará pronto.",
+        detailOperational: "Situación en el taller",
+        detailWorkshopSection: "Datos del taller",
+        detailBatchSection: "Lote en curso",
+        detailAddress: "Dirección",
+        detailWhatsApp: "WhatsApp",
+        detailBatchStatus: "Estado del lote",
+        detailProductionStage: "Etapa en el taller",
+        detailNoBatch: "Ningún lote abierto vinculado a este taller.",
+        detailClose: "Cerrar",
+        flowNotReported: "No informado",
+        flowInProduction: "En producción",
+        flowReadyPickup: "Listo para retirar",
+        flowPartial: "Entrega parcial",
+        flowPaused: "En pausa",
         industryPanelTitle: "Industria — ranking y exportación",
         industryPanelSubtitle:
           "Ordenado por riesgo (estado) y bajo volumen de piezas del mes; para detectar retrasos o baja entrega.",
@@ -1235,7 +1292,8 @@ export const translations = {
       },
       limitTitle: "Límite de talleres",
       limitMessage:
-        "Tu plan alcanzó el límite de talleres. Mejora en el menú Planes para añadir más.",
+        "En el plan Artesano solo puedes registrar un taller. Los planes Conectado e Industria permiten registrar más talleres.",
+      viewPlans: "Ver planes",
     },
     // Cuts
     cuts: {
@@ -1985,9 +2043,27 @@ export const translations = {
         title: "Suscripción",
         amountLabel: "Importe",
         payWithPix: "Generar PIX (Asaas)",
+        payWithBoleto: "Generar boleto (Asaas)",
+        paymentOptionsHint:
+          "Cargo mensual vía Asaas. Cuando el banco confirme el pago, tu plan se actualizará solo.",
+        paymentMethodTitle: "¿Cómo deseas pagar?",
+        paymentMethodSubtitle: "Elige una opción y toca generar cobro.",
+        pixOptionTitle: "PIX",
+        pixOptionDesc: "QR o copia y pago — confirmación en minutos.",
+        boletoOptionTitle: "Boleto",
+        boletoOptionDesc: "Código o PDF — puede tardar unos días hábiles.",
+        generateChargePix: "Generar cobro con PIX",
+        generateChargeBoleto: "Generar cobro con boleto",
+        generatingCharge: "Generando cobro…",
         activateFree: "Activar plan gratuito",
         pixNote:
           "Tras la confirmación del pago por el banco, tu plan se actualizará automáticamente.",
+        boletoModalTitle: "Pagar con boleto",
+        copyBankSlipLine: "Copiar código del boleto",
+        bankSlipLineCopied: "¡Línea copiada!",
+        openBankSlipPdf: "Abrir boleto (PDF)",
+        boletoWaitingHint:
+          "El boleto puede tardar unos días hábiles en compensarse; la app actualizará tu plan cuando Asaas confirme el cobro.",
         freeNote: "El plan Artesano no tiene costo mensual en esta app.",
         notAuthenticated: "Usuario no autenticado. Inicia sesión de nuevo.",
         paymentDescription: "Suscripción {plan} - Costura Conectada",
@@ -1995,6 +2071,10 @@ export const translations = {
           "Monitoreando el pago: cuando el banco confirme, la app se actualizará sola.",
         paymentConfirmedBody:
           "¡Pago confirmado! Tu plan ahora es {plan}.",
+        paymentSuccessTitle: "Pago realizado",
+        paymentSuccessBody:
+          "Tu pago se confirmó correctamente. La app se adapta al plan {plan}: los recursos y límites de esta suscripción ya aplican a tu cuenta.",
+        paymentSuccessOk: "Entendido",
       },
       faq: {
         title: "Preguntas Frecuentes",

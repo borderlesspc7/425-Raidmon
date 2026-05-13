@@ -13,6 +13,9 @@ type Props = {
   actionLabel?: string;
   /** Texto auxiliar abaixo da mensagem */
   hint?: string;
+  /** Segundo botão (ex.: “Ver planos”) */
+  secondaryActionLabel?: string;
+  onSecondaryPress?: () => void;
 };
 
 export default function ThemedNoticeModal({
@@ -23,6 +26,8 @@ export default function ThemedNoticeModal({
   variant = "success",
   actionLabel = "OK",
   hint,
+  secondaryActionLabel,
+  onSecondaryPress,
 }: Props) {
   const { theme } = useTheme();
   const iconName = variant === "success" ? "check-circle" : "info";
@@ -71,13 +76,38 @@ export default function ThemedNoticeModal({
               {hint}
             </Text>
           ) : null}
-          <TouchableOpacity
-            style={[styles.ok, { backgroundColor: theme.colors.primary }]}
-            onPress={onDismiss}
-            activeOpacity={0.85}
+          <View
+            style={[
+              styles.actionsRow,
+              secondaryActionLabel && onSecondaryPress ? styles.actionsRowSplit : null,
+            ]}
           >
-            <Text style={styles.okText}>{actionLabel}</Text>
-          </TouchableOpacity>
+            {secondaryActionLabel && onSecondaryPress ? (
+              <TouchableOpacity
+                style={[
+                  styles.secondaryBtn,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft },
+                ]}
+                onPress={onSecondaryPress}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.secondaryBtnText, { color: theme.colors.text }]}>
+                  {secondaryActionLabel}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.ok,
+                { backgroundColor: theme.colors.primary },
+                secondaryActionLabel && onSecondaryPress ? styles.okFlex : null,
+              ]}
+              onPress={onDismiss}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.okText}>{actionLabel}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -125,11 +155,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 22,
   },
+  actionsRow: {
+    alignSelf: "stretch",
+    gap: 10,
+  },
+  actionsRowSplit: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  secondaryBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  secondaryBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
   ok: {
     alignSelf: "stretch",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
+  },
+  okFlex: {
+    flex: 1,
   },
   okText: {
     color: "#FFFFFF",

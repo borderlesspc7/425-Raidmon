@@ -17,14 +17,19 @@ export type CreateAsaasChargeResult = {
   grossAmount: number;
 };
 
+export type SubscriptionCheckoutBillingType = "PIX" | "BOLETO";
+
 export type CreateAsaasSubscriptionResult = {
   subscriptionId: string;
   planId: "premium" | "enterprise";
   subscriptionStatus: string;
   nextDueDate: string | null;
+  billingType: SubscriptionCheckoutBillingType;
   invoiceUrl: string | null;
   pixCopyPaste: string | null;
   pixEncodedImage: string | null;
+  bankSlipUrl: string | null;
+  identificationField: string | null;
   alreadyExists?: boolean;
 };
 
@@ -57,6 +62,7 @@ export async function createAsaasSubscriptionForPlan(input: {
   planId: "premium" | "enterprise";
   value: number;
   nextDueDate?: string;
+  billingType?: SubscriptionCheckoutBillingType;
 }): Promise<CreateAsaasSubscriptionResult> {
   const functions = getFunctions(app, REGION);
   const callable = httpsCallable(functions, "createAsaasSubscription");

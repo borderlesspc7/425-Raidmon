@@ -25,7 +25,10 @@ import {
   type SubscriptionPlanId,
   isSubscriptionPlanId,
 } from "../../constants/planPricing";
-import { createAsaasSubscriptionForPlan } from "../../services/asaasPayments";
+import {
+  createAsaasSubscriptionForPlan,
+  type SubscriptionCheckoutBillingType,
+} from "../../services/asaasPayments";
 import { createPayment } from "../../services/paymentService";
 import { db } from "../../lib/firebaseconfig";
 import { isUserOnPlan } from "../../utils/subscriptionStatus";
@@ -47,16 +50,22 @@ export default function PlanCheckout() {
   const { t } = useLanguage();
   const { navigate, navigationParams } = useNavigation();
   const { user, updateProfile, refreshUser } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   const planId = navigationParams.planId;
   const [loading, setLoading] = useState(false);
+  const [payLoading, setPayLoading] = useState<SubscriptionCheckoutBillingType | null>(null);
+  const [selectedPayMethod, setSelectedPayMethod] = useState<SubscriptionCheckoutBillingType>("PIX");
   const [pixModalVisible, setPixModalVisible] = useState(false);
+  const [subscriptionPaidPlanName, setSubscriptionPaidPlanName] = useState<string | null>(null);
   const [pixView, setPixView] = useState<{
+    billingType: SubscriptionCheckoutBillingType;
     description: string;
     pixCopyPaste: string | null;
     pixEncodedImage: string | null;
     invoiceUrl: string | null;
+    bankSlipUrl: string | null;
+    identificationField: string | null;
     platformFeeAmount?: number;
   } | null>(null);
 
@@ -126,11 +135,7 @@ export default function PlanCheckout() {
           await refreshUser();
           setPixModalVisible(false);
           setPixView(null);
-          Alert.alert(
-            t("plans.success"),
-            t("plans.checkout.paymentConfirmedBody").replace("{plan}", planName),
-            [{ text: "OK", onPress: () => navigate(paths.plans) }],
-          );
+          setSubscriptionPaidPlanName(planName);
         })();
       }
     });
@@ -157,9 +162,27 @@ export default function PlanCheckout() {
       currency: "BRL",
     }).format(value);
 
+  const payMethodPalettes = useMemo(() => {
+    if (isDark) {
+      return {
+        pix: { well: "rgba(16, 185, 129, 0.14)", icon: "#34D399" },
+        boleto: { well: "rgba(245, 158, 11, 0.14)", icon: "#FBBF24" },
+      };
+    }
+    return {
+      pix: { well: "#ECFDF5", icon: "#059669" },
+      boleto: { well: "#FFFBEB", icon: "#D97706" },
+    };
+  }, [isDark]);
+
   const copyPixCode = async (payload: string) => {
     await Clipboard.setStringAsync(payload);
     Alert.alert(t("common.success"), t("payments.pixCopied"));
+  };
+
+  const copyBankSlipLine = async (payload: string) => {
+    await Clipboard.setStringAsync(payload);
+    Alert.alert(t("common.success"), t("plans.checkout.bankSlipLineCopied"));
   };
 
   const handleActivateFree = async () => {
@@ -182,7 +205,7 @@ export default function PlanCheckout() {
     }
   };
 
-  const handleGeneratePix = async () => {
+  const handleSubscribe = async (billingType: SubscriptionCheckoutBillingType) => {
     if (!validPlan || !user?.id) {
       Alert.alert(t("common.error"), t("plans.checkout.notAuthenticated"));
       return;
@@ -198,7 +221,7 @@ export default function PlanCheckout() {
     }
 
     try {
-      setLoading(true);
+      setPayLoading(billingType);
       const userPreSnap = await getDoc(doc(db, "users", user.id));
       const prePlan =
         typeof userPreSnap.data()?.plan === "string" && userPreSnap.data()?.plan
@@ -214,12 +237,18 @@ export default function PlanCheckout() {
         planId: validPlan as "premium" | "enterprise",
         value: price,
         nextDueDate,
+        billingType,
       });
+      const resolvedBilling: SubscriptionCheckoutBillingType =
+        data.billingType === "BOLETO" ? "BOLETO" : "PIX";
       setPixView({
+        billingType: resolvedBilling,
         description,
-        pixCopyPaste: data.pixCopyPaste,
-        pixEncodedImage: data.pixEncodedImage,
-        invoiceUrl: data.invoiceUrl,
+        pixCopyPaste: data.pixCopyPaste ?? null,
+        pixEncodedImage: data.pixEncodedImage ?? null,
+        invoiceUrl: data.invoiceUrl ?? null,
+        bankSlipUrl: data.bankSlipUrl ?? null,
+        identificationField: data.identificationField ?? null,
       });
       setPixModalVisible(true);
     } catch (error: any) {
@@ -230,7 +259,7 @@ export default function PlanCheckout() {
         t("payments.asaasError");
       Alert.alert(t("common.error"), String(msg));
     } finally {
-      setLoading(false);
+      setPayLoading(null);
     }
   };
 
@@ -279,9 +308,105 @@ export default function PlanCheckout() {
                 ? t("plans.alreadyOnPlanBody").replace("{plan}", planName)
                 : price <= 0
                   ? t("plans.checkout.freeNote")
-                  : t("plans.checkout.pixNote")}
+                  : t("plans.checkout.paymentOptionsHint")}
             </Text>
           </View>
+
+          {!alreadyOnThisPlan && price > 0 ? (
+            <View
+              style={[
+                styles.sectionCard,
+                styles.paymentMethodSection,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 },
+              ]}
+            >
+              <Text style={[styles.paymentMethodTitle, { color: theme.colors.text }]}>
+                {t("plans.checkout.paymentMethodTitle")}
+              </Text>
+              <Text style={[styles.paymentMethodSubtitle, { color: theme.colors.textMuted }]}>
+                {t("plans.checkout.paymentMethodSubtitle")}
+              </Text>
+              <View style={styles.methodRow}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  disabled={!!payLoading}
+                  onPress={() => setSelectedPayMethod("PIX")}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedPayMethod === "PIX" }}
+                  style={[
+                    styles.methodCard,
+                    {
+                      backgroundColor: theme.colors.surfaceSoft,
+                      borderColor:
+                        selectedPayMethod === "PIX" ? theme.colors.primary : theme.colors.border,
+                      borderWidth: selectedPayMethod === "PIX" ? 2 : 1,
+                    },
+                    selectedPayMethod === "PIX" ? styles.methodCardSelected : null,
+                  ]}
+                >
+                  {selectedPayMethod === "PIX" ? (
+                    <View style={[styles.methodCheckBadge, { backgroundColor: theme.colors.primary }]}>
+                      <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                    </View>
+                  ) : null}
+                  <View
+                    style={[
+                      styles.methodIconWell,
+                      { backgroundColor: payMethodPalettes.pix.well },
+                    ]}
+                  >
+                    <MaterialIcons name="qr-code-2" size={26} color={payMethodPalettes.pix.icon} />
+                  </View>
+                  <Text style={[styles.methodCardTitle, { color: theme.colors.text }]}>
+                    {t("plans.checkout.pixOptionTitle")}
+                  </Text>
+                  <Text style={[styles.methodCardDesc, { color: theme.colors.textMuted }]}>
+                    {t("plans.checkout.pixOptionDesc")}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  disabled={!!payLoading}
+                  onPress={() => setSelectedPayMethod("BOLETO")}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedPayMethod === "BOLETO" }}
+                  style={[
+                    styles.methodCard,
+                    {
+                      backgroundColor: theme.colors.surfaceSoft,
+                      borderColor:
+                        selectedPayMethod === "BOLETO"
+                          ? theme.colors.primary
+                          : theme.colors.border,
+                      borderWidth: selectedPayMethod === "BOLETO" ? 2 : 1,
+                    },
+                    selectedPayMethod === "BOLETO" ? styles.methodCardSelected : null,
+                  ]}
+                >
+                  {selectedPayMethod === "BOLETO" ? (
+                    <View style={[styles.methodCheckBadge, { backgroundColor: theme.colors.primary }]}>
+                      <MaterialIcons name="check" size={16} color="#FFFFFF" />
+                    </View>
+                  ) : null}
+                  <View
+                    style={[
+                      styles.methodIconWell,
+                      { backgroundColor: payMethodPalettes.boleto.well },
+                    ]}
+                  >
+                    <MaterialIcons name="receipt-long" size={26} color={payMethodPalettes.boleto.icon} />
+                  </View>
+                  <Text style={[styles.methodCardTitle, { color: theme.colors.text }]}>
+                    {t("plans.checkout.boletoOptionTitle")}
+                  </Text>
+                  <Text style={[styles.methodCardDesc, { color: theme.colors.textMuted }]}>
+                    {t("plans.checkout.boletoOptionDesc")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.footer}>
             {alreadyOnThisPlan ? (
@@ -307,14 +432,21 @@ export default function PlanCheckout() {
             ) : (
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={handleGeneratePix}
-                disabled={loading}
+                onPress={() => void handleSubscribe(selectedPayMethod)}
+                disabled={!!payLoading}
               >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                {payLoading ? (
+                  <View style={styles.generateChargeInner}>
+                    <ActivityIndicator color="#FFFFFF" />
+                    <Text style={[styles.primaryButtonText, styles.generateChargeLabel]}>
+                      {t("plans.checkout.generatingCharge")}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {t("plans.checkout.payWithPix")}
+                    {selectedPayMethod === "PIX"
+                      ? t("plans.checkout.generateChargePix")
+                      : t("plans.checkout.generateChargeBoleto")}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -334,7 +466,11 @@ export default function PlanCheckout() {
           <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
             <View style={[styles.modalContent, styles.pixModalBox, { backgroundColor: theme.colors.surface }]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>{t("payments.pixModalTitle")}</Text>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  {pixView?.billingType === "BOLETO"
+                    ? t("plans.checkout.boletoModalTitle")
+                    : t("payments.pixModalTitle")}
+                </Text>
                 <TouchableOpacity
                   onPress={() => {
                     setPixModalVisible(false);
@@ -354,13 +490,18 @@ export default function PlanCheckout() {
                       </Text>
                     </View>
                     <Text style={[styles.pixDesc, { color: theme.colors.text }]}>{pixView.description}</Text>
+                    {pixView.billingType === "BOLETO" ? (
+                      <Text style={[styles.boletoTimingHint, { color: theme.colors.textMuted }]}>
+                        {t("plans.checkout.boletoWaitingHint")}
+                      </Text>
+                    ) : null}
                     {pixView.platformFeeAmount != null && pixView.platformFeeAmount > 0 ? (
                       <Text style={styles.pixFee}>
                         {t("payments.platformFeeLabel")}:{" "}
                         {formatCurrency(pixView.platformFeeAmount)}
                       </Text>
                     ) : null}
-                    {pixView.pixEncodedImage ? (
+                    {pixView.billingType === "PIX" && pixView.pixEncodedImage ? (
                       <Image
                         source={{
                           uri: `data:image/png;base64,${pixView.pixEncodedImage}`,
@@ -378,7 +519,7 @@ export default function PlanCheckout() {
                         <Text style={styles.pixLinkText}>{t("payments.pixOpenInvoice")}</Text>
                       </TouchableOpacity>
                     ) : null}
-                    {pixView.pixCopyPaste ? (
+                    {pixView.billingType === "PIX" && pixView.pixCopyPaste ? (
                       <TouchableOpacity
                         style={styles.pixCopyBtn}
                         onPress={() => copyPixCode(pixView.pixCopyPaste!)}
@@ -386,12 +527,71 @@ export default function PlanCheckout() {
                         <MaterialIcons name="content-copy" size={18} color="#FFFFFF" />
                         <Text style={styles.pixCopyBtnText}>{t("payments.pixCopy")}</Text>
                       </TouchableOpacity>
-                    ) : pixView.invoiceUrl ? (
+                    ) : pixView.billingType === "PIX" && pixView.invoiceUrl ? (
+                      <Text style={styles.pixHint}>{t("payments.pixUseInvoiceLink")}</Text>
+                    ) : null}
+                    {pixView.billingType === "BOLETO" && pixView.bankSlipUrl ? (
+                      <TouchableOpacity
+                        style={styles.pixLinkBtn}
+                        onPress={() => Linking.openURL(pixView.bankSlipUrl!)}
+                      >
+                        <MaterialIcons name="picture-as-pdf" size={18} color="#6366F1" />
+                        <Text style={styles.pixLinkText}>{t("plans.checkout.openBankSlipPdf")}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {pixView.billingType === "BOLETO" && pixView.identificationField ? (
+                      <TouchableOpacity
+                        style={styles.pixCopyBtn}
+                        onPress={() => copyBankSlipLine(pixView.identificationField!)}
+                      >
+                        <MaterialIcons name="content-copy" size={18} color="#FFFFFF" />
+                        <Text style={styles.pixCopyBtnText}>{t("plans.checkout.copyBankSlipLine")}</Text>
+                      </TouchableOpacity>
+                    ) : pixView.billingType === "BOLETO" && pixView.invoiceUrl ? (
                       <Text style={styles.pixHint}>{t("payments.pixUseInvoiceLink")}</Text>
                     ) : null}
                   </>
                 ) : null}
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={subscriptionPaidPlanName != null}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setSubscriptionPaidPlanName(null)}
+        >
+          <View style={[styles.modalOverlay, { backgroundColor: theme.colors.overlay }]}>
+            <View
+              style={[
+                styles.modalContent,
+                styles.successPlanModal,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 },
+              ]}
+            >
+              <View style={[styles.successIconRing, { backgroundColor: theme.colors.iconSoft }]}>
+                <MaterialIcons name="check-circle" size={40} color="#22C55E" />
+              </View>
+              <Text style={[styles.successPlanTitle, { color: theme.colors.text }]}>
+                {t("plans.checkout.paymentSuccessTitle")}
+              </Text>
+              <Text style={[styles.successPlanBody, { color: theme.colors.textMuted }]}>
+                {t("plans.checkout.paymentSuccessBody").replace(
+                  "{plan}",
+                  subscriptionPaidPlanName ?? "",
+                )}
+              </Text>
+              <TouchableOpacity
+                style={[styles.primaryButton, { marginTop: 8 }]}
+                onPress={() => {
+                  setSubscriptionPaidPlanName(null);
+                  navigate(paths.plans);
+                }}
+              >
+                <Text style={styles.primaryButtonText}>{t("plans.checkout.paymentSuccessOk")}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -485,6 +685,75 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 8,
   },
+  paymentMethodSection: {
+    paddingBottom: 18,
+  },
+  paymentMethodTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  paymentMethodSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  methodRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  methodCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    position: "relative",
+    minHeight: 152,
+  },
+  methodCardSelected: {
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  methodCheckBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  methodIconWell: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  methodCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  methodCardDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  generateChargeInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  generateChargeLabel: {
+    marginBottom: 0,
+  },
   primaryButton: {
     backgroundColor: "#6366F1",
     borderRadius: 10,
@@ -567,6 +836,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6B7280",
   },
+  boletoTimingHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -597,5 +871,33 @@ const styles = StyleSheet.create({
     maxHeight: 480,
     paddingHorizontal: 20,
     paddingBottom: 24,
+  },
+  successPlanModal: {
+    width: "92%",
+    maxWidth: 400,
+    borderRadius: 20,
+    paddingVertical: 26,
+    paddingHorizontal: 22,
+    alignItems: "center",
+  },
+  successIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  successPlanTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  successPlanBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 12,
   },
 });
