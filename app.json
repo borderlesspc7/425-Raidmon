@@ -2,7 +2,7 @@
   "expo": {
     "name": "Costura Conectada",
     "slug": "costura-conectada",
-    "owner": "costuraconectada",
+    "owner": "borderlesspc3",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -62,7 +62,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "6204285f-27ca-4a53-911a-c32f6eab34ac"
+        "projectId": "b44d0ca2-f5a9-4c86-9ec8-eec42c301067"
       }
     },
     "plugins": [
